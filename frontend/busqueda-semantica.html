@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/x-icon" href="images/favicon.ico">
+    <title>Búsqueda Semántica - Sistema OCR</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            color: #2c3e50;
+        }
+        
+        .search-section {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #34495e;
+        }
+        
+        input, select, textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        
+        textarea {
+            resize: vertical;
+            min-height: 60px;
+        }
+        
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 15px;
+        }
+        
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+        
+        .btn-primary {
+            background: #3498db;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #2980b9;
+        }
+        
+        .btn-secondary {
+            background: #95a5a6;
+            color: white;
+            margin-left: 10px;
+        }
+        
+        .btn-secondary:hover {
+            background: #7f8c8d;
+        }
+        
+        .results-section {
+            margin-top: 30px;
+        }
+        
+        .result-item {
+            background: white;
+            border: 1px solid #e1e8ed;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 15px;
+            transition: box-shadow 0.3s;
+        }
+        
+        .result-item:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        
+        .result-header {
+            display: flex;
+            justify-content: between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        
+        .result-title {
+            font-weight: 600;
+            color: #2c3e50;
+            font-size: 16px;
+        }
+        
+        .similarity-badge {
+            background: #27ae60;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        .result-meta {
+            color: #7f8c8d;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+        
+        .result-context {
+            background: #f8f9fa;
+            padding: 15px;
+            border-left: 4px solid #3498db;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #7f8c8d;
+        }
+        
+        .error {
+            background: #e74c3c;
+            color: white;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 15px 0;
+        }
+        
+        .info {
+            background: #3498db;
+            color: white;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 15px 0;
+        }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        
+        .stat-card {
+            background: #ecf0f1;
+            padding: 15px;
+            border-radius: 6px;
+            text-align: center;
+        }
+        
+        .stat-number {
+            font-size: 24px;
+            font-weight: 700;
+            color: #2c3e50;
+        }
+        
+        .stat-label {
+            color: #7f8c8d;
+            font-size: 12px;
+            text-transform: uppercase;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔍 Búsqueda Semántica</h1>
+            <p>Encuentra documentos relacionados conceptualmente usando inteligencia artificial</p>
+        </div>
+
+        <div class="search-section">
+            <div class="form-group">
+                <label for="query">Consulta de búsqueda:</label>
+                <textarea 
+                    id="query" 
+                    placeholder="Ej: homicidio en la colonia del valle, robo de vehículo, violencia doméstica..."
+                ></textarea>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="carpeta_id">Carpeta (opcional):</label>
+                    <select id="carpeta_id">
+                        <option value="">Todas las carpetas</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="similitud">Similitud mínima:</label>
+                    <select id="similitud">
+                        <option value="0.3">30% - Muy flexible</option>
+                        <option value="0.5" selected>50% - Balanceado</option>
+                        <option value="0.7">70% - Estricto</option>
+                        <option value="0.8">80% - Muy estricto</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="limit">Resultados máximos:</label>
+                    <select id="limit">
+                        <option value="20">20</option>
+                        <option value="50" selected>50</option>
+                        <option value="100">100</option>
+                    </select>
+                </div>
+            </div>
+
+            <div style="margin-top: 20px;">
+                <button class="btn btn-primary" onclick="buscarSemantica()">
+                    🚀 Buscar con IA
+                </button>
+                <button class="btn btn-secondary" onclick="actualizarEmbeddings()">
+                    🔄 Actualizar Embeddings
+                </button>
+            </div>
+        </div>
+
+        <div id="results" class="results-section" style="display: none;">
+            <h3>Resultados:</h3>
+            <div id="stats" class="stats"></div>
+            <div id="results-list"></div>
+        </div>
+    </div>
+
+    <script>
+        // Variables globales
+        let currentToken = localStorage.getItem('access_token');
+
+        // Cargar carpetas al inicializar
+        document.addEventListener('DOMContentLoaded', function() {
+            cargarCarpetas();
+        });
+
+        async function cargarCarpetas() {
+            try {
+                const response = await fetch('/api/carpetas', {
+                    headers: {
+                        'Authorization': `Bearer ${currentToken}`
+                    }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    const select = document.getElementById('carpeta_id');
+                    
+                    data.carpetas.forEach(carpeta => {
+                        const option = document.createElement('option');
+                        option.value = carpeta.id;
+                        option.textContent = carpeta.nombre_completo;
+                        select.appendChild(option);
+                    });
+                }
+            } catch (error) {
+                console.error('Error cargando carpetas:', error);
+            }
+        }
+
+        async function buscarSemantica() {
+            const query = document.getElementById('query').value.trim();
+            const carpeta_id = document.getElementById('carpeta_id').value;
+            const similitud_minima = parseFloat(document.getElementById('similitud').value);
+            const limit = parseInt(document.getElementById('limit').value);
+
+            if (!query || query.length < 3) {
+                mostrarError('La consulta debe tener al menos 3 caracteres');
+                return;
+            }
+
+            if (!currentToken) {
+                mostrarError('Debe iniciar sesión para realizar búsquedas');
+                return;
+            }
+
+            mostrarCargando();
+
+            try {
+                const payload = {
+                    query: query,
+                    similitud_minima: similitud_minima,
+                    limit: limit
+                };
+
+                if (carpeta_id) {
+                    payload.carpeta_id = parseInt(carpeta_id);
+                }
+
+                const response = await fetch('/api/busqueda/semantica', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${currentToken}`
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.success) {
+                    mostrarResultados(data);
+                } else {
+                    mostrarError(data.detail || data.message || 'Error en la búsqueda');
+                }
+
+            } catch (error) {
+                console.error('Error en búsqueda semántica:', error);
+                mostrarError('Error de conexión: ' + error.message);
+            }
+        }
+
+        async function actualizarEmbeddings() {
+            if (!currentToken) {
+                mostrarError('Debe iniciar sesión para actualizar embeddings');
+                return;
+            }
+
+            if (!confirm('¿Actualizar embeddings? Este proceso puede tomar varios minutos.')) {
+                return;
+            }
+
+            mostrarInfo('Actualizando embeddings... Este proceso puede tomar tiempo.');
+
+            try {
+                const response = await fetch('/api/busqueda/actualizar-embeddings', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${currentToken}`
+                    }
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    mostrarInfo(`Embeddings actualizados correctamente. ${data.total_actualizado} registros procesados.`);
+                } else {
+                    mostrarError(data.detail || 'Error actualizando embeddings');
+                }
+
+            } catch (error) {
+                console.error('Error actualizando embeddings:', error);
+                mostrarError('Error de conexión: ' + error.message);
+            }
+        }
+
+        function mostrarResultados(data) {
+            const resultsDiv = document.getElementById('results');
+            const statsDiv = document.getElementById('stats');
+            const listDiv = document.getElementById('results-list');
+
+            // Mostrar estadísticas
+            statsDiv.innerHTML = `
+                <div class="stat-card">
+                    <div class="stat-number">${data.total}</div>
+                    <div class="stat-label">Documentos encontrados</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">${data.parametros.similitud_minima * 100}%</div>
+                    <div class="stat-label">Similitud mínima</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">${data.parametros.tipo_busqueda}</div>
+                    <div class="stat-label">Tipo de búsqueda</div>
+                </div>
+            `;
+
+            // Mostrar resultados
+            if (data.resultados.length === 0) {
+                listDiv.innerHTML = '<div class="info">No se encontraron documentos con la similitud especificada.</div>';
+            } else {
+                listDiv.innerHTML = data.resultados.map(resultado => `
+                    <div class="result-item">
+                        <div class="result-header">
+                            <div class="result-title">
+                                📁 ${resultado.carpeta_nombre} - Tomo ${resultado.numero_tomo}
+                            </div>
+                            <div class="similarity-badge">
+                                ${(resultado.similitud * 100).toFixed(1)}% similar
+                            </div>
+                        </div>
+                        <div class="result-meta">
+                            📄 ${resultado.nombre_archivo} - Página ${resultado.pagina}
+                            ${resultado.confianza_porcentaje ? `- Confianza OCR: ${resultado.confianza_porcentaje}%` : ''}
+                        </div>
+                        <div class="result-context">
+                            ${resultado.contexto}
+                        </div>
+                    </div>
+                `).join('');
+            }
+
+            resultsDiv.style.display = 'block';
+        }
+
+        function mostrarCargando() {
+            const resultsDiv = document.getElementById('results');
+            const listDiv = document.getElementById('results-list');
+            
+            listDiv.innerHTML = '<div class="loading">🔍 Buscando documentos relacionados con IA...</div>';
+            resultsDiv.style.display = 'block';
+        }
+
+        function mostrarError(mensaje) {
+            const resultsDiv = document.getElementById('results');
+            const listDiv = document.getElementById('results-list');
+            
+            listDiv.innerHTML = `<div class="error">❌ ${mensaje}</div>`;
+            resultsDiv.style.display = 'block';
+        }
+
+        function mostrarInfo(mensaje) {
+            const resultsDiv = document.getElementById('results');
+            const listDiv = document.getElementById('results-list');
+            
+            listDiv.innerHTML = `<div class="info">ℹ️ ${mensaje}</div>`;
+            resultsDiv.style.display = 'block';
+        }
+
+        // Permitir búsqueda con Enter
+        document.getElementById('query').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                buscarSemantica();
+            }
+        });
+    </script>
+</body>
+</html>

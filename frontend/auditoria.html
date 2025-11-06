@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auditoría del Sistema - OCR FGJCDMX</title>
+    <style>
+        :root {
+            --primary-color: #1a365d;
+            --secondary-color: #2c5282;
+            --accent-color: #3182ce;
+            --success-color: #38a169;
+            --warning-color: #d69e2e;
+            --danger-color: #e53e3e;
+            --light-bg: #f7fafc;
+            --border-color: #e2e8f0;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--light-bg);
+            color: #2d3748;
+            line-height: 1.6;
+        }
+
+        .header {
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+            color: white;
+            padding: 2rem 0;
+            text-align: center;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            position: relative;
+        }
+
+        .back-button {
+            position: absolute;
+            left: 2rem;
+            top: 50%;
+            transform: translateY(-50%);
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .back-button:hover {
+            background: rgba(255, 255, 255, 0.3);
+            border-color: rgba(255, 255, 255, 0.5);
+            transform: translateY(-50%) translateX(-3px);
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+            font-weight: 700;
+        }
+
+        .header p {
+            font-size: 1.2rem;
+            opacity: 0.9;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 2rem auto;
+            padding: 0 2rem;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 2rem;
+            margin-bottom: 3rem;
+        }
+
+        .stat-card {
+            background: white;
+            border-radius: 12px;
+            padding: 2rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+            border: 1px solid var(--border-color);
+            text-align: center;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+        }
+
+        .stat-number {
+            font-size: 3rem;
+            font-weight: 700;
+            color: var(--accent-color);
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-label {
+            font-size: 1.1rem;
+            color: #718096;
+            font-weight: 500;
+        }
+
+        .controls {
+            background: white;
+            border-radius: 12px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+            border: 1px solid var(--border-color);
+        }
+
+        .controls h3 {
+            margin-bottom: 1.5rem;
+            color: var(--primary-color);
+            font-size: 1.5rem;
+        }
+
+        .filter-group {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .form-group label {
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            color: #4a5568;
+        }
+
+        .form-group select,
+        .form-group input {
+            padding: 0.75rem;
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.2s ease;
+        }
+
+        .form-group select:focus,
+        .form-group input:focus {
+            outline: none;
+            border-color: var(--accent-color);
+        }
+
+        .btn {
+            background: var(--accent-color);
+            color: white;
+            border: none;
+            padding: 0.75rem 2rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 600;
+            transition: background-color 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn:hover {
+            background: var(--secondary-color);
+        }
+
+        .btn-secondary {
+            background: #718096;
+        }
+
+        .btn-secondary:hover {
+            background: #4a5568;
+        }
+
+        .audit-table {
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+            border: 1px solid var(--border-color);
+        }
+
+        .audit-table h3 {
+            background: var(--primary-color);
+            color: white;
+            padding: 1.5rem;
+            margin: 0;
+            font-size: 1.5rem;
+        }
+
+        .table-container {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            padding: 1rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        th {
+            background-color: #f8f9fa;
+            font-weight: 600;
+            color: var(--primary-color);
+        }
+
+        tr:hover {
+            background-color: #f8f9fa;
+        }
+
+        .action-badge {
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.875rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .action-login { background: #d4edda; color: #155724; }
+        .action-logout { background: #fff3cd; color: #856404; }
+        .action-create { background: #cce5ff; color: #004085; }
+        .action-update { background: #e2e3e5; color: #383d41; }
+        .action-delete { background: #f8d7da; color: #721c24; }
+        .action-permission { background: #e7e3ff; color: #5a54a4; }
+
+        .loading {
+            text-align: center;
+            padding: 3rem;
+            color: #718096;
+        }
+
+        .error {
+            background: #fed7d7;
+            color: #742a2a;
+            padding: 1rem;
+            border-radius: 8px;
+            margin: 1rem 0;
+        }
+
+        .ip-address {
+            font-family: 'Courier New', monospace;
+            background: #edf2f7;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.875rem;
+        }
+
+        .timestamp {
+            white-space: nowrap;
+            font-size: 0.875rem;
+            color: #718096;
+        }
+
+        .refresh-indicator {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid #e2e8f0;
+            border-top: 2px solid var(--accent-color);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-left: 0.5rem;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .auto-refresh {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <a href="/dashboard.html" class="back-button">
+            ← Volver al Dashboard
+        </a>
+        <h1>🔍 Auditoría del Sistema</h1>
+        <p>Monitoreo de Actividades - Sistema OCR FGJCDMX</p>
+    </div>
+
+    <div class="container">
+        <!-- Estadísticas -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-number" id="totalEvents">-</div>
+                <div class="stat-label">Total de Eventos</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="activeUsers">-</div>
+                <div class="stat-label">Usuarios Activos</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="criticalEvents">-</div>
+                <div class="stat-label">Eventos Críticos</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="todayEvents">-</div>
+                <div class="stat-label">Eventos Hoy</div>
+            </div>
+        </div>
+
+        <!-- Controles -->
+        <div class="controls">
+            <h3>🎯 Filtros de Auditoría</h3>
+            <div class="filter-group">
+                <div class="form-group">
+                    <label for="periodFilter">Período:</label>
+                    <select id="periodFilter">
+                        <option value="1">Último día</option>
+                        <option value="7" selected>Última semana</option>
+                        <option value="30">Último mes</option>
+                        <option value="90">Últimos 3 meses</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="userFilter">Usuario:</label>
+                    <select id="userFilter">
+                        <option value="">Todos los usuarios</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="actionFilter">Acción:</label>
+                    <select id="actionFilter">
+                        <option value="">Todas las acciones</option>
+                        <option value="LOGIN_EXITOSO">Login Exitoso</option>
+                        <option value="LOGIN_FALLIDO">Login Fallido</option>
+                        <option value="CREAR_USUARIO">Crear Usuario</option>
+                        <option value="MODIFICAR_USUARIO">Modificar Usuario</option>
+                        <option value="ELIMINAR_USUARIO">Eliminar Usuario</option>
+                        <option value="MODIFICAR_PERMISOS">Modificar Permisos</option>
+                        <option value="PROCESAR_OCR">Procesar OCR</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="ipFilter">Dirección IP:</label>
+                    <input type="text" id="ipFilter" placeholder="Ej: 192.168.1.100">
+                </div>
+            </div>
+            <div class="auto-refresh">
+                <button class="btn" onclick="loadAuditData()">
+                    🔄 Actualizar Datos
+                </button>
+                <button class="btn btn-secondary" onclick="exportData()">
+                    📊 Exportar
+                </button>
+                <div class="checkbox-group">
+                    <input type="checkbox" id="autoRefresh" onchange="toggleAutoRefresh()">
+                    <label for="autoRefresh">Actualización automática (30s)</label>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabla de Auditoría -->
+        <div class="audit-table">
+            <h3>📋 Eventos de Auditoría <span id="refreshIndicator" class="refresh-indicator" style="display: none;"></span></h3>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Fecha/Hora</th>
+                            <th>Usuario</th>
+                            <th>Acción</th>
+                            <th>Tabla</th>
+                            <th>IP</th>
+                            <th>Detalles</th>
+                        </tr>
+                    </thead>
+                    <tbody id="auditTableBody">
+                        <tr>
+                            <td colspan="6" class="loading">
+                                🔄 Cargando datos de auditoría...
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let autoRefreshInterval = null;
+
+        // Configuración de la API
+        const API_BASE = window.location.origin + '/api';
+
+        // Verificar sesión al cargar la página
+        function verificarSesion() {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                // Redirigir al login si no hay token
+                window.location.href = '/index.html';
+                return false;
+            }
+            return true;
+        }
+
+        // Cargar datos iniciales
+        document.addEventListener('DOMContentLoaded', function() {
+            // Verificar sesión antes de cargar datos
+            if (!verificarSesion()) {
+                return;
+            }
+            
+            // Registrar que el usuario accedió a la auditoría (solo una vez)
+            registrarAccesoAuditoria();
+            
+            loadUsers();
+            loadAuditData();
+        });
+
+        // Registrar acceso a auditoría (se llama solo al cargar la página)
+        async function registrarAccesoAuditoria() {
+            // Verificar si ya se registró en esta sesión
+            const yaRegistrado = sessionStorage.getItem('auditoria_acceso_registrado');
+            if (yaRegistrado) {
+                console.log('Acceso ya registrado en esta sesión');
+                return;
+            }
+            
+            try {
+                const token = localStorage.getItem('token');
+                const response = await fetch(`${API_BASE}/auditoria/registrar-acceso`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                if (response.ok) {
+                    // Marcar como registrado en esta sesión
+                    sessionStorage.setItem('auditoria_acceso_registrado', 'true');
+                    console.log('Acceso a auditoría registrado');
+                }
+            } catch (error) {
+                console.error('Error registrando acceso:', error);
+            }
+        }
+
+        // Cargar lista de usuarios
+        async function loadUsers() {
+            try {
+                const token = localStorage.getItem('token');
+                const response = await fetch(`${API_BASE}/auditoria/usuarios-activos`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (!response.ok) {
+                    console.error('Error cargando usuarios');
+                    return;
+                }
+
+                const users = await response.json();
+                const userSelect = document.getElementById('userFilter');
+                
+                users.forEach(user => {
+                    const option = document.createElement('option');
+                    option.value = user.username;
+                    option.textContent = `${user.nombre_completo || user.username} (${user.username})`;
+                    userSelect.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Error cargando usuarios:', error);
+            }
+        }
+
+        // Cargar datos de auditoría
+        async function loadAuditData() {
+            const refreshIndicator = document.getElementById('refreshIndicator');
+            refreshIndicator.style.display = 'inline-block';
+
+            try {
+                const token = localStorage.getItem('token');
+                if (!token) {
+                    showError('No hay sesión activa. Por favor inicia sesión.');
+                    return;
+                }
+
+                // Obtener filtros
+                const periodo = document.getElementById('periodFilter').value;
+                const usuario = document.getElementById('userFilter').value;
+                const accion = document.getElementById('actionFilter').value;
+                const ip = document.getElementById('ipFilter').value;
+
+                // Construir URL con parámetros
+                let url = `${API_BASE}/auditoria/eventos?limit=100`;
+                if (periodo) url += `&periodo=${periodo}`;
+                if (usuario) url += `&usuario=${usuario}`;
+                if (accion && accion !== 'all') url += `&accion=${accion}`;
+                if (ip) url += `&ip=${ip}`;
+
+                // Obtener eventos
+                const eventosResponse = await fetch(url, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (!eventosResponse.ok) {
+                    throw new Error('Error al cargar eventos de auditoría');
+                }
+
+                const eventos = await eventosResponse.json();
+
+                // Obtener estadísticas
+                let statsUrl = `${API_BASE}/auditoria/estadisticas`;
+                if (periodo) statsUrl += `?periodo=${periodo}`;
+
+                const statsResponse = await fetch(statsUrl, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (!statsResponse.ok) {
+                    throw new Error('Error al cargar estadísticas');
+                }
+
+                const stats = await statsResponse.json();
+
+                // Actualizar interfaz
+                updateStats(stats, eventos.length);
+                updateAuditTable(eventos);
+                
+            } catch (error) {
+                console.error('Error cargando datos:', error);
+                showError('Error al cargar los datos de auditoría: ' + error.message);
+            } finally {
+                refreshIndicator.style.display = 'none';
+            }
+        }
+
+        // Actualizar estadísticas
+        function updateStats(stats, totalEventos) {
+            document.getElementById('totalEvents').textContent = totalEventos || stats.total_eventos;
+            document.getElementById('activeUsers').textContent = stats.usuarios_activos;
+            document.getElementById('criticalEvents').textContent = stats.acciones_criticas;
+            document.getElementById('todayEvents').textContent = stats.logins_exitosos + stats.logins_fallidos;
+        }
+
+        // Actualizar tabla de auditoría
+        function updateAuditTable(events) {
+            const tbody = document.getElementById('auditTableBody');
+            
+            if (events.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="6" class="loading">
+                            📭 No se encontraron eventos con los filtros seleccionados
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = events.map(event => {
+                const detalles = generarDetalles(event);
+                const nombreUsuario = event.nombre_completo || event.username || 'Sistema';
+                
+                return `
+                    <tr>
+                        <td class="timestamp">${formatDateTime(event.created_at)}</td>
+                        <td>${event.username ? nombreUsuario : '<span style="color: #718096;">Sistema</span>'}</td>
+                        <td><span class="action-badge ${getActionClass(event.accion)}">${event.accion}</span></td>
+                        <td>${event.tabla_afectada || '-'}</td>
+                        <td>${event.ip_address ? `<span class="ip-address">${event.ip_address}</span>` : '-'}</td>
+                        <td>${detalles}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        // Generar detalles a partir de valores_nuevos y valores_anteriores
+        function generarDetalles(event) {
+            let detalles = [];
+            
+            if (event.valores_nuevos) {
+                if (event.valores_nuevos.username) {
+                    detalles.push(`Usuario: ${event.valores_nuevos.username}`);
+                }
+                if (event.valores_nuevos.evento) {
+                    detalles.push(event.valores_nuevos.evento.replace(/_/g, ' '));
+                }
+                if (event.valores_nuevos.nombre) {
+                    detalles.push(`Nombre: ${event.valores_nuevos.nombre}`);
+                }
+            }
+            
+            if (event.valores_anteriores) {
+                if (event.valores_anteriores.username) {
+                    detalles.push(`Usuario anterior: ${event.valores_anteriores.username}`);
+                }
+            }
+
+            // Si hay user_agent, extraer navegador
+            if (event.user_agent) {
+                const browser = extractBrowser(event.user_agent);
+                if (browser) {
+                    detalles.push(`Navegador: ${browser}`);
+                }
+            }
+            
+            return detalles.length > 0 ? detalles.join(' • ') : '-';
+        }
+
+        // Extraer navegador del user agent
+        function extractBrowser(userAgent) {
+            if (!userAgent) return null;
+            
+            if (userAgent.includes('Chrome')) return 'Chrome';
+            if (userAgent.includes('Firefox')) return 'Firefox';
+            if (userAgent.includes('Safari')) return 'Safari';
+            if (userAgent.includes('Edge')) return 'Edge';
+            if (userAgent.includes('Opera')) return 'Opera';
+            
+            return null;
+        }
+
+        // Formatear fecha y hora
+        function formatDateTime(isoString) {
+            const date = new Date(isoString);
+            return date.toLocaleString('es-ES', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            });
+        }
+
+        // Obtener clase CSS para el tipo de acción
+        function getActionClass(action) {
+            if (action.includes('LOGIN')) return 'action-login';
+            if (action.includes('LOGOUT')) return 'action-logout';
+            if (action.includes('CREAR')) return 'action-create';
+            if (action.includes('MODIFICAR') || action.includes('UPDATE')) return 'action-update';
+            if (action.includes('ELIMINAR') || action.includes('DELETE')) return 'action-delete';
+            if (action.includes('PERMISO')) return 'action-permission';
+            return 'action-update';
+        }
+
+        // Mostrar error
+        function showError(message) {
+            const tbody = document.getElementById('auditTableBody');
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="6" class="error">
+                        ❌ ${message}
+                    </td>
+                </tr>
+            `;
+        }
+
+        // Activar/desactivar actualización automática
+        function toggleAutoRefresh() {
+            const checkbox = document.getElementById('autoRefresh');
+            
+            if (checkbox.checked) {
+                autoRefreshInterval = setInterval(loadAuditData, 30000);
+                console.log('Actualización automática activada');
+            } else {
+                if (autoRefreshInterval) {
+                    clearInterval(autoRefreshInterval);
+                    autoRefreshInterval = null;
+                }
+                console.log('Actualización automática desactivada');
+            }
+        }
+
+        // Exportar datos
+        function exportData() {
+            alert('🚧 Funcionalidad de exportación en desarrollo.\n\nMientras tanto, puedes usar el comando:\n./scripts/auditoria-admin.sh consulta "SELECT * FROM auditoria ORDER BY created_at DESC;"');
+        }
+
+        // Event listeners para filtros
+        document.getElementById('periodFilter').addEventListener('change', loadAuditData);
+        document.getElementById('userFilter').addEventListener('change', loadAuditData);
+        document.getElementById('actionFilter').addEventListener('change', loadAuditData);
+        document.getElementById('ipFilter').addEventListener('input', debounce(loadAuditData, 500));
+
+        // Función debounce para optimizar las búsquedas
+        function debounce(func, wait) {
+            let timeout;
+            return function executedFunction(...args) {
+                const later = () => {
+                    clearTimeout(timeout);
+                    func(...args);
+                };
+                clearTimeout(timeout);
+                timeout = setTimeout(later, wait);
+            };
+        }
+
+        // Limpiar intervalos al cerrar la página
+        window.addEventListener('beforeunload', function() {
+            if (autoRefreshInterval) {
+                clearInterval(autoRefreshInterval);
+            }
+        });
+    </script>
+</body>
+</html>

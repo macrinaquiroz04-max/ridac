@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monitor de Progreso OCR - Sistema Fiscalía</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css">
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .monitor-card {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            padding: 30px;
+            margin-bottom: 20px;
+        }
+        .progress {
+            height: 40px;
+            font-size: 16px;
+            font-weight: bold;
+            border-radius: 20px;
+            overflow: visible;
+        }
+        .progress-bar {
+            transition: width 0.5s ease;
+            position: relative;
+            overflow: visible;
+        }
+        .progress-label {
+            position: absolute;
+            width: 100%;
+            text-align: center;
+            line-height: 40px;
+            color: white;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
+        }
+        .stat-box {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            margin-bottom: 15px;
+        }
+        .stat-value {
+            font-size: 2rem;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        .stat-label {
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: bold;
+            margin: 5px;
+        }
+        .status-processing {
+            background-color: #ffc107;
+            color: #000;
+        }
+        .status-completed {
+            background-color: #28a745;
+            color: white;
+        }
+        .status-error {
+            background-color: #dc3545;
+            color: white;
+        }
+        .status-idle {
+            background-color: #6c757d;
+            color: white;
+        }
+        .log-entry {
+            padding: 8px 12px;
+            margin: 5px 0;
+            border-left: 4px solid #667eea;
+            background: #f8f9fa;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+        }
+        .log-container {
+            max-height: 300px;
+            overflow-y: auto;
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+        }
+        .animated-icon {
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.1); opacity: 0.8; }
+        }
+        .btn-custom {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 10px 25px;
+            border-radius: 25px;
+            font-weight: bold;
+            transition: transform 0.2s;
+        }
+        .btn-custom:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="monitor-card">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2><i class="bi bi-activity animated-icon"></i> Monitor de Progreso OCR</h2>
+                <div>
+                    <button class="btn btn-custom me-2" onclick="window.location.href='dashboard.html'">
+                        <i class="bi bi-house-door"></i> Dashboard
+                    </button>
+                    <button class="btn btn-custom" onclick="location.reload()">
+                        <i class="bi bi-arrow-clockwise"></i> Actualizar
+                    </button>
+                </div>
+            </div>
+
+            <!-- Selector de Tomo -->
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <label class="form-label fw-bold">Seleccionar Tomo:</label>
+                    <select id="tomoSelect" class="form-select form-select-lg">
+                        <option value="">-- Seleccione un tomo --</option>
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-bold">Tipo de Proceso:</label>
+                    <select id="tipoProcesoSelect" class="form-select form-select-lg">
+                        <option value="ocr">OCR</option>
+                        <option value="analisis">Análisis Jurídico</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="row mb-4">
+                <div class="col-md-12 text-center">
+                    <button id="startMonitorBtn" class="btn btn-custom btn-lg" onclick="startMonitoring()">
+                        <i class="bi bi-play-circle"></i> Iniciar Monitoreo
+                    </button>
+                    <button id="stopMonitorBtn" class="btn btn-danger btn-lg" style="display: none;" onclick="stopMonitoring()">
+                        <i class="bi bi-stop-circle"></i> Detener Monitoreo
+                    </button>
+                </div>
+            </div>
+
+            <!-- Estado Actual -->
+            <div id="monitorContent" style="display: none;">
+                <div class="row mb-4">
+                    <div class="col-md-12">
+                        <h4>
+                            Estado: <span id="estadoBadge" class="status-badge status-idle">Inactivo</span>
+                        </h4>
+                    </div>
+                </div>
+
+                <!-- Barra de Progreso -->
+                <div class="mb-4">
+                    <label class="form-label fw-bold">Progreso Total:</label>
+                    <div class="progress">
+                        <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated bg-success" 
+                             role="progressbar" style="width: 0%">
+                            <span class="progress-label" id="progressLabel">0%</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Estadísticas -->
+                <div class="row">
+                    <div class="col-md-3">
+                        <div class="stat-box">
+                            <i class="bi bi-file-earmark-text" style="font-size: 2rem;"></i>
+                            <div class="stat-value" id="paginaActual">0</div>
+                            <div class="stat-label">Página Actual</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="stat-box">
+                            <i class="bi bi-files" style="font-size: 2rem;"></i>
+                            <div class="stat-value" id="totalPaginas">0</div>
+                            <div class="stat-label">Total Páginas</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="stat-box">
+                            <i class="bi bi-clock-history" style="font-size: 2rem;"></i>
+                            <div class="stat-value" id="tiempoTranscurrido">00:00</div>
+                            <div class="stat-label">Tiempo Transcurrido</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="stat-box">
+                            <i class="bi bi-hourglass-split" style="font-size: 2rem;"></i>
+                            <div class="stat-value" id="tiempoEstimado">--</div>
+                            <div class="stat-label">Tiempo Estimado</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Detalles Adicionales -->
+                <div class="row mt-4">
+                    <div class="col-md-6">
+                        <div class="stat-box" style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);">
+                            <i class="bi bi-speedometer2" style="font-size: 2rem;"></i>
+                            <div class="stat-value" id="velocidad">0</div>
+                            <div class="stat-label">Páginas/Minuto</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="stat-box" style="background: linear-gradient(135deg, #ee0979 0%, #ff6a00 100%);">
+                            <i class="bi bi-people" style="font-size: 2rem;"></i>
+                            <div class="stat-value" id="personasEncontradas">0</div>
+                            <div class="stat-label">Personas Identificadas</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Log de Eventos -->
+                <div class="mt-4">
+                    <h5><i class="bi bi-list-ul"></i> Registro de Eventos</h5>
+                    <div class="log-container" id="logContainer">
+                        <div class="log-entry">Esperando inicio de proceso...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Detectar automáticamente la URL base del servidor
+        // Si estamos en nginx (puerto 80), NO agregar :8000, usar proxy
+        // Si estamos en backend directo (puerto 8000), usar ese puerto
+        const isNginx = window.location.port === '' || window.location.port === '80';
+        const API_BASE_URL = isNginx 
+            ? `${window.location.protocol}//${window.location.hostname}`
+            : `${window.location.protocol}//${window.location.hostname}:8000`;
+        
+        console.log('🌐 Modo:', isNginx ? 'Nginx Proxy' : 'Backend Directo');
+        console.log('🌐 API Base URL:', API_BASE_URL);
+
+        let eventSource = null;
+        let startTime = null;
+        let timerInterval = null;
+        let tomos = [];
+
+        // Cargar tomos disponibles
+        async function cargarTomos() {
+            try {
+                const token = localStorage.getItem('token');
+                if (!token) {
+                    addLog('❌ No hay token de autenticación. Redirigiendo a login...', 'error');
+                    setTimeout(() => window.location.href = 'index.html', 2000);
+                    return;
+                }
+
+                addLog('📡 Cargando carpetas...', 'info');
+                console.log('🔗 Solicitando carpetas desde:', `${API_BASE_URL}/api/carpetas`);
+                
+                // Primero cargar las carpetas
+                const carpetasResponse = await fetch(`${API_BASE_URL}/api/carpetas`, {
+                    headers: { 
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (!carpetasResponse.ok) {
+                    if (carpetasResponse.status === 401) {
+                        addLog('❌ Token expirado. Redirigiendo a login...', 'error');
+                        setTimeout(() => window.location.href = 'index.html', 2000);
+                        return;
+                    }
+                    throw new Error(`Error al cargar carpetas: ${carpetasResponse.status}`);
+                }
+                
+                const carpetas = await carpetasResponse.json();
+                console.log('📂 Carpetas obtenidas:', carpetas.length);
+                
+                if (carpetas.length === 0) {
+                    addLog('⚠️ No hay carpetas disponibles', 'warning');
+                    return;
+                }
+                
+                addLog(`✅ ${carpetas.length} carpeta(s) encontrada(s)`, 'success');
+                
+                // Ahora cargar los tomos de cada carpeta
+                tomos = [];
+                const select = document.getElementById('tomoSelect');
+                
+                // Limpiar opciones existentes excepto la primera
+                while (select.options.length > 1) {
+                    select.remove(1);
+                }
+                
+                for (const carpeta of carpetas) {
+                    console.log(`📡 Cargando tomos de carpeta ${carpeta.id}...`);
+                    const numeroCarpeta = carpeta.numero || carpeta.numero_carpeta || carpeta.id;
+                    addLog(`📁 Cargando tomos de carpeta ${numeroCarpeta}...`, 'info');
+                    
+                    const tomosResponse = await fetch(`${API_BASE_URL}/api/tomos/${carpeta.id}`, {
+                        headers: { 
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                    
+                    if (tomosResponse.ok) {
+                        const tomosCarpeta = await tomosResponse.json();
+                        console.log(`   ✅ ${tomosCarpeta.length} tomos en carpeta ${carpeta.id}`);
+                        tomos.push(...tomosCarpeta);
+                        
+                        // Agregar tomos al select
+                        tomosCarpeta.forEach(tomo => {
+                            const option = document.createElement('option');
+                            option.value = tomo.id;
+                            const numeroTomo = tomo.numero_tomo || tomo.numero || tomo.id;
+                            const numPaginas = tomo.numero_paginas || tomo.paginas || 0;
+                            option.textContent = `Carpeta ${numeroCarpeta} - Tomo ${numeroTomo} (${numPaginas} págs)`;
+                            select.appendChild(option);
+                        });
+                    } else {
+                        console.warn(`⚠️ Error al cargar tomos de carpeta ${carpeta.id}:`, tomosResponse.status);
+                        addLog(`⚠️ No se pudieron cargar tomos de carpeta ${numeroCarpeta}`, 'warning');
+                    }
+                }
+                
+                if (tomos.length === 0) {
+                    addLog('⚠️ No hay tomos disponibles en ninguna carpeta', 'warning');
+                } else {
+                    addLog(`✅ Total: ${tomos.length} tomo(s) cargado(s) correctamente`, 'success');
+                    console.log('📊 Tomos totales cargados:', tomos.length);
+                }
+                
+            } catch (error) {
+                console.error('❌ Error al cargar tomos:', error);
+                addLog('❌ Error de conexión: ' + error.message, 'error');
+                addLog('💡 Verifica que el backend esté ejecutándose', 'warning');
+            }
+        }
+
+        function startMonitoring() {
+            const tomoId = document.getElementById('tomoSelect').value;
+            const tipoProceso = document.getElementById('tipoProcesoSelect').value;
+
+            if (!tomoId) {
+                alert('Por favor selecciona un tomo');
+                return;
+            }
+
+            // Mostrar contenido de monitoreo
+            document.getElementById('monitorContent').style.display = 'block';
+            document.getElementById('startMonitorBtn').style.display = 'none';
+            document.getElementById('stopMonitorBtn').style.display = 'inline-block';
+
+            // Limpiar log
+            document.getElementById('logContainer').innerHTML = '';
+            
+            // Iniciar temporizador
+            startTime = Date.now();
+            timerInterval = setInterval(updateTimer, 1000);
+
+            // Conectar a SSE
+            const token = localStorage.getItem('token');
+            const url = `${API_BASE_URL}/api/progress/${tipoProceso}/${tomoId}?token=${encodeURIComponent(token)}`;
+            
+            addLog(`📡 Conectando a: ${url}`, 'info');
+            console.log('SSE URL:', url);
+            
+            eventSource = new EventSource(url);
+
+            eventSource.onopen = function() {
+                updateEstado('Conectado', 'processing');
+                addLog('✅ Conexión SSE establecida con el servidor');
+            };
+
+            eventSource.onmessage = function(event) {
+                try {
+                    const data = JSON.parse(event.data);
+                    console.log('SSE Data:', data);
+                    updateProgress(data);
+                } catch (error) {
+                    console.error('Error al parsear datos SSE:', error);
+                    addLog('⚠️ Error al procesar datos: ' + error.message, 'warning');
+                }
+            };
+
+            eventSource.onerror = function(error) {
+                console.error('Error en SSE:', error);
+                if (eventSource.readyState === EventSource.CLOSED) {
+                    updateEstado('Desconectado', 'error');
+                    addLog('❌ Conexión SSE perdida con el servidor', 'error');
+                    stopMonitoring();
+                } else if (eventSource.readyState === EventSource.CONNECTING) {
+                    addLog('🔄 Reconectando...', 'warning');
+                }
+            };
+
+            addLog(`🚀 Iniciando monitoreo del Tomo ${tomoId} (${tipoProceso})...`);
+        }
+
+        function stopMonitoring() {
+            if (eventSource) {
+                eventSource.close();
+                eventSource = null;
+            }
+            
+            if (timerInterval) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+            }
+
+            document.getElementById('startMonitorBtn').style.display = 'inline-block';
+            document.getElementById('stopMonitorBtn').style.display = 'none';
+            updateEstado('Detenido', 'idle');
+            addLog('⏹️ Monitoreo detenido');
+        }
+
+        function updateProgress(data) {
+            // Actualizar barra de progreso
+            const progreso = data.progreso || 0;
+            document.getElementById('progressBar').style.width = progreso + '%';
+            document.getElementById('progressLabel').textContent = progreso.toFixed(1) + '%';
+
+            // Actualizar estadísticas
+            if (data.pagina_actual) {
+                document.getElementById('paginaActual').textContent = data.pagina_actual;
+            }
+            
+            if (data.total_paginas) {
+                document.getElementById('totalPaginas').textContent = data.total_paginas;
+            }
+
+            if (data.tiempo_estimado) {
+                document.getElementById('tiempoEstimado').textContent = formatTime(data.tiempo_estimado);
+            }
+
+            if (data.velocidad) {
+                document.getElementById('velocidad').textContent = data.velocidad.toFixed(1);
+            }
+
+            if (data.personas_encontradas !== undefined) {
+                document.getElementById('personasEncontradas').textContent = data.personas_encontradas;
+            }
+
+            // Actualizar estado
+            if (data.estado) {
+                let estadoClass = 'processing';
+                if (data.estado === 'completado') {
+                    estadoClass = 'completed';
+                    stopMonitoring();
+                    addLog('✅ Proceso completado exitosamente!', 'success');
+                } else if (data.estado === 'error') {
+                    estadoClass = 'error';
+                    stopMonitoring();
+                    addLog('❌ Error en el proceso: ' + (data.mensaje || 'Error desconocido'), 'error');
+                }
+                updateEstado(data.estado, estadoClass);
+            }
+
+            // Log de progreso
+            if (data.mensaje) {
+                addLog(data.mensaje);
+            }
+        }
+
+        function updateEstado(texto, tipo) {
+            const badge = document.getElementById('estadoBadge');
+            badge.textContent = texto;
+            badge.className = 'status-badge status-' + tipo;
+        }
+
+        function updateTimer() {
+            if (!startTime) return;
+            const elapsed = Math.floor((Date.now() - startTime) / 1000);
+            document.getElementById('tiempoTranscurrido').textContent = formatTime(elapsed);
+        }
+
+        function formatTime(seconds) {
+            if (!seconds || seconds < 0) return '--';
+            const hrs = Math.floor(seconds / 3600);
+            const mins = Math.floor((seconds % 3600) / 60);
+            const secs = Math.floor(seconds % 60);
+            
+            if (hrs > 0) {
+                return `${hrs}h ${mins}m ${secs}s`;
+            } else if (mins > 0) {
+                return `${mins}m ${secs}s`;
+            } else {
+                return `${secs}s`;
+            }
+        }
+
+        function addLog(mensaje, tipo = 'info') {
+            const logContainer = document.getElementById('logContainer');
+            const timestamp = new Date().toLocaleTimeString('es-MX');
+            const logEntry = document.createElement('div');
+            logEntry.className = 'log-entry';
+            
+            let icon = 'ℹ️';
+            if (tipo === 'success') icon = '✅';
+            else if (tipo === 'error') icon = '❌';
+            else if (tipo === 'warning') icon = '⚠️';
+            
+            logEntry.innerHTML = `<strong>[${timestamp}]</strong> ${icon} ${mensaje}`;
+            logContainer.appendChild(logEntry);
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+
+        // Inicializar al cargar la página
+        document.addEventListener('DOMContentLoaded', function() {
+            // Verificar autenticación
+            const token = localStorage.getItem('token');
+            if (!token) {
+                window.location.href = 'index.html';
+                return;
+            }
+
+            cargarTomos();
+        });
+
+        // Limpiar al cerrar la página
+        window.addEventListener('beforeunload', function() {
+            if (eventSource) {
+                eventSource.close();
+            }
+        });
+    </script>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

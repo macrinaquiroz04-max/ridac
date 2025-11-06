@@ -1,0 +1,239 @@
+# Docker Compose optimizado para Ubuntu Server
+# Configuración para producción en servidor sin GUI
+version: '3.8'
+
+services:
+  # Base de datos PostgreSQL
+  postgres:
+    image: postgres:15-alpine
+    container_name: sistema_ocr_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-sistema_ocr}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-1234}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=es_MX.UTF-8"
+      TZ: ${TZ:-America/Mexico_City}
+    ports:
+      - "127.0.0.1:5432:5432"  # Solo acceso local por seguridad
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backups:/backups
+      # Scripts de inicialización (se ejecutan en orden alfabético)
+      - ./backend/scripts/00-init.sql:/docker-entrypoint-initdb.d/00-init.sql:ro
+      - ./backend/scripts/01-schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./backend/scripts/02-create_analisis_ia_tables.sql:/docker-entrypoint-initdb.d/02-analisis_ia.sql:ro
+      - ./backend/scripts/03-create_analisis_juridico_tables.sql:/docker-entrypoint-initdb.d/03-analisis_juridico.sql:ro
+      - ./backend/scripts/04-create_documentos_ocr_table.sql:/docker-entrypoint-initdb.d/04-documentos_ocr.sql:ro
+      - ./backend/scripts/05-create_notificaciones.sql:/docker-entrypoint-initdb.d/05-notificaciones.sql:ro
+      - ./backend/scripts/06-optimize_database_indexes.sql:/docker-entrypoint-initdb.d/06-optimize_indexes.sql:ro
+      - ./backend/scripts/07-roles_base.sql:/docker-entrypoint-initdb.d/07-roles_base.sql:ro
+      - ./backend/scripts/08-datos-prueba.sql:/docker-entrypoint-initdb.d/08-datos-prueba.sql:ro
+    networks:
+      - sistema_ocr_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    # Limitar recursos en servidor
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    # Configuración de logs para no llenar el disco
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Backend FastAPI
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: sistema_ocr_backend
+    restart: unless-stopped
+    command: ["bash", "docker-entrypoint.sh"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      # Base de datos
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-sistema_ocr}
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-1234}
+      
+      # Seguridad
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-default-secret-key-change-in-production}
+      
+      # Servidor
+      SERVER_HOST: 0.0.0.0
+      SERVER_PORT: 8000
+      
+      # Timezone
+      TZ: ${TZ:-America/Mexico_City}
+      
+      # Configuración para servidor sin GUI
+      DISPLAY: ""
+      DEBIAN_FRONTEND: noninteractive
+      
+      # Optimización para Ubuntu Server
+      UVICORN_TIMEOUT_KEEP_ALIVE: 300
+      UVICORN_TIMEOUT_GRACEFUL_SHUTDOWN: 60
+      UVICORN_WORKERS: ${UVICORN_WORKERS:-2}
+      OCR_MAX_WORKERS: ${OCR_MAX_WORKERS:-4}
+      
+      # Configuración de memoria para OCR
+      OMP_NUM_THREADS: 2
+      TESSDATA_PREFIX: /usr/share/tesseract-ocr/5/tessdata
+      
+    ports:
+      - "127.0.0.1:8000:8000"  # Solo acceso local por seguridad
+    volumes:
+      - documentos_data:/app/uploads
+      - fgjcdmx_data:/FGJCDMX
+      - ./backend/logs:/app/logs
+    networks:
+      - sistema_ocr_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 60s
+      timeout: 30s
+      retries: 5
+      start_period: 120s
+    # Recursos optimizados para servidor
+    deploy:
+      resources:
+        limits:
+          cpus: '4.0'
+          memory: 8G
+        reservations:
+          cpus: '1.0'
+          memory: 2G
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+
+  # Nginx como proxy reverso y servidor web
+  nginx:
+    image: nginx:alpine
+    container_name: sistema_ocr_nginx
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "80:80"      # HTTP público
+      - "443:443"    # HTTPS público (si se configura SSL)
+    volumes:
+      - ./frontend:/usr/share/nginx/html
+      - ./nginx.ubuntu.conf:/etc/nginx/nginx.conf:ro
+      - nginx_logs:/var/log/nginx
+      # Para SSL (comentado por defecto)
+      # - ./ssl:/etc/nginx/ssl:ro
+    networks:
+      - sistema_ocr_network
+    # Recursos mínimos para nginx
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # PgAdmin para administración (opcional en producción)
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: sistema_ocr_pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@fgjcdmx.gob.mx}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-admin123}
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: 'False'
+      # Configuración para servidor sin GUI
+      PGADMIN_CONFIG_CONSOLE_LOG_LEVEL: 30
+    ports:
+      - "127.0.0.1:5050:80"  # Solo acceso local
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    networks:
+      - sistema_ocr_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # Recursos mínimos para PgAdmin
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "2"
+    # Comentar toda esta sección si no necesitas PgAdmin en producción
+    profiles:
+      - admin
+
+# Volúmenes persistentes
+volumes:
+  postgres_data:
+    driver: local
+    driver_opts:
+      type: none
+      device: /opt/fgjcdmx/data/postgres
+      o: bind
+  pgadmin_data:
+    driver: local
+    driver_opts:
+      type: none
+      device: /opt/fgjcdmx/data/pgadmin
+      o: bind
+  documentos_data:
+    driver: local
+    driver_opts:
+      type: none
+      device: /opt/fgjcdmx/data/documentos
+      o: bind
+  fgjcdmx_data:
+    driver: local
+    driver_opts:
+      type: none
+      device: /opt/fgjcdmx/data/fgjcdmx
+      o: bind
+  nginx_logs:
+    driver: local
+    driver_opts:
+      type: none
+      device: /opt/fgjcdmx/logs/nginx
+      o: bind
+
+# Red interna
+networks:
+  sistema_ocr_network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

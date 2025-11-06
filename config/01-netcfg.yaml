@@ -1,0 +1,13 @@
+network:
+  version: 2
+  renderer: networkd
+  ethernets:
+    enp0s8:
+      dhcp4: no
+      addresses:
+        - 172.22.134.61/24
+      nameservers:
+        addresses:
+          - 172.22.134.61
+          - 8.8.8.8
+          - 8.8.4.4

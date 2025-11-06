@@ -1,0 +1,365 @@
+/* Estilos globales para Sistema OCR FGJCDMX */
+:root {
+    --primary-color: #1a365d;
+    --secondary-color: #2c5aa0;
+    --accent-color: #dc3545;
+    --success-color: #28a745;
+    --warning-color: #ffc107;
+    --dark-color: #2c3e50;
+    --light-bg: #f8f9fa;
+    --white: #ffffff;
+    --shadow: 0 4px 15px rgba(0,0,0,0.1);
+    --border-radius: 12px;
+}
+
+* { 
+    margin: 0; 
+    padding: 0; 
+    box-sizing: border-box; 
+}
+
+body { 
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+    background: linear-gradient(135deg, var(--light-bg) 0%, #e9ecef 100%);
+    min-height: 100vh;
+}
+
+/* Header estilos */
+.header { 
+    background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+    color: white; 
+    padding: 20px 30px; 
+    display: flex; 
+    justify-content: space-between; 
+    align-items: center; 
+    box-shadow: var(--shadow);
+    position: relative;
+    overflow: hidden;
+}
+
+.header::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grid" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M 10 0 L 0 0 0 10" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="1"/></pattern></defs><rect width="100" height="100" fill="url(%23grid)"/></svg>');
+    pointer-events: none;
+}
+
+.header h1 { 
+    font-size: 28px; 
+    font-weight: 700;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+    position: relative;
+    z-index: 1;
+}
+
+.header .user-info { 
+    display: flex; 
+    align-items: center; 
+    gap: 20px;
+    position: relative;
+    z-index: 1;
+}
+
+/* Botones */
+.btn-logout { 
+    background: rgba(255,255,255,0.15); 
+    color: white; 
+    padding: 12px 20px; 
+    border: 2px solid rgba(255,255,255,0.3); 
+    border-radius: 25px; 
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    backdrop-filter: blur(10px);
+}
+
+.btn-logout:hover { 
+    background: rgba(255,255,255,0.25);
+    border-color: rgba(255,255,255,0.5);
+    transform: translateY(-2px);
+}
+
+.btn-primary { 
+    background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+    color: white; 
+    padding: 15px 30px; 
+    border: none; 
+    border-radius: 25px; 
+    cursor: pointer; 
+    margin: 8px; 
+    font-weight: 600;
+    font-size: 16px;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(44, 90, 160, 0.3);
+}
+
+.btn-primary:hover { 
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(44, 90, 160, 0.4);
+}
+
+.btn-secondary { 
+    background: linear-gradient(135deg, #6c757d, #545b62);
+    color: white; 
+    padding: 10px 20px; 
+    border: none; 
+    border-radius: 20px; 
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+.btn-secondary:hover { 
+    transform: translateY(-1px);
+    box-shadow: 0 4px 15px rgba(108, 117, 125, 0.3);
+}
+
+.btn-success { 
+    background: linear-gradient(135deg, var(--success-color), #34ce57);
+    color: white; 
+    padding: 10px 20px; 
+    border: none; 
+    border-radius: 20px; 
+    cursor: pointer; 
+    margin: 3px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+.btn-success:hover { 
+    transform: translateY(-1px);
+    box-shadow: 0 4px 15px rgba(40, 167, 69, 0.3);
+}
+
+.btn-warning { 
+    background: linear-gradient(135deg, var(--warning-color), #ffb347);
+    color: var(--dark-color); 
+    padding: 10px 20px; 
+    border: none; 
+    border-radius: 20px; 
+    cursor: pointer; 
+    margin: 3px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+.btn-warning:hover { 
+    transform: translateY(-1px);
+    box-shadow: 0 4px 15px rgba(255, 193, 7, 0.3);
+}
+
+.btn-danger { 
+    background: linear-gradient(135deg, var(--accent-color), #e57373);
+    color: white; 
+    padding: 10px 20px; 
+    border: none; 
+    border-radius: 20px; 
+    cursor: pointer; 
+    margin: 3px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+.btn-danger:hover { 
+    transform: translateY(-1px);
+    box-shadow: 0 4px 15px rgba(220, 53, 69, 0.3);
+}
+
+/* Container y Cards */
+.container { 
+    max-width: 1400px; 
+    margin: 40px auto; 
+    padding: 0 30px; 
+}
+
+.card { 
+    background: var(--white);
+    padding: 35px; 
+    border-radius: var(--border-radius); 
+    box-shadow: var(--shadow);
+    margin-bottom: 25px;
+    border: 1px solid rgba(0,0,0,0.05);
+    transition: all 0.3s ease;
+}
+
+.card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+}
+
+.card h2 {
+    color: var(--primary-color);
+    margin-bottom: 25px;
+    font-size: 24px;
+    font-weight: 700;
+}
+
+/* Formularios */
+.form-group { 
+    margin-bottom: 20px; 
+}
+
+.form-label { 
+    display: block; 
+    margin-bottom: 8px; 
+    font-weight: 600;
+    color: var(--dark-color);
+    font-size: 15px;
+}
+
+.form-control { 
+    width: 100%; 
+    padding: 15px 20px; 
+    border: 2px solid #e9ecef; 
+    border-radius: 25px;
+    font-size: 16px;
+    transition: all 0.3s ease;
+    background: var(--light-bg);
+}
+
+.form-control:focus {
+    outline: none;
+    border-color: var(--secondary-color);
+    background: var(--white);
+    box-shadow: 0 0 0 3px rgba(44, 90, 160, 0.1);
+}
+
+/* Tablas */
+.table { 
+    width: 100%; 
+    border-collapse: collapse; 
+    margin-top: 25px;
+    border-radius: var(--border-radius);
+    overflow: hidden;
+    box-shadow: var(--shadow);
+}
+
+.table th, .table td { 
+    padding: 18px 15px; 
+    border-bottom: 1px solid #e9ecef; 
+    text-align: left; 
+}
+
+.table th { 
+    background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+    color: white;
+    font-weight: 700;
+    font-size: 15px;
+}
+
+.table tr { 
+    transition: all 0.3s ease;
+}
+
+.table tr:nth-child(even) { 
+    background: #f8f9fa; 
+}
+
+.table tr:hover {
+    background: #e3f2fd;
+    transform: scale(1.01);
+}
+
+/* Modales */
+.modal { 
+    display: none; 
+    position: fixed; 
+    z-index: 1000; 
+    left: 0; 
+    top: 0; 
+    width: 100%; 
+    height: 100%; 
+    background: rgba(0,0,0,0.6);
+    backdrop-filter: blur(5px);
+}
+
+.modal-content { 
+    background: var(--white);
+    margin: 5% auto; 
+    padding: 40px; 
+    border-radius: var(--border-radius); 
+    width: 85%; 
+    max-width: 650px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    animation: modalSlideIn 0.3s ease;
+}
+
+@keyframes modalSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-50px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.close { 
+    color: #aaa; 
+    float: right; 
+    font-size: 32px; 
+    font-weight: bold; 
+    cursor: pointer;
+    transition: color 0.3s ease;
+}
+
+.close:hover { 
+    color: var(--accent-color);
+    transform: scale(1.1);
+}
+
+/* Status badges */
+.status-badge { 
+    padding: 8px 15px; 
+    border-radius: 20px; 
+    font-size: 13px; 
+    font-weight: 600;
+    display: inline-block;
+}
+
+.status-active { 
+    background: linear-gradient(135deg, #d4edda, #c3e6cb);
+    color: #155724; 
+}
+
+.status-inactive { 
+    background: linear-gradient(135deg, #f8d7da, #f5c6cb);
+    color: #721c24; 
+}
+
+/* Alertas */
+.alert {
+    padding: 15px 20px;
+    border-radius: var(--border-radius);
+    margin-bottom: 20px;
+    font-weight: 500;
+}
+
+.alert-success {
+    background: linear-gradient(135deg, #d4edda, #c3e6cb);
+    color: #155724;
+    border-left: 4px solid var(--success-color);
+}
+
+.alert-danger {
+    background: linear-gradient(135deg, #f8d7da, #f5c6cb);
+    color: #721c24;
+    border-left: 4px solid var(--accent-color);
+}
+
+.alert-warning {
+    background: linear-gradient(135deg, #fff3cd, #ffeaa7);
+    color: #856404;
+    border-left: 4px solid var(--warning-color);
+}
+
+.alert-info {
+    background: linear-gradient(135deg, #d1ecf1, #bee5eb);
+    color: #0c5460;
+    border-left: 4px solid var(--secondary-color);
+}

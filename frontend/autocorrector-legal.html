@@ -1,0 +1,972 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/x-icon" href="images/favicon.ico">
+    <title>✍️ Autocorrector Legal - Sistema OCR FGJCDMX</title>
+    <link rel="stylesheet" href="css/sistema.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        .header {
+            background: linear-gradient(135deg, #1a365d 0%, #2c5aa0 100%);
+            color: white;
+            padding: 25px 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 30px auto;
+            padding: 0 20px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 25px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #e9ecef;
+        }
+
+        .card-title {
+            font-size: 24px;
+            font-weight: 700;
+            color: #1a365d;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 25px;
+            border-bottom: 2px solid #e9ecef;
+        }
+
+        .tab {
+            padding: 12px 24px;
+            background: transparent;
+            border: none;
+            border-bottom: 3px solid transparent;
+            cursor: pointer;
+            font-weight: 600;
+            color: #6c757d;
+            transition: all 0.3s ease;
+        }
+
+        .tab:hover {
+            color: #007bff;
+        }
+
+        .tab.active {
+            color: #007bff;
+            border-bottom-color: #007bff;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #1a365d;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: #007bff;
+            box-shadow: 0 0 0 3px rgba(0,123,255,0.1);
+        }
+
+        textarea.form-control {
+            min-height: 150px;
+            resize: vertical;
+            font-family: 'Courier New', monospace;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,123,255,0.3);
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            color: white;
+        }
+
+        .btn-warning {
+            background: linear-gradient(135deg, #ffc107 0%, #ff9800 100%);
+            color: #000;
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+            color: white;
+        }
+
+        .corrections-panel {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 20px;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+
+        .correction-item {
+            background: white;
+            border-left: 4px solid #007bff;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+        }
+
+        .correction-item:hover {
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .correction-original {
+            color: #dc3545;
+            text-decoration: line-through;
+            font-weight: 600;
+        }
+
+        .correction-fixed {
+            color: #28a745;
+            font-weight: 600;
+        }
+
+        .correction-type {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            margin-left: 10px;
+        }
+
+        .type-alcaldia {
+            background: #e3f2fd;
+            color: #1976d2;
+        }
+
+        .type-colonia {
+            background: #e8f5e9;
+            color: #388e3c;
+        }
+
+        .type-termino {
+            background: #fff3e0;
+            color: #f57c00;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 36px;
+            font-weight: 700;
+            color: #1a365d;
+            display: block;
+        }
+
+        .stat-label {
+            font-size: 14px;
+            color: #6c757d;
+            text-transform: uppercase;
+            margin-top: 8px;
+        }
+
+        .alert {
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .alert-info {
+            background: #d1ecf1;
+            border-left: 4px solid #17a2b8;
+            color: #0c5460;
+        }
+
+        .alert-success {
+            background: #d4edda;
+            border-left: 4px solid #28a745;
+            color: #155724;
+        }
+
+        .alert-warning {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            color: #856404;
+        }
+
+        .alert-danger {
+            background: #f8d7da;
+            border-left: 4px solid #dc3545;
+            color: #721c24;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #6c757d;
+        }
+
+        .loading i {
+            font-size: 48px;
+            animation: spin 1.5s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .duplicates-list {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+
+        .duplicate-group {
+            background: white;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-radius: 8px;
+        }
+
+        .duplicate-group-header {
+            font-weight: 700;
+            color: #1a365d;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .duplicate-item {
+            padding: 8px 12px;
+            background: #f8f9fa;
+            border-radius: 6px;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+
+        .badge {
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .badge-primary {
+            background: #007bff;
+            color: white;
+        }
+
+        .badge-success {
+            background: #28a745;
+            color: white;
+        }
+
+        .badge-warning {
+            background: #ffc107;
+            color: #000;
+        }
+
+        .badge-danger {
+            background: #dc3545;
+            color: white;
+        }
+
+        .carpeta-selector {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .carpeta-selector select {
+            flex: 1;
+            padding: 12px 15px;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>✍️ Autocorrector Legal - Sistema OCR FGJCDMX</h1>
+        <div class="user-info">
+            <span id="userName">Cargando...</span>
+            <button class="btn-logout" onclick="logout()">Cerrar Sesión</button>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- Información Principal -->
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle" style="font-size: 24px;"></i>
+            <div>
+                <strong>¿Qué hace el Autocorrector Legal?</strong>
+                <p style="margin: 5px 0 0 0;">Corrige automáticamente errores comunes del OCR en: <strong>Alcaldías, Colonias, Términos Legales, Direcciones</strong> y detecta <strong>Duplicados</strong>.</p>
+            </div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="tabs">
+            <button class="tab active" onclick="switchTab('texto')">
+                <i class="fas fa-edit"></i> Corregir Texto
+            </button>
+            <button class="tab" onclick="switchTab('direccion')">
+                <i class="fas fa-map-marker-alt"></i> Corregir Dirección
+            </button>
+            <button class="tab" onclick="switchTab('duplicados')">
+                <i class="fas fa-copy"></i> Detectar Duplicados
+            </button>
+            <button class="tab" onclick="switchTab('carpeta')">
+                <i class="fas fa-folder-open"></i> Corregir Carpeta Completa
+            </button>
+        </div>
+
+        <!-- TAB 1: Corregir Texto -->
+        <div id="tab-texto" class="tab-content active">
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">
+                        <i class="fas fa-edit"></i>
+                        Corregir Texto Simple
+                    </h2>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Texto a Corregir:</label>
+                    <textarea id="textoOriginal" class="form-control" placeholder="Pega aquí el texto con errores del OCR...
+Ejemplo: Alcaldia Cuauthemoc, Cplonia Condesa, Compareciencia"></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Tipo de Corrección:</label>
+                    <select id="tipoCorreccion" class="form-control">
+                        <option value="completo">Completo (Todas las correcciones)</option>
+                        <option value="alcaldia">Solo Alcaldías</option>
+                        <option value="colonia">Solo Colonias</option>
+                        <option value="termino_legal">Solo Términos Legales</option>
+                    </select>
+                </div>
+
+                <button class="btn btn-primary" onclick="corregirTexto()">
+                    <i class="fas fa-magic"></i>
+                    Corregir Texto
+                </button>
+
+                <!-- Panel de Resultados -->
+                <div id="resultadoTexto"></div>
+            </div>
+        </div>
+
+        <!-- TAB 2: Corregir Dirección -->
+        <div id="tab-direccion" class="tab-content">
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">
+                        <i class="fas fa-map-marker-alt"></i>
+                        Corregir Dirección Completa
+                    </h2>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Dirección:</label>
+                    <input type="text" id="direccion" class="form-control" 
+                           placeholder="Ejemplo: CALLE GSABRIEL HERNANDEZ SIN NUNMERO">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Colonia:</label>
+                    <input type="text" id="colonia" class="form-control" 
+                           placeholder="Ejemplo: Cplonia Hina Condesa">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Alcaldía:</label>
+                    <input type="text" id="alcaldia" class="form-control" 
+                           placeholder="Ejemplo: Cuauthemoc">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Código Postal (opcional - para validar con SEPOMEX):</label>
+                    <input type="text" id="codigoPostal" class="form-control" 
+                           placeholder="Ejemplo: 06700">
+                </div>
+
+                <button class="btn btn-primary" onclick="corregirDireccion()">
+                    <i class="fas fa-check"></i>
+                    Corregir Dirección
+                </button>
+
+                <!-- Panel de Resultados -->
+                <div id="resultadoDireccion"></div>
+            </div>
+        </div>
+
+        <!-- TAB 3: Detectar Duplicados -->
+        <div id="tab-duplicados" class="tab-content">
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">
+                        <i class="fas fa-copy"></i>
+                        Detectar Duplicados
+                    </h2>
+                </div>
+
+                <div class="carpeta-selector">
+                    <select id="carpetaDuplicados" class="form-control">
+                        <option value="">Seleccionar Carpeta...</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Tipo de Entidad:</label>
+                    <select id="tipoEntidad" class="form-control">
+                        <option value="diligencias">Diligencias (Entrevistas, Declaraciones, etc.)</option>
+                        <option value="personas">Personas Identificadas</option>
+                        <option value="lugares">Lugares Mencionados</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Umbral de Similitud (0.0 - 1.0):</label>
+                    <input type="number" id="umbralSimilitud" class="form-control" 
+                           value="0.90" min="0" max="1" step="0.05">
+                    <small class="text-muted">0.90 = 90% de similitud para considerar duplicado</small>
+                </div>
+
+                <button class="btn btn-warning" onclick="detectarDuplicados()">
+                    <i class="fas fa-search"></i>
+                    Detectar Duplicados
+                </button>
+
+                <!-- Panel de Resultados -->
+                <div id="resultadoDuplicados"></div>
+            </div>
+        </div>
+
+        <!-- TAB 4: Corregir Carpeta Completa -->
+        <div id="tab-carpeta" class="tab-content">
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">
+                        <i class="fas fa-folder-open"></i>
+                        Corregir Carpeta Completa
+                    </h2>
+                </div>
+
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <div>
+                        <strong>⚠️ Solo Administradores</strong>
+                        <p style="margin: 5px 0 0 0;">Esta función aplica correcciones masivas a toda una carpeta. Primero revisa el reporte y luego decide si aplicar los cambios.</p>
+                    </div>
+                </div>
+
+                <div class="carpeta-selector">
+                    <select id="carpetaCompleta" class="form-control">
+                        <option value="">Seleccionar Carpeta...</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                        <input type="checkbox" id="autoCorregir" style="width: 20px; height: 20px;">
+                        <span><strong>Auto-Corregir:</strong> Aplicar correcciones automáticamente (si está desactivado, solo genera reporte)</span>
+                    </label>
+                </div>
+
+                <div class="form-group">
+                    <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                        <input type="checkbox" id="eliminarDuplicados" style="width: 20px; height: 20px;">
+                        <span><strong>Eliminar Duplicados:</strong> Eliminar registros duplicados (mantiene el primero)</span>
+                    </label>
+                </div>
+
+                <div style="display: flex; gap: 10px;">
+                    <button class="btn btn-warning" onclick="corregirCarpeta(false)">
+                        <i class="fas fa-file-alt"></i>
+                        Solo Generar Reporte
+                    </button>
+                    <button class="btn btn-danger" onclick="corregirCarpeta(true)">
+                        <i class="fas fa-check-circle"></i>
+                        Aplicar Correcciones
+                    </button>
+                </div>
+
+                <!-- Panel de Resultados -->
+                <div id="resultadoCarpeta"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/config.js?v=20251013"></script>
+    <script src="js/api.js?v=20251013"></script>
+    <script src="js/auth.js?v=20251013"></script>
+    <script>
+        // Esperar a que se cargue el DOM y los scripts
+        window.addEventListener('load', function() {
+            // Verificar autenticación
+            if (typeof protectPage === 'function') {
+                protectPage();
+            } else {
+                console.error('⚠️ protectPage no está definida. Verifica que auth.js se haya cargado.');
+            }
+            cargarCarpetas();
+        });
+
+        function switchTab(tabName) {
+            // Ocultar todas las tabs
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+
+            // Mostrar tab seleccionada
+            document.getElementById(`tab-${tabName}`).classList.add('active');
+            event.target.closest('.tab').classList.add('active');
+        }
+
+        async function cargarCarpetas() {
+            try {
+                const carpetas = await apiGet('/carpetas');
+                const selectDuplicados = document.getElementById('carpetaDuplicados');
+                const selectCompleta = document.getElementById('carpetaCompleta');
+
+                const options = carpetas.map(c => 
+                    `<option value="${c.id}">${c.nombre || c.numero_expediente}</option>`
+                ).join('');
+
+                selectDuplicados.innerHTML = '<option value="">Seleccionar Carpeta...</option>' + options;
+                selectCompleta.innerHTML = '<option value="">Seleccionar Carpeta...</option>' + options;
+            } catch (error) {
+                console.error('Error cargando carpetas:', error);
+            }
+        }
+
+        async function corregirTexto() {
+            const texto = document.getElementById('textoOriginal').value.trim();
+            const tipo = document.getElementById('tipoCorreccion').value;
+
+            if (!texto) {
+                alert('Por favor ingresa un texto');
+                return;
+            }
+
+            const resultadoDiv = document.getElementById('resultadoTexto');
+            resultadoDiv.innerHTML = '<div class="loading"><i class="fas fa-spinner"></i><p>Corrigiendo texto...</p></div>';
+
+            try {
+                const resultado = await apiPost('/autocorrector/corregir-texto', {
+                    texto: texto,
+                    tipo_correccion: tipo
+                });
+
+                if (resultado.fue_corregido) {
+                    let html = `
+                        <div class="corrections-panel">
+                            <h3 style="color: #28a745; margin-bottom: 20px;">
+                                <i class="fas fa-check-circle"></i>
+                                Se encontraron ${resultado.total_correcciones} corrección(es)
+                            </h3>
+                            
+                            <div style="background: white; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                                <strong>Texto Corregido:</strong>
+                                <p style="color: #28a745; font-size: 16px; margin-top: 10px; white-space: pre-wrap;">${resultado.texto_corregido}</p>
+                            </div>
+
+                            <h4 style="margin: 20px 0 15px 0;">Detalles de Correcciones:</h4>
+                    `;
+
+                    resultado.correcciones.forEach(corr => {
+                        const typeClass = corr.tipo === 'alcaldia' ? 'type-alcaldia' : 
+                                        corr.tipo === 'colonia' ? 'type-colonia' : 'type-termino';
+                        html += `
+                            <div class="correction-item">
+                                <span class="correction-original">${corr.original || texto}</span>
+                                <i class="fas fa-arrow-right" style="margin: 0 10px; color: #6c757d;"></i>
+                                <span class="correction-fixed">${corr.corregido}</span>
+                                <span class="correction-type ${typeClass}">${corr.tipo}</span>
+                            </div>
+                        `;
+                    });
+
+                    html += '</div>';
+                    resultadoDiv.innerHTML = html;
+                } else {
+                    resultadoDiv.innerHTML = `
+                        <div class="alert alert-success" style="margin-top: 20px;">
+                            <i class="fas fa-check-circle"></i>
+                            <div>
+                                <strong>✅ No se encontraron errores</strong>
+                                <p style="margin: 5px 0 0 0;">El texto está correcto o no se detectaron patrones conocidos.</p>
+                            </div>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultadoDiv.innerHTML = `
+                    <div class="alert alert-danger" style="margin-top: 20px;">
+                        <i class="fas fa-exclamation-circle"></i>
+                        <div>
+                            <strong>Error</strong>
+                            <p style="margin: 5px 0 0 0;">${error.message}</p>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        async function corregirDireccion() {
+            const direccion = document.getElementById('direccion').value.trim();
+            const colonia = document.getElementById('colonia').value.trim();
+            const alcaldia = document.getElementById('alcaldia').value.trim();
+            const cp = document.getElementById('codigoPostal').value.trim();
+
+            if (!direccion && !colonia && !alcaldia) {
+                alert('Por favor ingresa al menos un campo');
+                return;
+            }
+
+            const resultadoDiv = document.getElementById('resultadoDireccion');
+            resultadoDiv.innerHTML = '<div class="loading"><i class="fas fa-spinner"></i><p>Corrigiendo dirección...</p></div>';
+
+            try {
+                const payload = { direccion, colonia, alcaldia };
+                if (cp) payload.codigo_postal = cp;
+
+                const resultado = await apiPost('/autocorrector/corregir-direccion', payload);
+
+                let html = '<div class="corrections-panel">';
+                
+                if (resultado.direccion && resultado.direccion.fue_corregida) {
+                    html += `
+                        <div class="correction-item">
+                            <strong>📍 Dirección:</strong><br>
+                            <span class="correction-original">${resultado.direccion.original}</span>
+                            <i class="fas fa-arrow-right" style="margin: 0 10px;"></i>
+                            <span class="correction-fixed">${resultado.direccion.corregida}</span>
+                        </div>
+                    `;
+                }
+
+                if (resultado.colonia && resultado.colonia.fue_corregida) {
+                    html += `
+                        <div class="correction-item">
+                            <strong>🏘️ Colonia:</strong><br>
+                            <span class="correction-original">${resultado.colonia.original}</span>
+                            <i class="fas fa-arrow-right" style="margin: 0 10px;"></i>
+                            <span class="correction-fixed">${resultado.colonia.corregida}</span>
+                        </div>
+                    `;
+                }
+
+                if (resultado.alcaldia && resultado.alcaldia.fue_corregida) {
+                    html += `
+                        <div class="correction-item">
+                            <strong>🏛️ Alcaldía:</strong><br>
+                            <span class="correction-original">${resultado.alcaldia.original}</span>
+                            <i class="fas fa-arrow-right" style="margin: 0 10px;"></i>
+                            <span class="correction-fixed">${resultado.alcaldia.corregida}</span>
+                        </div>
+                    `;
+                }
+
+                if (resultado.sepomex_validacion) {
+                    const valido = resultado.sepomex_validacion.colonia_valida;
+                    html += `
+                        <div class="alert ${valido ? 'alert-success' : 'alert-warning'}" style="margin-top: 20px;">
+                            <i class="fas fa-${valido ? 'check-circle' : 'exclamation-triangle'}"></i>
+                            <div>
+                                <strong>Validación SEPOMEX:</strong>
+                                <p style="margin: 5px 0 0 0;">
+                                    ${valido ? '✅ Colonia validada en el catálogo oficial' : '⚠️ Colonia no encontrada en el catálogo oficial'}
+                                </p>
+                            </div>
+                        </div>
+                    `;
+                }
+
+                html += '</div>';
+                resultadoDiv.innerHTML = html;
+            } catch (error) {
+                resultadoDiv.innerHTML = `
+                    <div class="alert alert-danger" style="margin-top: 20px;">
+                        <i class="fas fa-exclamation-circle"></i>
+                        <div>
+                            <strong>Error</strong>
+                            <p style="margin: 5px 0 0 0;">${error.message}</p>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        async function detectarDuplicados() {
+            const carpetaId = document.getElementById('carpetaDuplicados').value;
+            const tipoEntidad = document.getElementById('tipoEntidad').value;
+            const umbral = parseFloat(document.getElementById('umbralSimilitud').value);
+
+            if (!carpetaId) {
+                alert('Por favor selecciona una carpeta');
+                return;
+            }
+
+            const resultadoDiv = document.getElementById('resultadoDuplicados');
+            resultadoDiv.innerHTML = '<div class="loading"><i class="fas fa-spinner"></i><p>Detectando duplicados...</p></div>';
+
+            try {
+                const resultado = await apiPost('/autocorrector/detectar-duplicados', {
+                    carpeta_id: parseInt(carpetaId),
+                    tipo_entidad: tipoEntidad,
+                    umbral_similitud: umbral
+                });
+
+                if (resultado.total_duplicados_encontrados === 0) {
+                    resultadoDiv.innerHTML = `
+                        <div class="alert alert-success" style="margin-top: 20px;">
+                            <i class="fas fa-check-circle"></i>
+                            <div>
+                                <strong>✅ No se encontraron duplicados</strong>
+                                <p style="margin: 5px 0 0 0;">Total de registros analizados: ${resultado.total_registros}</p>
+                            </div>
+                        </div>
+                    `;
+                    return;
+                }
+
+                let html = `
+                    <div class="duplicates-list">
+                        <div class="stats-grid">
+                            <div class="stat-card">
+                                <span class="stat-value">${resultado.total_registros}</span>
+                                <span class="stat-label">Total Registros</span>
+                            </div>
+                            <div class="stat-card">
+                                <span class="stat-value" style="color: #ffc107;">${resultado.total_duplicados_encontrados}</span>
+                                <span class="stat-label">Duplicados Encontrados</span>
+                            </div>
+                            <div class="stat-card">
+                                <span class="stat-value">${resultado.grupos_duplicados.length}</span>
+                                <span class="stat-label">Grupos de Duplicados</span>
+                            </div>
+                        </div>
+
+                        <h3 style="margin: 25px 0 15px 0;">Grupos de Duplicados:</h3>
+                `;
+
+                resultado.grupos_duplicados.forEach((grupo, index) => {
+                    html += `
+                        <div class="duplicate-group">
+                            <div class="duplicate-group-header">
+                                <span>Grupo ${index + 1} - ${grupo.cantidad} registros duplicados</span>
+                                <span class="badge badge-warning">${grupo.cantidad} duplicados</span>
+                            </div>
+                    `;
+
+                    grupo.detalles.forEach((detalle, idx) => {
+                        html += `
+                            <div class="duplicate-item">
+                                <strong>${idx === 0 ? '✅ Original (se conserva)' : '❌ Duplicado ' + idx}</strong>
+                                ID: ${detalle.id} | 
+                                ${detalle.tipo || detalle.nombre || detalle.descripcion} |
+                                ${detalle.fecha ? 'Fecha: ' + detalle.fecha : ''}
+                                ${detalle.responsable ? ' | Responsable: ' + detalle.responsable : ''}
+                            </div>
+                        `;
+                    });
+
+                    html += '</div>';
+                });
+
+                html += '</div>';
+                resultadoDiv.innerHTML = html;
+            } catch (error) {
+                resultadoDiv.innerHTML = `
+                    <div class="alert alert-danger" style="margin-top: 20px;">
+                        <i class="fas fa-exclamation-circle"></i>
+                        <div>
+                            <strong>Error</strong>
+                            <p style="margin: 5px 0 0 0;">${error.message}</p>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        async function corregirCarpeta(aplicar) {
+            const carpetaId = document.getElementById('carpetaCompleta').value;
+            const autoCorregir = aplicar || document.getElementById('autoCorregir').checked;
+            const eliminarDuplicados = document.getElementById('eliminarDuplicados').checked;
+
+            if (!carpetaId) {
+                alert('Por favor selecciona una carpeta');
+                return;
+            }
+
+            if (autoCorregir && !confirm('¿Estás seguro de aplicar las correcciones automáticamente? Esta acción modificará los datos en la base de datos.')) {
+                return;
+            }
+
+            const resultadoDiv = document.getElementById('resultadoCarpeta');
+            resultadoDiv.innerHTML = '<div class="loading"><i class="fas fa-spinner"></i><p>Procesando carpeta completa... Esto puede tomar varios minutos.</p></div>';
+
+            try {
+                const resultado = await apiPost('/autocorrector/corregir-carpeta', {
+                    carpeta_id: parseInt(carpetaId),
+                    auto_corregir: autoCorregir,
+                    eliminar_duplicados: eliminarDuplicados
+                });
+
+                let html = `
+                    <div class="corrections-panel">
+                        <div class="stats-grid">
+                            <div class="stat-card">
+                                <span class="stat-value" style="color: #007bff;">${resultado.total_correcciones}</span>
+                                <span class="stat-label">Correcciones ${autoCorregir ? 'Aplicadas' : 'Detectadas'}</span>
+                            </div>
+                            <div class="stat-card">
+                                <span class="stat-value" style="color: #dc3545;">${resultado.total_duplicados_eliminados || 0}</span>
+                                <span class="stat-label">Duplicados Eliminados</span>
+                            </div>
+                        </div>
+
+                        <div class="alert ${autoCorregir ? 'alert-success' : 'alert-info'}" style="margin: 20px 0;">
+                            <i class="fas fa-${autoCorregir ? 'check-circle' : 'info-circle'}"></i>
+                            <div>
+                                <strong>${resultado.mensaje}</strong>
+                            </div>
+                        </div>
+
+                        <h3 style="margin: 25px 0 15px 0;">Detalle de Correcciones:</h3>
+                `;
+
+                if (resultado.correcciones && resultado.correcciones.length > 0) {
+                    resultado.correcciones.forEach(corr => {
+                        html += `
+                            <div class="correction-item">
+                                <strong>${corr.entidad.toUpperCase()} #${corr.id}</strong> - Campo: ${corr.campo}<br>
+                                <span class="correction-original">${corr.original}</span>
+                                <i class="fas fa-arrow-right" style="margin: 0 10px;"></i>
+                                <span class="correction-fixed">${corr.corregido}</span>
+                            </div>
+                        `;
+                    });
+                } else {
+                    html += '<p class="text-muted text-center">No se encontraron correcciones necesarias</p>';
+                }
+
+                if (resultado.duplicados_eliminados && resultado.duplicados_eliminados.length > 0) {
+                    html += '<h3 style="margin: 25px 0 15px 0;">Duplicados Eliminados:</h3>';
+                    resultado.duplicados_eliminados.forEach(dup => {
+                        html += `
+                            <div class="duplicate-item" style="background: #f8d7da; color: #721c24;">
+                                <strong>${dup.entidad.toUpperCase()}</strong> - 
+                                ID Eliminado: ${dup.id_eliminado} | 
+                                ID Conservado: ${dup.id_conservado}
+                            </div>
+                        `;
+                    });
+                }
+
+                html += '</div>';
+                resultadoDiv.innerHTML = html;
+            } catch (error) {
+                resultadoDiv.innerHTML = `
+                    <div class="alert alert-danger" style="margin-top: 20px;">
+                        <i class="fas fa-exclamation-circle"></i>
+                        <div>
+                            <strong>Error</strong>
+                            <p style="margin: 5px 0 0 0;">${error.message}</p>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem('token');
+            window.location.href = 'index';
+        }
+    </script>
+</body>
+</html>

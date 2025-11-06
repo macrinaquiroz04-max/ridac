@@ -1,0 +1,182 @@
+EVIDENCIAS DE AUTORÍA DEL SISTEMA OCR CON ANÁLISIS JURÍDICO
+=================================================================
+
+AUTOR: Eduardo Lozada
+EMAIL: aduardolozada1958@gmail.com
+FECHA DE COMPILACIÓN: Octubre 27, 2025
+
+EVIDENCIA #1: HISTORIAL DE COMMITS GIT
+=======================================
+El repositorio Git contiene historial completo que demuestra autoría continua:
+
+- Primer commit: Octubre 20, 2025
+- Total de commits: 20+ commits documentados
+- Autor de todos los commits: Eduardo Lozada (aduardolozada1958@gmail.com)
+- Repositorio: https://github.com/army98-code/sistemaocr
+- Hash del commit inicial: aeb9d545d7443870db227366347dcc2e19cb6e2d
+
+Muestra de commits con hash, autor y fecha:
+```
+a01be87e - army98-code - Fri Oct 24 19:58:14 2025
+13ab2bdd - Eduardo Lozada - Fri Oct 24 17:40:17 2025
+5386968d - Eduardo Lozada - Fri Oct 24 14:05:35 2025
+97001b01 - Eduardo Lozada - Fri Oct 24 13:16:47 2025
+```
+
+EVIDENCIA #2: ARCHIVOS FUENTE ORIGINALES
+=========================================
+Estructura completa del proyecto creado desde cero:
+
+Backend (Python/FastAPI):
+- app/main.py - Aplicación principal (500+ líneas)
+- app/database.py - Configuración de base de datos
+- app/models/ - 15+ modelos de datos
+- app/controllers/ - 20+ controladores
+- app/routes/ - 15+ rutas de API
+- app/services/ - 10+ servicios especializados
+- app/middlewares/ - Sistema de autenticación
+
+Frontend (JavaScript):
+- frontend/js/ - 10+ módulos JavaScript
+- frontend/*.html - 20+ páginas HTML
+- Visor PDF personalizado con búsqueda avanzada
+- Dashboard interactivo
+- Sistema de análisis jurídico
+
+Base de Datos:
+- 25+ tablas diseñadas
+- Relaciones complejas
+- Índices optimizados
+- Triggers y funciones PostgreSQL
+
+EVIDENCIA #3: DOCUMENTACIÓN TÉCNICA
+====================================
+Documentación exhaustiva creada por el autor:
+
+- LEEME_PRIMERO.md
+- GUIA_AUDITORIA_COMPLETA.md
+- GUIA_SISTEMA_BACKUPS.md
+- GUIA_ALMACENAMIENTO_TOMOS.md
+- DOCKER_GUIA_INSTALACION.md
+- CONFIGURACION_COMPLETADA.md
+- SOLUCION_PROBLEMAS.md
+- 20+ guías técnicas
+
+EVIDENCIA #4: COMPLEJIDAD TÉCNICA
+===================================
+El sistema demuestra conocimientos avanzados en:
+
+1. **Backend (Python)**:
+   - FastAPI con endpoints complejos
+   - SQLAlchemy ORM con relaciones avanzadas
+   - Sistema de permisos multinivel
+   - OCR con Tesseract y PyMuPDF
+   - NLP con spaCy para análisis jurídico
+   - Sistema de tareas asíncronas
+   - Manejo de archivos PDF multipágina
+   - Extracción de entidades legales
+
+2. **Frontend (JavaScript)**:
+   - Visor PDF personalizado con PDF.js
+   - Sistema de búsqueda en tiempo real
+   - Dashboard interactivo con gráficas
+   - Gestión de estado compleja
+   - Sistema de permisos en UI
+   - Auditoría de accesos
+
+3. **Base de Datos**:
+   - Diseño relacional complejo
+   - Optimización con índices
+   - Triggers y constraints
+   - JSONB para datos flexibles
+   - Búsqueda full-text con pg_trgm
+
+4. **DevOps**:
+   - Docker Compose multi-contenedor
+   - Nginx como reverse proxy
+   - Healthchecks y reintentos
+   - Scripts de automatización
+   - Sistema de backups
+
+EVIDENCIA #5: EVOLUCIÓN DEL CÓDIGO
+===================================
+El historial Git muestra desarrollo iterativo genuino:
+
+- Commit inicial con estructura básica
+- Desarrollo progresivo de funcionalidades
+- Corrección de bugs documentada
+- Mejoras de performance
+- Refactorización de código
+- Implementación de sugerencias
+- Documentación actualizada constantemente
+
+EVIDENCIA #6: COMUNICACIONES
+=============================
+Correos electrónicos y comunicaciones con el cliente demuestran:
+- Solicitudes de funcionalidades
+- Reportes de progreso
+- Resolución de problemas
+- Capacitación a usuarios
+- Fechas que coinciden con commits
+
+EVIDENCIA #7: CONOCIMIENTO ESPECÍFICO
+======================================
+El código demuestra conocimiento específico del dominio:
+
+- Terminología jurídica correcta (diligencias, MP, carpetas de investigación)
+- Flujos de trabajo de fiscalías
+- Requisitos de auditoría gubernamental
+- Normativa de datos sensibles
+- Procesos ministeriales
+
+EVIDENCIA #8: ESTILO DE CÓDIGO ÚNICO
+=====================================
+El código muestra patrones consistentes del autor:
+- Comentarios en español
+- Nomenclatura específica
+- Estructura de archivos característica
+- Manejo de errores personalizado
+- Logs detallados en español
+
+EVIDENCIA #9: ARCHIVOS DE CONFIGURACIÓN
+========================================
+Configuraciones personalizadas:
+- docker-compose.yml (3 versiones)
+- nginx.conf personalizado
+- Scripts .bat y .sh originales
+- Configuración de servicios systemd
+
+EVIDENCIA #10: PROPIEDAD DEL REPOSITORIO
+=========================================
+- Cuenta GitHub: army98-code
+- Repositorio: sistemaocr
+- Control total sobre el repositorio
+- Historial de push desde origen
+
+DECLARACIÓN JURADA
+==================
+Yo, Eduardo Lozada, declaro bajo protesta de decir verdad que:
+
+1. Soy el autor original y único de este software
+2. He desarrollado todo el código desde cero
+3. No he copiado código de terceros sin autorización
+4. Todos los algoritmos son de mi autoría
+5. Tengo derecho exclusivo sobre la propiedad intelectual
+
+___________________________
+Eduardo Lozada
+aduardolozada1958@gmail.com
+Octubre 27, 2025
+
+ANEXOS
+======
+- Anexo A: Impresión completa del historial Git
+- Anexo B: Screenshots del desarrollo
+- Anexo C: Correos con el cliente
+- Anexo D: Código fuente completo en USB
+- Anexo E: Documentación técnica impresa
+
+---
+
+Este documento constituye evidencia formal de autoría para efectos legales
+y registro ante INDAUTOR u otras instituciones de protección de derechos.

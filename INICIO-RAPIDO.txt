@@ -1,0 +1,126 @@
+╔═══════════════════════════════════════════════════════════════════╗
+║                    GUÍA DE INICIO RÁPIDO                          ║
+║              SISTEMA OCR - FISCALÍA CDMX                          ║
+╚═══════════════════════════════════════════════════════════════════╝
+
+📌 CÓMO INICIAR EL SISTEMA (3 PASOS)
+═══════════════════════════════════════════════════════════════════
+
+  PASO 1: Abrir Docker Desktop
+  ────────────────────────────────────────────────────────────────
+  • Busca el icono de Docker en tu escritorio
+  • O busca "Docker Desktop" en el menú inicio
+  • Espera a que el icono de Docker en la barra de tareas 
+    deje de parpadear (significa que está listo)
+
+
+  PASO 2: Ejecutar el script de inicio
+  ────────────────────────────────────────────────────────────────
+  Haz doble clic en uno de estos archivos:
+  
+  ✨ INICIAR-SISTEMA.bat  ← NUEVO! (Menú interactivo)
+  📌 start-docker.bat     (Inicio directo)
+
+
+  PASO 3: Abrir el navegador
+  ────────────────────────────────────────────────────────────────
+  Abre tu navegador favorito y ve a:
+  
+  👉 http://fgjcdmx
+  👉 http://localhost
+
+
+═══════════════════════════════════════════════════════════════════
+🛠️  SCRIPTS PRINCIPALES
+═══════════════════════════════════════════════════════════════════
+
+  📌 INICIAR-SISTEMA.bat        ← Menú interactivo (RECOMENDADO)
+  🚀 start-docker.bat           ← Iniciar el sistema
+  🛑 stop-docker.bat            ← Detener el sistema
+  📊 ver-estado.bat             ← Ver estado de los servicios
+  📋 ver-logs.bat               ← Ver logs en tiempo real
+  💾 backup-database.bat        ← Hacer respaldo de la base de datos
+  🔄 restaurar-backup.bat       ← Restaurar un respaldo
+
+
+═══════════════════════════════════════════════════════════════════
+🌐 ACCESOS AL SISTEMA
+═══════════════════════════════════════════════════════════════════
+
+  Sistema Principal:
+  • http://fgjcdmx
+  • http://localhost
+
+  Panel de Administración de BD (PgAdmin):
+  • http://localhost:5050
+  • Email: admin@fiscalia.gob.mx
+  • Password: admin123
+
+  API Backend:
+  • http://localhost:8000
+  • http://fgjcdmx/api/
+
+
+═══════════════════════════════════════════════════════════════════
+❓ SOLUCIÓN DE PROBLEMAS
+═══════════════════════════════════════════════════════════════════
+
+  ❌ Error: "Docker no está corriendo"
+  ──────────────────────────────────────────────────────────────
+  Solución: Abre Docker Desktop y espera a que inicie
+
+
+  ❌ Error: "Puerto ya en uso"
+  ──────────────────────────────────────────────────────────────
+  Solución: 
+  1. Ejecuta: stop-docker.bat
+  2. Espera 10 segundos
+  3. Ejecuta: start-docker.bat
+
+
+  ❌ No puedo acceder a http://fgjcdmx
+  ──────────────────────────────────────────────────────────────
+  Solución:
+  1. Ejecuta como ADMINISTRADOR: configurar-dominio-fgjcdmx.bat
+  2. Reinicia el navegador
+  3. Intenta con: http://localhost
+
+
+  ❌ Los contenedores no inician
+  ──────────────────────────────────────────────────────────────
+  Solución:
+  1. Ejecuta: ver-estado.bat (para ver el estado)
+  2. Ejecuta: ver-logs.bat (para ver los errores)
+  3. Reinicia Docker Desktop
+
+
+═══════════════════════════════════════════════════════════════════
+📚 DOCUMENTACIÓN COMPLETA
+═══════════════════════════════════════════════════════════════════
+
+  Para más información, consulta estos archivos:
+
+  • LEEME_PRIMERO.md              - Información general
+  • README_DOCKER.md              - Documentación de Docker
+  • GUIA_DESPLIEGUE_FISCALIA.md   - Guía de despliegue
+  • DOCKER_GUIA_INSTALACION.md    - Instalación de Docker
+  • MIGRACION_COMPLETADA.md       - Información de migración
+
+
+═══════════════════════════════════════════════════════════════════
+💡 CONSEJOS
+═══════════════════════════════════════════════════════════════════
+
+  ✓ Siempre inicia Docker Desktop primero
+  ✓ Espera a que todos los servicios estén "healthy"
+  ✓ Usa ver-estado.bat para verificar que todo funcione
+  ✓ Haz backups regulares con backup-database.bat
+  ✓ Si algo falla, revisa los logs con ver-logs.bat
+
+
+═══════════════════════════════════════════════════════════════════
+
+¡Listo! Ahora ya sabes cómo iniciar el sistema.
+Para cualquier duda, ejecuta: INICIAR-SISTEMA.bat
+
+═══════════════════════════════════════════════════════════════════

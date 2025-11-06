@@ -1,0 +1,121 @@
+CONTRATO DE DESARROLLO DE SOFTWARE Y LICENCIA DE USO
+
+En [CIUDAD], a [FECHA], celebran el presente contrato:
+
+PARTE A: EL DESARROLLADOR
+Nombre: [TU NOMBRE COMPLETO]
+CURP: [TU CURP]
+RFC: [TU RFC]
+Domicilio: [TU DIRECCIÓN]
+
+PARTE B: EL CLIENTE
+Institución: Fiscalía General de Justicia de la Ciudad de México
+Representante: [NOMBRE DEL REPRESENTANTE LEGAL]
+Cargo: [CARGO]
+
+DECLARACIONES
+=============
+
+I. EL DESARROLLADOR declara:
+   a) Ser el autor y propietario único del software "Sistema OCR para Análisis Jurídico"
+   b) Tener capacidad legal para celebrar este contrato
+   c) Que el software es de su autoría original y no infringe derechos de terceros
+
+II. EL CLIENTE declara:
+    a) Requerir los servicios de desarrollo y licencia de uso del software
+    b) Contar con facultades para celebrar este contrato
+
+CLÁUSULAS
+=========
+
+PRIMERA: OBJETO DEL CONTRATO
+El DESARROLLADOR se obliga a prestar servicios de desarrollo, implementación y 
+mantenimiento del Sistema OCR con Análisis Jurídico, conservando la PROPIEDAD 
+INTELECTUAL TOTAL sobre el código fuente y algoritmos.
+
+SEGUNDA: PROPIEDAD INTELECTUAL
+El DESARROLLADOR es y será el ÚNICO PROPIETARIO de:
+- Código fuente completo
+- Algoritmos y lógica de negocio
+- Arquitectura del sistema
+- Base de datos y estructuras
+- Documentación técnica
+- Todas las mejoras y actualizaciones
+
+TERCERA: LICENCIA DE USO
+El DESARROLLADOR otorga al CLIENTE una licencia de uso:
+- EXCLUSIVAMENTE para uso interno
+- NO transferible a terceros
+- NO sublicenciable
+- Limitada a las instalaciones del CLIENTE
+- Revocable por incumplimiento de pago
+
+CUARTA: RESTRICCIONES
+El CLIENTE NO PUEDE:
+- Copiar o reproducir el código fuente
+- Distribuir o vender el software
+- Modificar el código sin autorización
+- Contratar a terceros para mantenimiento (salvo autorización escrita)
+- Reclamar derechos de propiedad intelectual
+- Transferir la licencia a otra entidad
+
+QUINTA: CONFIDENCIALIDAD
+Ambas partes se comprometen a mantener confidencialidad sobre:
+- Código fuente
+- Algoritmos propietarios
+- Documentación técnica
+- Estructura de bases de datos
+
+SEXTA: CONTRAPRESTACIÓN
+El CLIENTE pagará por:
+- Desarrollo inicial: $[CANTIDAD] MXN
+- Mantenimiento mensual: $[CANTIDAD] MXN
+- Actualizaciones: A cotizar
+
+SÉPTIMA: INCUMPLIMIENTO
+En caso de que el CLIENTE:
+- Use el software fuera de lo autorizado
+- Intente copiar o redistribuir
+- Reclame derechos de propiedad
+- No pague las contraprestaciones
+
+El DESARROLLADOR podrá:
+- Revocar la licencia inmediatamente
+- Desactivar el sistema remotamente
+- Exigir daños y perjuicios
+- Ejercer acciones legales
+
+OCTAVA: EVIDENCIAS DE AUTORÍA
+El DESARROLLADOR mantiene evidencias irrefutables de autoría:
+- Repositorio Git con historial completo
+- Commits fechados desde el inicio
+- Documentación de desarrollo
+- Correos electrónicos de progreso
+
+NOVENA: VIGENCIA
+El presente contrato tendrá vigencia de [PLAZO] a partir de su firma,
+renovable mediante acuerdo de ambas partes.
+
+DÉCIMA: JURISDICCIÓN
+Para cualquier controversia, las partes se someten a la jurisdicción de los
+tribunales de Ciudad de México, renunciando a cualquier otra que les pudiera
+corresponder.
+
+
+________________________          ________________________
+EL DESARROLLADOR                  EL CLIENTE
+[TU NOMBRE]                       [NOMBRE REPRESENTANTE]
+
+
+TESTIGOS:
+
+________________________          ________________________
+Testigo 1                         Testigo 2
+[NOMBRE]                          [NOMBRE]
+
+
+IMPORTANTE: 
+- Firma 3 copias originales
+- Guarda una con firma y sello del cliente
+- Registra ante notario público si es posible
+- Fotografía todas las páginas firmadas

@@ -1,0 +1,1164 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/x-icon" href="images/favicon.ico">
+    <title>Gestión de Permisos - Sistema OCR FGJCDMX</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="css/sistema.css">
+    <style>
+        .navbar {
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%) !important;
+        }
+        
+        .navbar-brand {
+            color: #fff !important;
+            font-weight: 700;
+        }
+        
+        .card-header {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            font-weight: 700;
+        }
+        
+        .permission-card {
+            transition: transform 0.2s;
+        }
+        
+        .permission-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 24px;
+        }
+        
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            -webkit-transition: .4s;
+            transition: .4s;
+            border-radius: 24px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            -webkit-transition: .4s;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider {
+            background-color: #28a745;
+        }
+
+        input:focus + .slider {
+            box-shadow: 0 0 1px #28a745;
+        }
+
+        input:checked + .slider:before {
+            -webkit-transform: translateX(26px);
+            -ms-transform: translateX(26px);
+            transform: translateX(26px);
+        }
+
+        .tomo-item {
+            transition: all 0.3s ease;
+            border: 1px solid #dee2e6 !important;
+        }
+
+        .tomo-item:hover {
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            border-color: #007bff !important;
+        }
+
+        .user-card {
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            transition: all 0.3s ease;
+        }
+
+        .user-card:hover {
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            border-color: #007bff;
+        }
+        
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        
+        input:checked + .slider {
+            background-color: #28a745;
+        }
+        
+        input:checked + .slider:before {
+            transform: translateX(26px);
+        }
+        
+        .badge-permission {
+            font-size: 0.7em;
+            margin: 0 2px;
+        }
+        
+        .tomo-item {
+            border-left: 4px solid #007bff;
+            margin-bottom: 10px;
+            transition: all 0.3s;
+        }
+        
+        .tomo-item:hover {
+            background-color: #f8f9fa;
+        }
+        
+        .user-card {
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        
+        .loading {
+            display: none;
+        }
+        
+        .progress-container {
+            margin: 20px 0;
+        }
+        
+        /* Estilos mejorados para botones de acceso rápido */
+        .btn-acceso-rapido {
+            min-width: 95px;
+            margin: 3px;
+            padding: 6px 12px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            border-width: 1.5px;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-acceso-rapido:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+        
+        .btn-acceso-rapido i {
+            margin-right: 5px;
+        }
+        
+        .acceso-rapido-container {
+            margin-top: 10px;
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">
+                <i class="fas fa-shield-alt me-2"></i>
+                Gestión de Permisos - FGJCDMX
+            </a>
+            <div class="navbar-nav ms-auto">
+                <a class="nav-link" href="dashboard">
+                    <i class="fas fa-tachometer-alt me-1"></i> Dashboard
+                </a>
+                <a class="nav-link" href="#" onclick="logout()">
+                    <i class="fas fa-sign-out-alt me-1"></i> Cerrar Sesión
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid mt-4">
+        <!-- Alertas -->
+        <div id="alertContainer"></div>
+
+        <!-- Header con acciones principales -->
+        <div class="row mb-4">
+            <div class="col-md-8">
+                <h2><i class="fas fa-users-cog me-2"></i>Gestión de Permisos por Tomo</h2>
+                <p class="text-muted">Asigna permisos granulares a usuarios para acceder a tomos específicos</p>
+            </div>
+            <div class="col-md-4 text-end">
+                <button id="btnActualizar" class="btn btn-primary me-2" onclick="actualizarManual()">
+                    <i class="fas fa-sync-alt me-1"></i> Actualizar Usuarios
+                </button>
+                <button id="btnLimpiar" class="btn btn-warning" onclick="limpiarSistema()" title="Optimizar base de datos">
+                    <i class="fas fa-broom me-1"></i> Limpiar
+                </button>
+            </div>
+        </div>
+
+        <!-- Filtros y búsqueda -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <i class="fas fa-filter me-2"></i>Filtros de Búsqueda
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3">
+                        <label class="form-label">Usuario</label>
+                        <select class="form-select" id="filtroUsuario" onchange="aplicarFiltros()">
+                            <option value="">Todos los usuarios</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Carpeta</label>
+                        <select class="form-select" id="filtroCarpeta" onchange="aplicarFiltros()">
+                            <option value="">Todas las carpetas</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Tipo de Permiso</label>
+                        <select class="form-select" id="filtroPermiso" onchange="aplicarFiltros()">
+                            <option value="">Todos los permisos</option>
+                            <option value="ver">Solo Visualización</option>
+                            <option value="buscar">Con Búsqueda</option>
+                            <option value="exportar">Con Exportación</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Búsqueda</label>
+                        <input type="text" class="form-control" id="busquedaTexto" 
+                               placeholder="Buscar por nombre, tomo..." onkeyup="aplicarFiltros()">
+                    </div>
+                    <div class="col-md-1 d-flex align-items-end">
+                        <button class="btn btn-outline-secondary w-100" onclick="limpiarFiltros()" title="Limpiar todos los filtros">
+                            <i class="fas fa-eraser"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Contenido principal -->
+        <div class="row">
+            <!-- Panel de usuarios -->
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header">
+                        <i class="fas fa-users me-2"></i>Usuarios del Sistema
+                    </div>
+                    <div class="card-body" style="max-height: 600px; overflow-y: auto;">
+                        <div id="listaUsuarios" class="loading">
+                            <div class="text-center">
+                                <div class="spinner-border" role="status">
+                                    <span class="visually-hidden">Cargando...</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Panel de permisos -->
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span><i class="fas fa-key me-2"></i>Permisos de Tomos</span>
+                        <span id="usuarioSeleccionado" class="badge bg-light text-dark"></span>
+                    </div>
+                    <div class="card-body" style="max-height: 600px; overflow-y: auto;">
+                        <div id="permisosContainer">
+                            <div class="text-center text-muted py-5">
+                                <i class="fas fa-user-check fa-3x mb-3"></i>
+                                <h5>Selecciona un usuario para gestionar sus permisos</h5>
+                                <p>Los permisos se aplicarán inmediatamente al cambiar los toggles</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="js/config.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/auth.js"></script>
+    <script>
+        // Esperar a que todos los scripts se carguen
+        document.addEventListener('DOMContentLoaded', function() {
+            // Verificar que las funciones de API estén disponibles
+            if (typeof apiGet === 'undefined' || typeof apiPost === 'undefined') {
+                console.error('Las funciones de API no están disponibles');
+                mostrarAlerta('Error: No se pueden cargar las funciones de API', 'danger');
+                return;
+            }
+            
+            verificarAuth();
+            cargarDatos();
+        });
+
+        let usuarios = [];
+        let carpetas = [];
+        let tomos = [];
+        let usuarioActual = null;
+        let permisosUsuario = [];
+        let ultimaActualizacion = Date.now();
+        let intervaloPoll = null;
+        let operacionesEnProgreso = new Set(); // Para evitar operaciones duplicadas
+        let throttleTimeouts = new Map(); // Para throttling de operaciones
+
+        async function cargarDatos() {
+            mostrarLoading(true);
+            try {
+                await Promise.all([
+                    cargarUsuarios(),
+                    cargarCarpetas(),
+                    cargarTomos()
+                ]);
+                actualizarFiltros();
+                ultimaActualizacion = Date.now();
+            } catch (error) {
+                mostrarAlerta('Error al cargar datos: ' + error.message, 'danger');
+            } finally {
+                mostrarLoading(false);
+            }
+        }
+
+        async function cargarUsuarios() {
+            try {
+                console.log('Cargando usuarios...');
+                const response = await apiGet('/admin/usuarios');
+                console.log('Respuesta de usuarios:', response);
+                
+                // Verificar si hay cambios en usuarios
+                const usuariosAnteriores = usuarios.map(u => u.id).sort();
+                const usuariosNuevos = response.map(u => u.id).sort();
+                const hayChangios = JSON.stringify(usuariosAnteriores) !== JSON.stringify(usuariosNuevos);
+                
+                console.log('🔍 Verificando cambios en usuarios:');
+                console.log('Usuarios anteriores:', usuariosAnteriores);
+                console.log('Usuarios nuevos:', usuariosNuevos);
+                console.log('¿Hay cambios?:', hayChangios);
+                console.log('Usuario actual seleccionado:', usuarioActual?.username || 'ninguno');
+                
+                // Mostrar todos los usuarios (sin filtrar por rol)
+                usuarios = response.filter(u => {
+                    console.log('Usuario:', u.username, 'Rol:', u.rol);
+                    return u.rol; // Solo verificar que tenga un rol asignado
+                });
+                
+                console.log('Usuarios encontrados:', usuarios.length);
+                
+                // Si hay cambios y tenemos un usuario seleccionado que ya no existe
+                if (hayChangios && usuarioActual && !usuarios.find(u => u.id === usuarioActual.id)) {
+                    console.log('🚨 Usuario eliminado detectado:', usuarioActual.username);
+                    usuarioActual = null;
+                    document.getElementById('usuarioSeleccionado').textContent = '';
+                    document.getElementById('permisosContainer').innerHTML = `
+                        <div class="text-center text-muted p-4">
+                            <i class="fas fa-user-slash fa-3x mb-3"></i>
+                            <h6>Usuario eliminado</h6>
+                            <p>El usuario seleccionado ha sido eliminado del sistema</p>
+                            <small>Selecciona otro usuario para gestionar sus permisos</small>
+                        </div>
+                    `;
+                    mostrarAlerta('El usuario seleccionado ha sido eliminado del sistema', 'warning');
+                }
+                
+                renderizarUsuarios();
+            } catch (error) {
+                console.error('Error cargando usuarios:', error);
+                throw error;
+            }
+        }
+
+        async function cargarCarpetas() {
+            try {
+                carpetas = await apiGet('/carpetas');
+                actualizarSelectCarpetas();
+            } catch (error) {
+                console.error('Error cargando carpetas:', error);
+                throw error;
+            }
+        }
+
+        async function cargarTomos() {
+            try {
+                tomos = await apiGet('/tomos/todos');
+            } catch (error) {
+                console.error('Error cargando tomos:', error);
+                throw error;
+            }
+        }
+
+        function renderizarUsuarios(usuariosAMostrar = null) {
+            const container = document.getElementById('listaUsuarios');
+            const listaUsuarios = usuariosAMostrar || usuarios;
+            
+            if (listaUsuarios.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center text-muted p-4">
+                        <i class="fas fa-users fa-3x mb-3"></i>
+                        <h6>No hay usuarios disponibles</h6>
+                        <p>${usuariosAMostrar ? 'No se encontraron usuarios con ese criterio' : 'No se encontraron usuarios en el sistema'}</p>
+                        <small>${usuariosAMostrar ? 'Intenta con otro término de búsqueda' : 'Verifica que existan usuarios creados en el sistema'}</small>
+                    </div>
+                `;
+                return;
+            }
+
+            const html = listaUsuarios.map(usuario => {
+                // Determinar color del badge según el rol
+                let badgeClass = 'bg-secondary';
+                switch(usuario.rol.nombre) {
+                    case 'admin':
+                        badgeClass = 'bg-danger';
+                        break;
+                    case 'Director':
+                        badgeClass = 'bg-primary';
+                        break;
+                    case 'Subdirector':
+                        badgeClass = 'bg-info';
+                        break;
+                    case 'Analista':
+                        badgeClass = 'bg-success';
+                        break;
+                }
+                
+                return `
+                    <div class="user-card p-3 ${usuarioActual?.id === usuario.id ? 'bg-light border-primary' : ''}" 
+                         style="cursor: pointer;" onclick="seleccionarUsuario(${usuario.id})">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="mb-1">${usuario.nombre || usuario.username}</h6>
+                                <small class="text-muted">${usuario.username}</small>
+                                <br><small class="text-muted">${usuario.email}</small>
+                            </div>
+                            <div class="text-end">
+                                <span class="badge ${badgeClass}">${usuario.rol.nombre}</span>
+                                <br><small class="text-muted" id="conteoPermisos-${usuario.id}">0 permisos</small>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            container.innerHTML = html;
+            container.classList.remove('loading');
+
+            // Cargar conteo de permisos para cada usuario mostrado
+            listaUsuarios.forEach(usuario => {
+                cargarConteoPermisos(usuario.id);
+            });
+        }
+
+        async function cargarConteoPermisos(usuarioId) {
+            try {
+                const permisos = await apiGet(`/permisos/usuarios/${usuarioId}/tomos/permisos`);
+                const elemento = document.getElementById(`conteoPermisos-${usuarioId}`);
+                if (elemento) {
+                    elemento.textContent = `${permisos.length} permiso${permisos.length !== 1 ? 's' : ''}`;
+                }
+            } catch (error) {
+                console.error(`Error cargando conteo para usuario ${usuarioId}:`, error);
+            }
+        }
+
+        async function seleccionarUsuario(usuarioId) {
+            usuarioActual = usuarios.find(u => u.id === usuarioId);
+            if (!usuarioActual) return;
+
+            // Actualizar UI
+            document.getElementById('usuarioSeleccionado').textContent = 
+                `${usuarioActual.nombre || usuarioActual.username}`;
+            
+            renderizarUsuarios(); // Re-renderizar para actualizar selección
+            
+            // Cargar permisos del usuario
+            await cargarPermisosUsuario(usuarioId);
+        }
+
+        async function cargarPermisosUsuario(usuarioId) {
+            try {
+                permisosUsuario = await apiGet(`/permisos/usuarios/${usuarioId}/tomos/permisos`);
+                renderizarPermisos();
+            } catch (error) {
+                console.error('Error cargando permisos:', error);
+                mostrarAlerta('Error al cargar permisos del usuario', 'danger');
+            }
+        }
+
+        function renderizarPermisos(tomosFiltrados = null) {
+            const container = document.getElementById('permisosContainer');
+            
+            if (!usuarioActual) {
+                container.innerHTML = `
+                    <div class="text-center text-muted py-5">
+                        <i class="fas fa-user-check fa-3x mb-3"></i>
+                        <h5>Selecciona un usuario para gestionar sus permisos</h5>
+                        <p>Los permisos se aplicarán inmediatamente al cambiar los toggles</p>
+                    </div>
+                `;
+                return;
+            }
+
+            // Usar tomos filtrados o todos los tomos
+            const tomosAMostrar = tomosFiltrados || tomos;
+
+            // Agrupar tomos por carpeta
+            const tomosPorCarpeta = {};
+            tomosAMostrar.forEach(tomo => {
+                const carpetaId = tomo.carpeta_id;
+                if (!tomosPorCarpeta[carpetaId]) {
+                    const carpeta = carpetas.find(c => c.id === carpetaId);
+                    tomosPorCarpeta[carpetaId] = {
+                        carpeta: carpeta,
+                        tomos: []
+                    };
+                }
+                tomosPorCarpeta[carpetaId].tomos.push(tomo);
+            });
+
+            let html = '';
+            
+            Object.values(tomosPorCarpeta).forEach(grupo => {
+                if (!grupo.carpeta) return;
+                
+                html += `
+                    <div class="mb-4">
+                        <div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-3">
+                            <h6 class="mb-0">
+                                <i class="fas fa-folder me-2"></i>${grupo.carpeta.nombre || grupo.carpeta.numero_expediente || 'Sin nombre'}
+                                ${grupo.carpeta.numero_expediente ? `<small class="text-muted">(${grupo.carpeta.numero_expediente})</small>` : ''}
+                            </h6>
+                            <div class="d-flex gap-2 flex-wrap">
+                                <button class="btn btn-sm btn-outline-success btn-acceso-rapido" onclick="aplicarPermisoTodosEnCarpeta(${grupo.carpeta.id}, 'completo')" title="Acceso completo a todos los tomos">
+                                    <i class="fas fa-check-double"></i> Todos Completo
+                                </button>
+                                <button class="btn btn-sm btn-outline-warning btn-acceso-rapido" onclick="aplicarPermisoTodosEnCarpeta(${grupo.carpeta.id}, 'lectura')" title="Solo visualización a todos los tomos">
+                                    <i class="fas fa-eye"></i> Todos Ver
+                                </button>
+                                <button class="btn btn-sm btn-outline-danger btn-acceso-rapido" onclick="aplicarPermisoTodosEnCarpeta(${grupo.carpeta.id}, 'ninguno')" title="Quitar permisos a todos los tomos">
+                                    <i class="fas fa-times"></i> Quitar Todos
+                                </button>
+                            </div>
+                        </div>
+                `;
+
+                grupo.tomos.forEach(tomo => {
+                    const permisoExistente = permisosUsuario.find(p => p.tomo_id === tomo.id) || {};
+                    
+                    html += `
+                        <div class="tomo-item p-3 mb-2 border rounded">
+                            <div class="row align-items-center">
+                                <div class="col-md-4">
+                                    <h6 class="mb-1">
+                                        Tomo ${tomo.numero_tomo}
+                                        ${getEstadoPermisos(permisoExistente)}
+                                    </h6>
+                                    <small class="text-muted">${tomo.nombre_archivo}</small>
+                                    <br><small class="text-muted">${formatearTamaño(tomo.tamanio_bytes)}</small>
+                                    <br><small class="badge bg-info">${contarPermisosActivos(permisoExistente)} de 3 permisos</small>
+                                    <div class="acceso-rapido-container">
+                                        <button class="btn btn-sm btn-outline-success btn-acceso-rapido" onclick="aplicarPermisoRapido(${tomo.id}, 'completo')" title="Activar todos los permisos">
+                                            <i class="fas fa-check-double"></i> Completo
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-warning btn-acceso-rapido" onclick="aplicarPermisoRapido(${tomo.id}, 'lectura')" title="Solo visualización">
+                                            <i class="fas fa-eye"></i> Solo Ver
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-danger btn-acceso-rapido" onclick="aplicarPermisoRapido(${tomo.id}, 'ninguno')" title="Quitar todos los permisos">
+                                            <i class="fas fa-times"></i> Ninguno
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="col-md-8">
+                                    <div class="row">
+                                        <div class="col-md-4 text-center">
+                                            <label class="form-label small"><i class="fas fa-eye me-1"></i>Ver</label>
+                                            <br>
+                                            <label class="toggle-switch">
+                                                <input type="checkbox" ${permisoExistente.puede_ver ? 'checked' : ''} 
+                                                       onchange="cambiarPermiso(${tomo.id}, 'puede_ver', this.checked)"
+                                                       title="Permite visualizar el contenido del tomo">
+                                                <span class="slider"></span>
+                                            </label>
+                                            <br><small class="text-muted">Visualización</small>
+                                        </div>
+                                        <div class="col-md-4 text-center">
+                                            <label class="form-label small"><i class="fas fa-search me-1"></i>Buscar</label>
+                                            <br>
+                                            <label class="toggle-switch">
+                                                <input type="checkbox" ${permisoExistente.puede_buscar ? 'checked' : ''} 
+                                                       onchange="cambiarPermiso(${tomo.id}, 'puede_buscar', this.checked)"
+                                                       title="Permite buscar contenido dentro del tomo">
+                                                <span class="slider"></span>
+                                            </label>
+                                            <br><small class="text-muted">Contenido</small>
+                                        </div>
+                                        <div class="col-md-4 text-center">
+                                            <label class="form-label small"><i class="fas fa-download me-1"></i>Exportar</label>
+                                            <br>
+                                            <label class="toggle-switch">
+                                                <input type="checkbox" ${permisoExistente.puede_exportar ? 'checked' : ''} 
+                                                       onchange="cambiarPermiso(${tomo.id}, 'puede_exportar', this.checked)"
+                                                       title="Permite descargar/exportar el tomo a Word">
+                                                <span class="slider"></span>
+                                            </label>
+                                            <br><small class="text-muted">A Word</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                html += '</div>';
+            });
+
+            if (html === '') {
+                const mensaje = tomosFiltrados 
+                    ? '<div class="text-center text-muted py-4"><i class="fas fa-filter fa-2x mb-3"></i><p>No se encontraron tomos con los filtros aplicados</p><small>Intenta con otros criterios de búsqueda</small></div>'
+                    : '<p class="text-muted text-center">No hay tomos disponibles</p>';
+                html = mensaje;
+            }
+
+            container.innerHTML = html;
+        }
+
+        async function cambiarPermiso(tomoId, tipoPermiso, valor) {
+            if (!usuarioActual) return;
+
+            // Throttling: evitar múltiples cambios simultáneos del mismo permiso
+            const operacionId = `${usuarioActual.id}-${tomoId}-${tipoPermiso}`;
+            
+            if (operacionesEnProgreso.has(operacionId)) {
+                console.log('⏳ Operación ya en progreso, ignorando...', operacionId);
+                return;
+            }
+            
+            operacionesEnProgreso.add(operacionId);
+
+            try {
+                const permisoExistente = permisosUsuario.find(p => p.tomo_id === tomoId) || {};
+                
+                const datosPermiso = {
+                    usuario_id: usuarioActual.id,
+                    tomo_id: tomoId,
+                    puede_ver: permisoExistente.puede_ver || false,
+                    puede_buscar: permisoExistente.puede_buscar || false,
+                    puede_exportar: permisoExistente.puede_exportar || false
+                };
+
+                datosPermiso[tipoPermiso] = valor;
+
+                console.log(`🔄 Cambiando permiso ${tipoPermiso} a ${valor} para tomo ${tomoId}`);
+                
+                const response = await apiPost('/permisos/tomos/permisos', datosPermiso);
+                
+                // Manejar respuesta (puede ser un permiso o un mensaje)
+                if (response && response.message) {
+                    // Es un mensaje de eliminación
+                    console.log('🗑️ Permiso eliminado:', response.message);
+                } else {
+                    // Es un permiso actualizado
+                    console.log('✅ Permiso actualizado:', response);
+                }
+                
+                // Actualizar permisos locales y usuarios
+                await Promise.all([
+                    cargarPermisosUsuario(usuarioActual.id),
+                    cargarConteoPermisos(usuarioActual.id),
+                    cargarUsuarios()
+                ]);
+                
+                ultimaActualizacion = Date.now();
+                
+                const tipoTexto = {
+                    'puede_ver': 'visualización',
+                    'puede_buscar': 'búsqueda',
+                    'puede_exportar': 'exportación'
+                };
+                
+                const accion = valor ? 'activado' : 'desactivado';
+                mostrarAlerta(`Permiso de ${tipoTexto[tipoPermiso]} ${accion} correctamente`, 'success', 2000);
+            } catch (error) {
+                console.error('❌ Error cambiando permiso:', error);
+                mostrarAlerta('Error al cambiar permiso: ' + error.message, 'danger');
+                // Revertir el toggle
+                setTimeout(() => renderizarPermisos(), 100);
+            } finally {
+                // Remover la operación del set después de un breve delay
+                setTimeout(() => {
+                    operacionesEnProgreso.delete(operacionId);
+                }, 500);
+            }
+        }
+
+        function actualizarSelectCarpetas() {
+            const select = document.getElementById('filtroCarpeta');
+            if (!select) return;
+            
+            select.innerHTML = `<option value="">Todas las carpetas</option>`;
+            
+            carpetas.forEach(carpeta => {
+                const nombre = carpeta.nombre || carpeta.numero_expediente || 'Sin nombre';
+                const numeroExp = carpeta.numero_expediente ? ` (${carpeta.numero_expediente})` : '';
+                select.innerHTML += `
+                    <option value="${carpeta.id}">
+                        ${nombre}${numeroExp}
+                    </option>
+                `;
+            });
+        }
+
+        function actualizarFiltros() {
+            const filtroUsuario = document.getElementById('filtroUsuario');
+            filtroUsuario.innerHTML = '<option value="">Todos los usuarios</option>';
+            
+            usuarios.forEach(usuario => {
+                filtroUsuario.innerHTML += `
+                    <option value="${usuario.id}">
+                        ${usuario.nombre || usuario.username}
+                    </option>
+                `;
+            });
+        }
+
+        function aplicarFiltros() {
+            const filtroUsuarioId = document.getElementById('filtroUsuario').value;
+            const filtroCarpetaId = document.getElementById('filtroCarpeta').value;
+            const filtroPermiso = document.getElementById('filtroPermiso').value;
+            const busquedaTexto = document.getElementById('busquedaTexto').value.toLowerCase().trim();
+
+            // Si hay un usuario seleccionado en el filtro, cargar sus permisos
+            if (filtroUsuarioId) {
+                const usuarioFiltrado = usuarios.find(u => u.id == filtroUsuarioId);
+                if (usuarioFiltrado) {
+                    seleccionarUsuario(usuarioFiltrado);
+                }
+            }
+
+            // Filtrar la lista de usuarios si hay búsqueda de texto
+            if (busquedaTexto) {
+                const usuariosFiltrados = usuarios.filter(usuario => {
+                    const nombre = (usuario.nombre || usuario.username || '').toLowerCase();
+                    const username = (usuario.username || '').toLowerCase();
+                    return nombre.includes(busquedaTexto) || username.includes(busquedaTexto);
+                });
+                
+                renderizarUsuarios(usuariosFiltrados);
+            } else {
+                renderizarUsuarios(usuarios);
+            }
+
+            // Si hay un usuario actual seleccionado, filtrar sus tomos
+            if (usuarioActual) {
+                filtrarTomosUsuario(filtroCarpetaId, filtroPermiso, busquedaTexto);
+            }
+        }
+
+        function limpiarFiltros() {
+            document.getElementById('filtroUsuario').value = '';
+            document.getElementById('filtroCarpeta').value = '';
+            document.getElementById('filtroPermiso').value = '';
+            document.getElementById('busquedaTexto').value = '';
+            
+            // Renderizar lista completa de usuarios
+            renderizarUsuarios(usuarios);
+            
+            // Si hay usuario seleccionado, mostrar todos sus tomos
+            if (usuarioActual) {
+                renderizarPermisos();
+            }
+        }
+
+        function filtrarTomosUsuario(carpetaId, tipoPermiso, busqueda) {
+            let tomosFiltrados = [...tomos];
+
+            // Filtrar por carpeta
+            if (carpetaId) {
+                tomosFiltrados = tomosFiltrados.filter(t => t.carpeta_id == carpetaId);
+            }
+
+            // Filtrar por búsqueda de texto
+            if (busqueda) {
+                tomosFiltrados = tomosFiltrados.filter(tomo => {
+                    const nombre = (tomo.nombre_archivo || '').toLowerCase();
+                    const numeroTomo = String(tomo.numero_tomo || '').toLowerCase();
+                    return nombre.includes(busqueda) || numeroTomo.includes(busqueda);
+                });
+            }
+
+            // Filtrar por tipo de permiso (si aplica)
+            if (tipoPermiso && permisosUsuarioActual.length > 0) {
+                const tomosConPermiso = permisosUsuarioActual
+                    .filter(p => {
+                        if (tipoPermiso === 'ver') return p.puede_ver;
+                        if (tipoPermiso === 'buscar') return p.puede_buscar;
+                        if (tipoPermiso === 'exportar') return p.puede_exportar;
+                        return false;
+                    })
+                    .map(p => p.tomo_id);
+
+                tomosFiltrados = tomosFiltrados.filter(t => tomosConPermiso.includes(t.id));
+            }
+
+            // Renderizar tomos filtrados
+            renderizarPermisos(tomosFiltrados);
+        }
+
+        function formatearTamaño(bytes) {
+            if (!bytes) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        function getEstadoPermisos(permiso) {
+            const total = contarPermisosActivos(permiso);
+            if (total === 0) return '<span class="badge bg-secondary ms-2">Sin acceso</span>';
+            if (total === 1) return '<span class="badge bg-warning ms-2">Acceso limitado</span>';
+            if (total === 2) return '<span class="badge bg-primary ms-2">Acceso parcial</span>';
+            if (total === 3) return '<span class="badge bg-success ms-2">Acceso completo</span>';
+            return '';
+        }
+
+        function contarPermisosActivos(permiso) {
+            let count = 0;
+            if (permiso.puede_ver) count++;
+            if (permiso.puede_buscar) count++;
+            if (permiso.puede_exportar) count++;
+            return count;
+        }
+
+        async function aplicarPermisoRapido(tomoId, tipo) {
+            if (!usuarioActual) return;
+
+            let permisos = {};
+            
+            switch (tipo) {
+                case 'completo':
+                    permisos = { puede_ver: true, puede_buscar: true, puede_exportar: true };
+                    break;
+                case 'lectura':
+                    permisos = { puede_ver: true, puede_buscar: false, puede_exportar: false };
+                    break;
+                case 'ninguno':
+                    permisos = { puede_ver: false, puede_buscar: false, puede_exportar: false };
+                    break;
+            }
+
+            try {
+                const datosPermiso = {
+                    usuario_id: usuarioActual.id,
+                    tomo_id: tomoId,
+                    ...permisos
+                };
+
+                const response = await apiPost('/permisos/tomos/permisos', datosPermiso);
+                
+                // Manejar respuesta
+                if (response && response.message) {
+                    console.log('🗑️ Permiso eliminado:', response.message);
+                } else {
+                    console.log('✅ Permiso aplicado:', response);
+                }
+                
+                // Actualizar permisos locales
+                await cargarPermisosUsuario(usuarioActual.id);
+                await cargarConteoPermisos(usuarioActual.id);
+                // Actualizar lista de usuarios para reflejar cambios en conteos
+                await cargarUsuarios();
+                ultimaActualizacion = Date.now();
+                
+                const mensajes = {
+                    'completo': 'Acceso completo activado',
+                    'lectura': 'Solo visualización activada',
+                    'ninguno': 'Todos los permisos removidos'
+                };
+                
+                mostrarAlerta(mensajes[tipo], 'success', 2000);
+            } catch (error) {
+                console.error('Error aplicando permiso rápido:', error);
+                mostrarAlerta('Error al aplicar permisos: ' + error.message, 'danger');
+            }
+        }
+
+        async function aplicarPermisoTodosEnCarpeta(carpetaId, tipo) {
+            if (!usuarioActual) return;
+
+            const tomosEnCarpeta = tomos.filter(t => t.carpeta_id === carpetaId);
+            
+            if (tomosEnCarpeta.length === 0) {
+                mostrarAlerta('No hay tomos en esta carpeta', 'warning');
+                return;
+            }
+
+            const carpeta = carpetas.find(c => c.id === carpetaId);
+            const confirmMsg = `¿Está seguro de aplicar permisos de "${tipo}" a todos los ${tomosEnCarpeta.length} tomos de la carpeta "${carpeta.nombre}"?`;
+            
+            if (!confirm(confirmMsg)) return;
+
+            let permisos = {};
+            
+            switch (tipo) {
+                case 'completo':
+                    permisos = { puede_ver: true, puede_buscar: true, puede_exportar: true };
+                    break;
+                case 'lectura':
+                    permisos = { puede_ver: true, puede_buscar: false, puede_exportar: false };
+                    break;
+                case 'ninguno':
+                    permisos = { puede_ver: false, puede_buscar: false, puede_exportar: false };
+                    break;
+            }
+
+            try {
+                const tomosIds = tomosEnCarpeta.map(t => t.id);
+                
+                await apiPost('/permisos/tomos/permisos/masivos', {
+                    usuario_id: usuarioActual.id,
+                    tomos_ids: tomosIds,
+                    permisos: permisos
+                });
+                
+                // Actualizar permisos locales
+                await cargarPermisosUsuario(usuarioActual.id);
+                await cargarConteoPermisos(usuarioActual.id);
+                // Actualizar lista de usuarios para reflejar cambios en conteos
+                await cargarUsuarios();
+                ultimaActualizacion = Date.now();
+                
+                const mensajes = {
+                    'completo': `Acceso completo aplicado a ${tomosEnCarpeta.length} tomos`,
+                    'lectura': `Solo visualización aplicada a ${tomosEnCarpeta.length} tomos`,
+                    'ninguno': `Permisos removidos de ${tomosEnCarpeta.length} tomos`
+                };
+                
+                mostrarAlerta(mensajes[tipo], 'success', 3000);
+            } catch (error) {
+                console.error('Error aplicando permisos masivos:', error);
+                mostrarAlerta('Error al aplicar permisos masivos: ' + error.message, 'danger');
+            }
+        }
+
+        function mostrarLoading(mostrar) {
+            const container = document.getElementById('listaUsuarios');
+            if (mostrar) {
+                container.innerHTML = `
+                    <div class="text-center loading">
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">Cargando...</span>
+                        </div>
+                        <p class="mt-2">Cargando usuarios...</p>
+                    </div>
+                `;
+                container.classList.add('loading');
+            } else {
+                container.classList.remove('loading');
+            }
+        }
+
+        function mostrarAlerta(mensaje, tipo = 'info', duracion = 5000) {
+            const alertContainer = document.getElementById('alertContainer');
+            const alertId = 'alert-' + Date.now();
+            
+            const alertHTML = `
+                <div id="${alertId}" class="alert alert-${tipo} alert-dismissible fade show" role="alert">
+                    <i class="fas fa-${tipo === 'success' ? 'check-circle' : tipo === 'danger' ? 'exclamation-triangle' : 'info-circle'} me-2"></i>
+                    ${mensaje}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            `;
+            
+            alertContainer.insertAdjacentHTML('beforeend', alertHTML);
+            
+            if (duracion > 0) {
+                setTimeout(() => {
+                    const alert = document.getElementById(alertId);
+                    if (alert) {
+                        alert.remove();
+                    }
+                }, duracion);
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem('token');
+            localStorage.removeItem('usuario');
+            window.location.href = 'index';
+        }
+
+        function verificarAuth() {
+            if (!localStorage.getItem('token')) {
+                window.location.href = 'index';
+                return;
+            }
+        }
+
+        // Sistema de actualización automática
+        async function actualizarManual() {
+            const btn = document.getElementById('btnActualizar');
+            const iconoOriginal = btn.innerHTML;
+            
+            try {
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Actualizando...';
+                btn.disabled = true;
+                
+                await cargarUsuarios();
+                ultimaActualizacion = Date.now();
+                
+                mostrarAlerta('Usuarios actualizados correctamente', 'success', 3000);
+            } catch (error) {
+                mostrarAlerta('Error al actualizar usuarios: ' + error.message, 'danger');
+            } finally {
+                btn.innerHTML = iconoOriginal;
+                btn.disabled = false;
+            }
+        }
+
+        // Sistema de limpieza automática para desarrollo
+        async function limpiarSistema() {
+            const btn = document.getElementById('btnLimpiar');
+            const iconoOriginal = btn.innerHTML;
+            
+            if (!confirm('¿Ejecutar optimización del sistema?\n\nEsto eliminará permisos vacíos y optimizará la base de datos.')) {
+                return;
+            }
+            
+            try {
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Limpiando...';
+                btn.disabled = true;
+                
+                console.log('🧹 Iniciando limpieza del sistema...');
+                
+                const response = await fetch('/api/dev/limpiar-permisos', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const resultado = await response.json();
+                
+                if (response.ok && resultado.success) {
+                    const eliminados = resultado.detalles?.permisos_eliminados || 0;
+                    
+                    // Actualizar usuarios después de la limpieza
+                    await cargarUsuarios();
+                    ultimaActualizacion = Date.now();
+                    
+                    mostrarAlerta(
+                        `✅ Sistema optimizado: ${eliminados} registros limpiados`, 
+                        'success', 
+                        5000
+                    );
+                    
+                    console.log('✅ Limpieza completada:', resultado);
+                } else {
+                    throw new Error(resultado.detail || 'Error en la limpieza');
+                }
+                
+            } catch (error) {
+                console.error('❌ Error en limpieza:', error);
+                mostrarAlerta('Error al limpiar sistema: ' + error.message, 'danger');
+            } finally {
+                btn.innerHTML = iconoOriginal;
+                btn.disabled = false;
+            }
+        }
+
+        function iniciarPolling() {
+            // Polling cada 10 segundos para detectar cambios en usuarios (más frecuente)
+            intervaloPoll = setInterval(async () => {
+                try {
+                    console.log('⏰ Polling automático - Verificando usuarios...');
+                    const ahora = Date.now();
+                    // Solo actualizar si han pasado más de 8 segundos desde la última actualización
+                    if (ahora - ultimaActualizacion > 8000) {
+                        await cargarUsuarios();
+                        ultimaActualizacion = ahora;
+                        console.log('✅ Usuarios verificados por polling');
+                    }
+                } catch (error) {
+                    console.error('❌ Error en polling:', error);
+                }
+            }, 10000); // Cada 10 segundos
+        }
+
+        function detenerPolling() {
+            if (intervaloPoll) {
+                clearInterval(intervaloPoll);
+                intervaloPoll = null;
+            }
+        }
+
+        // Actualizar cuando se enfoque la ventana
+        window.addEventListener('focus', async () => {
+            console.log('🔄 Ventana enfocada - Actualizando usuarios...');
+            try {
+                await cargarUsuarios();
+                ultimaActualizacion = Date.now();
+                console.log('✅ Usuarios actualizados por enfoque de ventana');
+            } catch (error) {
+                console.error('❌ Error actualizando en focus:', error);
+            }
+        });
+
+        // Actualizar cuando la página se hace visible
+        document.addEventListener('visibilitychange', async () => {
+            if (!document.hidden) {
+                console.log('👁️ Página visible - Actualizando usuarios...');
+                try {
+                    await cargarUsuarios();
+                    ultimaActualizacion = Date.now();
+                    console.log('✅ Usuarios actualizados por visibilidad');
+                } catch (error) {
+                    console.error('❌ Error actualizando en visibilitychange:', error);
+                }
+            }
+        });
+
+        // Iniciar polling cuando se carga la página
+        window.addEventListener('load', () => {
+            iniciarPolling();
+        });
+
+        // Detener polling cuando se cierra/cambia la página
+        window.addEventListener('beforeunload', () => {
+            detenerPolling();
+        });
+    </script>
+</body>
+</html>

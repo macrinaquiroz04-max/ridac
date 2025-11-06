@@ -1,0 +1,74 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+*.egg-info/
+dist/
+build/
+
+# Base de datos
+*.db
+*.sqlite
+
+# Configuración
+.env
+*.env
+!.env.example
+
+# Logs
+*.log
+logs/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Archivos del sistema
+C:/FGJCDMX/
+backend/C/
+
+# Docker
+.dockerignore
+docker-compose.override.yml
+.docker/
+
+# Backups
+backups/*.sql
+backups/*.dump
+backups/*.backup
+!backups/.gitkeep
+
+# Temporales
+temp/
+tmp/
+*.tmp
+uploads/test_*
+*.txt~
+
+# Archivos grandes (PDFs de tomos y documentos)
+backend/uploads/tomos/
+backend/uploads/profiles/*.png
+backend/uploads/profiles/*.jpg
+*.pdf
+*.PDF
+documentos/
+uploads/
+*.zip
+*.rar
+*.7z
+*.tar.gz
+
+# Archivos de limpieza
+ARCHIVOS_ELIMINADOS_*.txt
+ARCHIVOS_A_ELIMINAR.txt

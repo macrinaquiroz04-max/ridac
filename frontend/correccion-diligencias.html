@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Corrección de Diligencias - FGJCDMX</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            background: linear-gradient(135deg, #1a365d 0%, #2c5aa0 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container-main {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        .card-problema {
+            border-left: 4px solid #dc3545;
+            margin-bottom: 15px;
+            transition: all 0.3s;
+        }
+        
+        .card-problema:hover {
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            transform: translateY(-2px);
+        }
+        
+        .badge-problema {
+            font-size: 0.75rem;
+            padding: 0.4em 0.8em;
+        }
+        
+        .fecha-invalida { border-left-color: #dc3545; }
+        .texto-corrupto { border-left-color: #ff6b6b; }
+        .baja-confianza { border-left-color: #ffc107; }
+        
+        .btn-action {
+            margin: 0 5px;
+        }
+        
+        .header-section {
+            background: rgba(255,255,255,0.95);
+            border-radius: 15px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+        
+        .stat-card {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+        
+        .stat-number {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: #2c5aa0;
+        }
+        
+        .modal-body .form-label {
+            font-weight: 600;
+            color: #1a365d;
+        }
+        
+        .problema-descripcion {
+            background: #fff3cd;
+            border-left: 3px solid #ffc107;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        
+        .original-value {
+            background: #f8d7da;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+        
+        .loading-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+            z-index: 9999;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .loading-overlay.active {
+            display: flex;
+        }
+    </style>
+</head>
+<body>
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="spinner-border text-light" style="width: 3rem; height: 3rem;"></div>
+    </div>
+
+    <div class="container-main">
+        <!-- Header -->
+        <div class="header-section">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h1><i class="fas fa-edit text-primary"></i> Corrección de Diligencias</h1>
+                    <p class="text-muted mb-0">Corrige datos mal extraídos por el OCR</p>
+                </div>
+                <div>
+                    <button class="btn btn-outline-secondary" onclick="window.location.href='dashboard'">
+                        <i class="fas fa-arrow-left"></i> Volver
+                    </button>
+                </div>
+            </div>
+
+            <!-- Estadísticas -->
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <div class="stat-card">
+                        <div class="stat-number" id="totalProblemas">0</div>
+                        <div class="text-muted">Total Problemas</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stat-card">
+                        <div class="stat-number text-danger" id="fechasInvalidas">0</div>
+                        <div class="text-muted">Fechas Inválidas</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stat-card">
+                        <div class="stat-number text-warning" id="textosCorruptos">0</div>
+                        <div class="text-muted">Texto Corrupto</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stat-card">
+                        <div class="stat-number text-info" id="bajaConfianza">0</div>
+                        <div class="text-muted">Baja Confianza</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Filtros -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label"><i class="fas fa-filter"></i> Tipo de Problema</label>
+                        <select class="form-select" id="filtroTipoProblema">
+                            <option value="">Todos los problemas</option>
+                            <option value="fechas_invalidas">Fechas Inválidas</option>
+                            <option value="texto_corrupto">Texto Corrupto</option>
+                            <option value="baja_confianza">Baja Confianza</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label"><i class="fas fa-folder"></i> Carpeta</label>
+                        <select class="form-select" id="filtroCarpeta">
+                            <option value="">Todas las carpetas</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">&nbsp;</label>
+                        <button class="btn btn-primary w-100" onclick="cargarProblemas()">
+                            <i class="fas fa-search"></i> Buscar
+                        </button>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">&nbsp;</label>
+                        <button class="btn btn-success w-100" onclick="autocorregirTodo()">
+                            <i class="fas fa-magic"></i> Auto Todo
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Lista de Problemas -->
+        <div id="listaProblemas"></div>
+    </div>
+
+    <!-- Modal Editar Diligencia -->
+    <div class="modal fade" id="modalEditar" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title"><i class="fas fa-edit"></i> Editar Diligencia</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="problema-descripcion" id="problemaDescript">
+                        <strong><i class="fas fa-exclamation-triangle"></i> Problema:</strong>
+                        <span id="problemaDescripcionTexto"></span>
+                    </div>
+
+                    <form id="formEditar">
+                        <input type="hidden" id="diligenciaId">
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Tipo de Diligencia</label>
+                            <input type="text" class="form-control" id="editTipo" placeholder="ENTREVISTA, ACUERDO, etc.">
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">Fecha (YYYY-MM-DD)</label>
+                                    <input type="date" class="form-control" id="editFecha">
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">Fecha Texto Original</label>
+                                    <input type="text" class="form-control" id="editFechaTexto" placeholder="Como aparece en el documento">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Responsable</label>
+                            <input type="text" class="form-control" id="editResponsable" placeholder="Nombre del responsable">
+                            <small class="text-muted">Corrige errores como "MNSTENO" → "MINISTERIO"</small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Número de Oficio</label>
+                            <input type="text" class="form-control" id="editOficio" placeholder="Número de oficio">
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Descripción</label>
+                            <textarea class="form-control" id="editDescripcion" rows="3"></textarea>
+                        </div>
+
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" id="editVerificado">
+                            <label class="form-check-label" for="editVerificado">
+                                <strong>Marcar como verificada</strong> (datos corregidos y confirmados)
+                            </label>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-danger" onclick="eliminarDiligencia()">
+                        <i class="fas fa-trash"></i> Eliminar
+                    </button>
+                    <button type="button" class="btn btn-primary" onclick="guardarEdicion()">
+                        <i class="fas fa-save"></i> Guardar Cambios
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        const API_URL = '/api';
+        let modalEditar;
+
+        document.addEventListener('DOMContentLoaded', function() {
+            // Verificar autenticación primero
+            const token = localStorage.getItem('token');
+            if (!token) {
+                alert('Debes iniciar sesión primero');
+                window.location.href = '/';
+                return;
+            }
+
+            modalEditar = new bootstrap.Modal(document.getElementById('modalEditar'));
+            cargarCarpetas();
+            cargarProblemas();
+        });
+
+        function getAuthHeaders() {
+            const token = localStorage.getItem('token');
+            return {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            };
+        }
+
+        function showLoading() {
+            document.getElementById('loadingOverlay').classList.add('active');
+        }
+
+        function hideLoading() {
+            document.getElementById('loadingOverlay').classList.remove('active');
+        }
+
+        async function cargarCarpetas() {
+            try {
+                const response = await fetch(`${API_URL}/carpetas`, {
+                    headers: getAuthHeaders()
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                
+                if (!Array.isArray(data)) {
+                    console.error('Respuesta no es un array:', data);
+                    return;
+                }
+                
+                const select = document.getElementById('filtroCarpeta');
+                data.forEach(carpeta => {
+                    const option = document.createElement('option');
+                    option.value = carpeta.id;
+                    option.textContent = carpeta.nombre;
+                    select.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error al cargar carpetas: ' + error.message);
+            }
+        }
+
+        async function cargarProblemas() {
+            try {
+                showLoading();
+
+                const tipoProblema = document.getElementById('filtroTipoProblema').value;
+                const carpetaId = document.getElementById('filtroCarpeta').value;
+
+                let url = `${API_URL}/admin/diligencias/problematicas?limite=100`;
+                if (tipoProblema) url += `&tipo_problema=${tipoProblema}`;
+                if (carpetaId) url += `&carpeta_id=${carpetaId}`;
+
+                const response = await fetch(url, { headers: getAuthHeaders() });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+
+                mostrarProblemas(data.problemas || []);
+                actualizarEstadisticas(data.problemas || []);
+
+                hideLoading();
+            } catch (error) {
+                console.error('Error:', error);
+                hideLoading();
+                alert('Error al cargar problemas: ' + error.message);
+            }
+        }
+
+        function mostrarProblemas(problemas) {
+            const container = document.getElementById('listaProblemas');
+
+            if (!problemas || problemas.length === 0) {
+                container.innerHTML = `
+                    <div class="card">
+                        <div class="card-body text-center py-5">
+                            <i class="fas fa-check-circle fa-4x text-success mb-3"></i>
+                            <h4>¡No hay problemas detectados!</h4>
+                            <p class="text-muted">Todas las diligencias están correctamente verificadas.</p>
+                        </div>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = problemas.map(p => `
+                <div class="card card-problema ${p.tipo_problema.replace('_', '-')}">
+                    <div class="card-body">
+                        <div class="row align-items-center">
+                            <div class="col-md-1 text-center">
+                                <span class="badge bg-secondary">#${p.orden || p.id}</span>
+                                ${p.pagina ? `<br><small class="text-muted">Pág. ${p.pagina}</small>` : ''}
+                            </div>
+                            <div class="col-md-2">
+                                <strong>${escaparHTML(p.tipo_diligencia)}</strong>
+                                <br>
+                                <span class="badge badge-problema ${getBadgeClass(p.tipo_problema)}">
+                                    ${getTipoProblemaLabel(p.tipo_problema)}
+                                </span>
+                            </div>
+                            <div class="col-md-2">
+                                ${p.fecha ? formatearFecha(p.fecha) : '<em class="text-muted">Sin fecha</em>'}
+                                ${p.fecha_texto ? `<br><small class="text-muted">${escaparHTML(p.fecha_texto)}</small>` : ''}
+                            </div>
+                            <div class="col-md-2">
+                                ${p.responsable ? escaparHTML(p.responsable) : '<em class="text-muted">-</em>'}
+                            </div>
+                            <div class="col-md-2">
+                                <div class="alert alert-warning mb-0 py-1 px-2 small">
+                                    <i class="fas fa-exclamation-circle"></i>
+                                    ${escaparHTML(p.descripcion_problema)}
+                                </div>
+                            </div>
+                            <div class="col-md-3 text-end">
+                                <button class="btn btn-sm btn-success btn-action" onclick='autocorregir(${p.id})' title="Corrección automática">
+                                    <i class="fas fa-magic"></i> Auto
+                                </button>
+                                <button class="btn btn-sm btn-primary btn-action" onclick="editarDiligencia(${p.id}, '${escaparHTML(p.tipo_diligencia)}', '${p.fecha || ''}', '${escaparHTML(p.fecha_texto || '')}', '${escaparHTML(p.responsable || '')}', '${escaparHTML(p.numero_oficio || '')}', '${escaparHTML(p.descripcion || '')}')">
+                                    <i class="fas fa-edit"></i> Editar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function actualizarEstadisticas(problemas) {
+            const stats = {
+                total: problemas.length,
+                fechas_invalidas: problemas.filter(p => p.tipo_problema === 'fecha_invalida').length,
+                texto_corrupto: problemas.filter(p => p.tipo_problema === 'texto_corrupto').length,
+                baja_confianza: problemas.filter(p => p.tipo_problema === 'baja_confianza').length
+            };
+
+            document.getElementById('totalProblemas').textContent = stats.total;
+            document.getElementById('fechasInvalidas').textContent = stats.fechas_invalidas;
+            document.getElementById('textosCorruptos').textContent = stats.texto_corrupto;
+            document.getElementById('bajaConfianza').textContent = stats.baja_confianza;
+        }
+
+        function editarDiligencia(id, tipo, fecha, fecha_texto, responsable, numero_oficio, descripcion) {
+            document.getElementById('diligenciaId').value = id;
+            document.getElementById('editTipo').value = tipo || '';
+            document.getElementById('editFecha').value = fecha || '';
+            document.getElementById('editFechaTexto').value = fecha_texto || '';
+            document.getElementById('editResponsable').value = responsable || '';
+            document.getElementById('editOficio').value = numero_oficio || '';
+            document.getElementById('editDescripcion').value = descripcion || '';
+            document.getElementById('editVerificado').checked = false;
+
+            modalEditar.show();
+        }
+
+        async function guardarEdicion() {
+            try {
+                showLoading();
+
+                const id = document.getElementById('diligenciaId').value;
+                const datos = {
+                    tipo_diligencia: document.getElementById('editTipo').value || null,
+                    fecha_diligencia: document.getElementById('editFecha').value || null,
+                    fecha_diligencia_texto: document.getElementById('editFechaTexto').value || null,
+                    responsable: document.getElementById('editResponsable').value || null,
+                    numero_oficio: document.getElementById('editOficio').value || null,
+                    descripcion: document.getElementById('editDescripcion').value || null,
+                    verificado: document.getElementById('editVerificado').checked
+                };
+
+                const response = await fetch(`${API_URL}/admin/diligencias/${id}`, {
+                    method: 'PUT',
+                    headers: getAuthHeaders(),
+                    body: JSON.stringify(datos)
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    modalEditar.hide();
+                    cargarProblemas();
+                    alert('✅ Diligencia actualizada correctamente');
+                } else {
+                    alert('❌ Error: ' + (result.detail || 'Error desconocido'));
+                }
+
+                hideLoading();
+            } catch (error) {
+                console.error('Error:', error);
+                hideLoading();
+                alert('❌ Error al guardar cambios');
+            }
+        }
+
+        async function eliminarDiligencia() {
+            if (!confirm('¿Estás seguro de eliminar esta diligencia? Esta acción no se puede deshacer.')) {
+                return;
+            }
+
+            try {
+                showLoading();
+
+                const id = document.getElementById('diligenciaId').value;
+                const response = await fetch(`${API_URL}/admin/diligencias/${id}`, {
+                    method: 'DELETE',
+                    headers: getAuthHeaders()
+                });
+
+                if (response.ok) {
+                    modalEditar.hide();
+                    cargarProblemas();
+                    alert('✅ Diligencia eliminada correctamente');
+                } else {
+                    alert('❌ Error al eliminar');
+                }
+
+                hideLoading();
+            } catch (error) {
+                console.error('Error:', error);
+                hideLoading();
+                alert('❌ Error al eliminar diligencia');
+            }
+        }
+
+        async function autocorregir(diligenciaId) {
+            if (!confirm('¿Aplicar corrección automática a esta diligencia?\n\nEjemplos:\n- 1949 → 2019\n- 2823 → 2023\n- MNSTENO → MINISTERIO')) {
+                return;
+            }
+
+            try {
+                showLoading();
+
+                const response = await fetch(`${API_URL}/admin/diligencias/autocorregir/${diligenciaId}`, {
+                    method: 'POST',
+                    headers: getAuthHeaders()
+                });
+
+                const result = await response.json();
+
+                if (result.success && result.cambios && result.cambios.length > 0) {
+                    alert('✅ Corrección automática aplicada:\n\n' + result.cambios.join('\n'));
+                    cargarProblemas();
+                } else {
+                    alert('ℹ️ No se detectaron correcciones automáticas posibles');
+                }
+
+                hideLoading();
+            } catch (error) {
+                console.error('Error:', error);
+                hideLoading();
+                alert('❌ Error al autocorregir');
+            }
+        }
+
+        async function autocorregirTodo() {
+            if (!confirm('¿Aplicar corrección automática a TODAS las diligencias problemáticas?\n\nEsto puede tomar unos minutos...')) {
+                return;
+            }
+
+            try {
+                showLoading();
+
+                // Obtener todas las diligencias problemáticas
+                const params = new URLSearchParams();
+                const carpetaId = document.getElementById('filtroCarpeta').value;
+                const tipoProblema = document.getElementById('filtroTipoProblema').value;
+                
+                if (carpetaId) params.append('carpeta_id', carpetaId);
+                if (tipoProblema) params.append('tipo_problema', tipoProblema);
+                params.append('limite', '500');
+
+                const response = await fetch(`${API_URL}/admin/diligencias/problematicas?${params}`, {
+                    headers: getAuthHeaders()
+                });
+
+                const data = await response.json();
+                const problemas = data.problemas || [];
+
+                if (problemas.length === 0) {
+                    alert('ℹ️ No hay problemas para corregir');
+                    hideLoading();
+                    return;
+                }
+
+                // Aplicar autocorrección a cada una
+                let corregidas = 0;
+                let sinCambios = 0;
+                let errores = 0;
+                const todosCambios = [];
+
+                for (let i = 0; i < problemas.length; i++) {
+                    const problema = problemas[i];
+                    
+                    try {
+                        const resp = await fetch(`${API_URL}/admin/diligencias/autocorregir/${problema.id}`, {
+                            method: 'POST',
+                            headers: getAuthHeaders()
+                        });
+
+                        const result = await resp.json();
+
+                        if (result.success && result.cambios && result.cambios.length > 0) {
+                            corregidas++;
+                            todosCambios.push(`#${problema.orden} ${problema.tipo_diligencia}: ${result.cambios.join(', ')}`);
+                        } else {
+                            sinCambios++;
+                        }
+                    } catch (error) {
+                        errores++;
+                        console.error(`Error corrigiendo #${problema.id}:`, error);
+                    }
+                }
+
+                hideLoading();
+
+                // Mostrar resumen
+                let mensaje = `✅ Proceso completado:\n\n`;
+                mensaje += `• ${corregidas} diligencias corregidas\n`;
+                mensaje += `• ${sinCambios} sin cambios detectables\n`;
+                if (errores > 0) mensaje += `• ${errores} errores\n`;
+                
+                if (todosCambios.length > 0) {
+                    mensaje += `\n📝 Cambios aplicados:\n${todosCambios.slice(0, 10).join('\n')}`;
+                    if (todosCambios.length > 10) {
+                        mensaje += `\n... y ${todosCambios.length - 10} más`;
+                    }
+                }
+
+                alert(mensaje);
+                cargarProblemas();
+
+            } catch (error) {
+                console.error('Error:', error);
+                hideLoading();
+                alert('❌ Error en autocorrección masiva');
+            }
+        }
+
+        function getBadgeClass(tipo) {
+            const classes = {
+                'fecha_invalida': 'bg-danger',
+                'texto_corrupto': 'bg-warning',
+                'baja_confianza': 'bg-info'
+            };
+            return classes[tipo] || 'bg-secondary';
+        }
+
+        function getTipoProblemaLabel(tipo) {
+            const labels = {
+                'fecha_invalida': 'Fecha Inválida',
+                'texto_corrupto': 'Texto Corrupto',
+                'baja_confianza': 'Baja Confianza'
+            };
+            return labels[tipo] || tipo;
+        }
+
+        function formatearFecha(fecha) {
+            if (!fecha) return '';
+            const d = new Date(fecha + 'T00:00:00');
+            return d.toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' });
+        }
+
+        function escaparHTML(texto) {
+            if (!texto) return '';
+            const div = document.createElement('div');
+            div.textContent = texto;
+            return div.innerHTML;
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,286 @@
+# backend/app/routes/carpetas.py
+
+from fastapi import APIRouter, Depends, HTTPException, status, Query
+from sqlalchemy.orm import Session
+from sqlalchemy import or_, func
+from pydantic import BaseModel
+from typing import List, Dict, Any, Optional
+from datetime import datetime
+
+from app.database import get_db
+from app.models.carpeta import Carpeta
+from app.models.tomo import Tomo
+from app.models.usuario import Usuario
+from app.models.analisis_ia import AnalisisIA
+from app.middlewares.auth_middleware import get_current_active_user
+import logging
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter(
+    tags=["Carpetas"]
+)
+
+
+# Schemas
+class CarpetaCreate(BaseModel):
+    nombre: str
+    descripcion: Optional[str] = None
+
+
+class CarpetaUpdate(BaseModel):
+    nombre: Optional[str] = None
+    descripcion: Optional[str] = None
+
+
+class CarpetaResponse(BaseModel):
+    id: int
+    nombre: str
+    descripcion: Optional[str]
+    estado: str
+    total_tomos: int
+    creador: str
+    created_at: str
+
+    class Config:
+        from_attributes = True
+
+
+# ==================== CRUD CARPETAS ====================
+
+@router.get("", response_model=List[CarpetaResponse])
+async def listar_carpetas(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
+    buscar: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_active_user)
+):
+    """
+    GET /carpetas
+    Listar carpetas con filtros opcionales.
+    """
+    query = db.query(Carpeta)
+
+    # Búsqueda por nombre o descripción
+    if buscar:
+        search_pattern = f"%{buscar}%"
+        query = query.filter(
+            or_(
+                Carpeta.nombre.ilike(search_pattern),
+                Carpeta.descripcion.ilike(search_pattern)
+            )
+        )
+
+    carpetas = query.offset(skip).limit(limit).all()
+
+    # Obtener el conteo de tomos para cada carpeta
+    carpetas_response = []
+    for c in carpetas:
+        total_tomos = db.query(func.count(Tomo.id)).filter(Tomo.carpeta_id == c.id).scalar() or 0
+        
+        carpetas_response.append(CarpetaResponse(
+            id=c.id,
+            nombre=c.nombre,
+            descripcion=c.descripcion,
+            estado=c.estado or "activo",
+            total_tomos=total_tomos,
+            creador=c.creador.username if c.creador else "Sistema",
+            created_at=c.created_at.isoformat() if c.created_at else ""
+        ))
+
+    return carpetas_response
+
+
+@router.get("/{carpeta_id}", response_model=CarpetaResponse)
+async def obtener_carpeta(
+    carpeta_id: int,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_active_user)
+):
+    """
+    GET /carpetas/{carpeta_id}
+    Obtener detalles de una carpeta específica.
+    """
+    carpeta = db.query(Carpeta).filter(Carpeta.id == carpeta_id).first()
+
+    if not carpeta:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Carpeta no encontrada"
+        )
+
+    # Obtener el conteo de tomos
+    total_tomos = db.query(func.count(Tomo.id)).filter(Tomo.carpeta_id == carpeta.id).scalar() or 0
+
+    return CarpetaResponse(
+        id=carpeta.id,
+        nombre=carpeta.nombre,
+        descripcion=carpeta.descripcion,
+        estado=carpeta.estado or "activo",
+        total_tomos=total_tomos,
+        creador=carpeta.creador.username if carpeta.creador else "Sistema",
+        created_at=carpeta.created_at.isoformat() if carpeta.created_at else ""
+    )
+
+
+@router.post("", response_model=CarpetaResponse, status_code=status.HTTP_201_CREATED)
+async def crear_carpeta(
+    carpeta_data: CarpetaCreate,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_active_user)
+):
+    """
+    POST /carpetas
+    Crear nueva carpeta.
+    """
+    # Verificar que no exista carpeta con mismo nombre
+    existing = db.query(Carpeta).filter(
+        Carpeta.nombre == carpeta_data.nombre
+    ).first()
+
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Ya existe una carpeta con ese nombre"
+        )
+
+    # Crear carpeta
+    nueva_carpeta = Carpeta(
+        nombre=carpeta_data.nombre,
+        descripcion=carpeta_data.descripcion,
+        numero_expediente=f"EXP-{datetime.now().strftime('%Y%m%d%H%M%S')}",  # Auto-generado
+        estado="activo",
+        usuario_creador_id=current_user.id
+    )
+
+    db.add(nueva_carpeta)
+    db.commit()
+    db.refresh(nueva_carpeta)
+
+    logger.info(f"Carpeta creada: {nueva_carpeta.nombre} por {current_user.username}")
+
+    return CarpetaResponse(
+        id=nueva_carpeta.id,
+        nombre=nueva_carpeta.nombre,
+        descripcion=nueva_carpeta.descripcion,
+        estado=nueva_carpeta.estado,
+        total_tomos=0,
+        creador=current_user.username,
+        created_at=nueva_carpeta.created_at.isoformat()
+    )
+
+
+@router.put("/{carpeta_id}", response_model=CarpetaResponse)
+async def actualizar_carpeta(
+    carpeta_id: int,
+    carpeta_data: CarpetaUpdate,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_active_user)
+):
+    """
+    PUT /carpetas/{carpeta_id}
+    Actualizar carpeta existente.
+    """
+    carpeta = db.query(Carpeta).filter(Carpeta.id == carpeta_id).first()
+
+    if not carpeta:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Carpeta no encontrada"
+        )
+
+    # Actualizar campos
+    if carpeta_data.nombre is not None:
+        # Verificar que no exista otra carpeta con ese nombre
+        existing = db.query(Carpeta).filter(
+            Carpeta.nombre == carpeta_data.nombre,
+            Carpeta.id != carpeta_id
+        ).first()
+
+        if existing:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Ya existe una carpeta con ese nombre"
+            )
+
+        carpeta.nombre = carpeta_data.nombre
+
+    if carpeta_data.descripcion is not None:
+        carpeta.descripcion = carpeta_data.descripcion
+
+    carpeta.updated_at = datetime.now()
+    db.commit()
+    db.refresh(carpeta)
+
+    logger.info(f"Carpeta actualizada: {carpeta.nombre} por {current_user.username}")
+
+    # Obtener el conteo de tomos actualizado
+    total_tomos = db.query(func.count(Tomo.id)).filter(Tomo.carpeta_id == carpeta.id).scalar() or 0
+
+    return CarpetaResponse(
+        id=carpeta.id,
+        nombre=carpeta.nombre,
+        descripcion=carpeta.descripcion,
+        estado=carpeta.estado,
+        total_tomos=total_tomos,
+        creador=carpeta.creador.username if carpeta.creador else "Sistema",
+        created_at=carpeta.created_at.isoformat()
+    )
+
+
+@router.delete("/{carpeta_id}")
+async def eliminar_carpeta(
+    carpeta_id: int,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_active_user)
+):
+    """
+    DELETE /carpetas/{carpeta_id}
+    Eliminar carpeta.
+    """
+    try:
+        carpeta = db.query(Carpeta).filter(Carpeta.id == carpeta_id).first()
+
+        if not carpeta:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Carpeta no encontrada"
+            )
+
+        carpeta_nombre = carpeta.nombre
+
+        # Borrar primero los análisis IA que referencian los tomos de esta carpeta
+        # Esto evita violaciones de FK si la constraint en la BD no tiene ON DELETE CASCADE
+        try:
+            # Subconsulta para obtener ids de tomos de la carpeta
+            tomo_ids_query = db.query(Tomo.id).filter(Tomo.carpeta_id == carpeta_id)
+
+            deleted_analisis = db.query(AnalisisIA).filter(AnalisisIA.tomo_id.in_(tomo_ids_query)).delete(synchronize_session=False)
+            if deleted_analisis:
+                logger.info(f"Se eliminaron {deleted_analisis} registros de analisis_ia relacionados a la carpeta {carpeta_id}")
+        except Exception:
+            # No detener el flujo en caso de fallo aquí: haremos rollback y continuaremos
+            db.rollback()
+            logger.exception("Error eliminando analisis_ia relacionados antes de borrar la carpeta")
+
+        # Eliminar carpeta (las relaciones cascade en modelos deberían encargarse de tomos, contenidos, etc.)
+        db.delete(carpeta)
+        db.commit()
+
+        logger.info(f"Carpeta eliminada: {carpeta_nombre} por {current_user.username}")
+
+        return {
+            "message": "Carpeta eliminada correctamente",
+            "carpeta_id": carpeta_id
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error al eliminar carpeta {carpeta_id}: {str(e)}")
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error interno del servidor al eliminar la carpeta: {str(e)}"
+        )

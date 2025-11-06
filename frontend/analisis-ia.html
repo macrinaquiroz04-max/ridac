@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/x-icon" href="images/favicon.ico">
+    <title>Análisis IA - Extractor Legal | FGJCDMX v2.0</title>
+    <link rel="stylesheet" href="css/sistema.css?v=2">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        .carpeta-card { background: white; border-radius: 12px; padding: 25px; margin-bottom: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); transition: all 0.3s ease; }
+        .carpeta-card:hover { transform: translateY(-3px); box-shadow: 0 8px 25px rgba(0,0,0,0.15); }
+        .carpeta-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .badge { padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: 600; text-transform: uppercase; }
+        .badge-pendiente { background: #ffc107; color: #000; }
+        .badge-procesando { background: #17a2b8; color: #fff; animation: pulse 2s infinite; }
+        .badge-completado { background: #28a745; color: #fff; }
+        .badge-error { background: #dc3545; color: #fff; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
+        .carpeta-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin: 20px 0; padding: 15px; background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-radius: 8px; }
+        .stat-item { text-align: center; }
+        .stat-value { font-size: 24px; font-weight: 700; color: #1a365d; display: block; }
+        .stat-label { font-size: 12px; color: #6c757d; text-transform: uppercase; margin-top: 5px; }
+        .progress-bar-container { width: 100%; height: 30px; background: #e9ecef; border-radius: 15px; overflow: hidden; position: relative; margin: 15px 0; }
+        .progress-bar { height: 100%; background: linear-gradient(90deg, #28a745 0%, #20c997 100%); transition: width 0.5s ease; display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-size: 14px; }
+        .action-buttons { display: flex; gap: 10px; flex-wrap: wrap; }
+        .btn-analizar { background: linear-gradient(135deg, #007bff 0%, #0056b3 100%); color: white; border: none; padding: 12px 24px; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.3s ease; display: flex; align-items: center; gap: 8px; }
+        .btn-analizar:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,123,255,0.3); }
+        .btn-ver-resultados { background: linear-gradient(135deg, #28a745 0%, #20c997 100%); color: white; border: none; padding: 12px 24px; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.3s ease; display: flex; align-items: center; gap: 8px; }
+        .alert-info { background: linear-gradient(135deg, #d1ecf1 0%, #bee5eb 100%); border-left: 4px solid #17a2b8; padding: 15px 20px; border-radius: 8px; margin-bottom: 25px; color: #0c5460; }
+        .filter-bar { display: flex; gap: 15px; margin-bottom: 25px; flex-wrap: wrap; padding: 20px; background: white; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        .loading { text-align: center; padding: 40px; color: #6c757d; }
+        .loading i { font-size: 48px; animation: spin 2s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>⚖️ Análisis IA - Extractor Legal</h1>
+        <div class="user-info">
+            <span id="userName">Cargando...</span>
+            <button class="btn-logout" onclick="logout()">Cerrar Sesión</button>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="alert-info">
+            <h4><i class="fas fa-info-circle"></i> ¿Qué hace este módulo?</h4>
+            <p>Extrae automáticamente información legal de tus documentos OCR:</p>
+            <ul style="margin: 10px 0 0 20px;">
+                <li>📋 <strong>Diligencias:</strong> Tipo, fecha, responsable y número de oficio</li>
+                <li>👥 <strong>Personas:</strong> Nombres, direcciones, teléfonos y roles</li>
+                <li>📍 <strong>Lugares:</strong> Calles, colonias, municipios mencionados</li>
+                <li>📅 <strong>Fechas importantes:</strong> Narrativas y actuaciones del MP</li>
+                <li>🚨 <strong>Alertas MP:</strong> Detecta inactividad prolongada (más de 60 días)</li>
+            </ul>
+        </div>
+
+        <div class="filter-bar">
+            <input type="text" id="searchInput" placeholder="🔍 Buscar carpeta..." style="flex: 1; padding: 10px 15px; border: 1px solid #dee2e6; border-radius: 6px;">
+            <button class="btn-secondary" onclick="cargarCarpetas()"><i class="fas fa-sync-alt"></i> Actualizar</button>
+            <button class="btn-secondary" onclick="location.href='dashboard'"><i class="fas fa-arrow-left"></i> Dashboard</button>
+        </div>
+
+        <div id="carpetasContainer">
+            <div class="loading"><i class="fas fa-spinner"></i><p>Cargando carpetas...</p></div>
+        </div>
+    </div>
+
+    <script src="js/config.js"></script>
+    <script src="js/auth.js"></script>
+    <script>
+        let carpetasData = [];
+        let intervaloActualizacion = null;
+
+        // Esperar a que todo cargue
+        window.addEventListener('load', async () => {
+            // Verificar autenticación
+            const token = localStorage.getItem('token');
+            if (!token) {
+                window.location.href = 'index';
+                return;
+            }
+            
+            // Obtener datos del usuario desde el API
+            try {
+                const response = await fetch(`${API_URL}/auth/me`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                if (response.ok) {
+                    const userData = await response.json();
+                    console.log('Datos del usuario:', userData); // Debug
+                    
+                    // Intentar diferentes campos que puede tener el usuario
+                    const nombreUsuario = userData.nombre || userData.username || userData.email?.split('@')[0] || 'Usuario';
+                    const rolUsuario = userData.rol?.nombre || userData.rol || 'admin';
+                    
+                    document.getElementById('userName').textContent = `${nombreUsuario} (${rolUsuario})`;
+                    console.log('Nombre mostrado:', `${nombreUsuario} (${rolUsuario})`);
+                } else {
+                    console.error('Error en respuesta:', response.status);
+                    document.getElementById('userName').textContent = 'Usuario (Admin)';
+                }
+            } catch (error) {
+                console.error('Error obteniendo datos del usuario:', error);
+                document.getElementById('userName').textContent = 'Usuario (Admin)';
+            }
+            
+            await cargarCarpetas();
+            
+            intervaloActualizacion = setInterval(async () => {
+                const hayProcesando = carpetasData.some(c => c.estado_analisis === 'procesando');
+                if (hayProcesando) {
+                    await cargarCarpetas(true);
+                }
+            }, 10000);
+        });
+
+        window.addEventListener('beforeunload', () => {
+            if (intervaloActualizacion) clearInterval(intervaloActualizacion);
+        });
+
+        async function cargarCarpetas(silencioso = false) {
+            const container = document.getElementById('carpetasContainer');
+            
+            if (!silencioso) {
+                container.innerHTML = '<div class="loading"><i class="fas fa-spinner"></i><p>Cargando carpetas...</p></div>';
+            }
+
+            try {
+                const token = localStorage.getItem('token');
+                const response = await fetch(`${API_URL}/admin/carpetas-analisis`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (!response.ok) throw new Error('Error al cargar carpetas');
+
+                carpetasData = await response.json();
+                
+                if (carpetasData.length === 0) {
+                    container.innerHTML = `<div style="text-align: center; padding: 60px;">
+                        <i class="fas fa-folder-open" style="font-size: 80px; opacity: 0.3;"></i>
+                        <h3>No hay carpetas disponibles</h3>
+                        <p>Crea carpetas y sube tomos desde Gestión de Carpetas</p>
+                        <button class="btn-primary" onclick="location.href='carpetas'" style="margin-top: 20px;">
+                            <i class="fas fa-folder-plus"></i> Ir a Gestionar Carpetas
+                        </button>
+                    </div>`;
+                    return;
+                }
+
+                renderizarCarpetas(carpetasData);
+            } catch (error) {
+                console.error('Error:', error);
+                container.innerHTML = `<div style="text-align: center; padding: 60px;">
+                    <i class="fas fa-exclamation-triangle" style="font-size: 80px; opacity: 0.3;"></i>
+                    <h3>Error al cargar carpetas</h3>
+                    <p>${error.message}</p>
+                    <button class="btn-secondary" onclick="cargarCarpetas()"><i class="fas fa-redo"></i> Reintentar</button>
+                </div>`;
+            }
+        }
+
+        function renderizarCarpetas(carpetas) {
+            const container = document.getElementById('carpetasContainer');
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            
+            let carpetasFiltradas = carpetas.filter(c => 
+                c.nombre.toLowerCase().includes(searchTerm) || 
+                c.numero_expediente.toLowerCase().includes(searchTerm)
+            );
+
+            if (carpetasFiltradas.length === 0) {
+                container.innerHTML = '<div style="text-align: center; padding: 60px;"><i class="fas fa-search" style="font-size: 80px; opacity: 0.3;"></i><h3>No se encontraron resultados</h3></div>';
+                return;
+            }
+
+            container.innerHTML = carpetasFiltradas.map(carpeta => `
+                <div class="carpeta-card">
+                    <div class="carpeta-header">
+                        <div style="display: flex; align-items: center; gap: 15px;">
+                            <i class="fas fa-folder" style="font-size: 32px; color: #2c5aa0;"></i>
+                            <div>
+                                <h3 style="margin: 0;">${carpeta.nombre}</h3>
+                                <small style="color: #6c757d;">${carpeta.numero_expediente}</small>
+                            </div>
+                        </div>
+                        <div style="display: flex; gap: 10px; align-items: center;">
+                            <span class="badge badge-${carpeta.estado_analisis || 'pendiente'}">
+                                ${getEstadoTexto(carpeta.estado_analisis)}
+                            </span>
+                            ${carpeta.total_tomos > 0 ? `<span style="color: #6c757d;"><i class="fas fa-book"></i> ${carpeta.total_tomos} tomos</span>` : ''}
+                        </div>
+                    </div>
+
+                    ${carpeta.estado_analisis === 'procesando' ? `
+                        <div class="progress-bar-container">
+                            <div class="progress-bar" style="width: ${carpeta.progreso || 0}%">
+                                ${carpeta.progreso || 0}%
+                            </div>
+                        </div>
+                    ` : ''}
+
+                    ${carpeta.estadisticas ? `
+                        <div class="carpeta-stats">
+                            <div class="stat-item">
+                                <span class="stat-value">${carpeta.estadisticas.total_diligencias || 0}</span>
+                                <span class="stat-label">📋 Diligencias</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-value">${carpeta.estadisticas.total_personas || 0}</span>
+                                <span class="stat-label">👥 Personas</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-value">${carpeta.estadisticas.total_lugares || 0}</span>
+                                <span class="stat-label">📍 Lugares</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-value">${carpeta.estadisticas.total_fechas || 0}</span>
+                                <span class="stat-label">📅 Fechas</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-value" style="color: ${carpeta.estadisticas.total_alertas_activas > 0 ? '#dc3545' : '#28a745'};">
+                                    ${carpeta.estadisticas.total_alertas_activas || 0}
+                                </span>
+                                <span class="stat-label">🚨 Alertas</span>
+                            </div>
+                        </div>
+                    ` : ''}
+
+                    <div class="action-buttons">
+                        ${carpeta.total_tomos === 0 ? `
+                            <button class="btn-secondary" disabled>
+                                <i class="fas fa-exclamation-triangle"></i> Sin tomos para analizar
+                            </button>
+                        ` : carpeta.estado_analisis !== 'procesando' ? `
+                            <button class="btn-analizar" onclick="mostrarSeleccionTomos(${carpeta.id}, '${carpeta.nombre}')">
+                                <i class="fas fa-brain"></i> ${carpeta.estado_analisis === 'completado' ? 'Re-analizar' : 'Iniciar Análisis'}
+                            </button>
+                        ` : ''}
+                        
+                        ${carpeta.estado_analisis === 'completado' || (carpeta.estadisticas && carpeta.estadisticas.total_diligencias > 0) ? `
+                            <button class="btn-ver-resultados" onclick="verResultados(${carpeta.id}, '${carpeta.nombre}')">
+                                <i class="fas fa-chart-line"></i> Ver Resultados
+                            </button>
+                        ` : ''}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function getEstadoTexto(estado) {
+            const estados = {
+                'pendiente': '⏱️ Pendiente',
+                'procesando': '⚙️ Procesando',
+                'completado': '✅ Completado',
+                'error': '❌ Error'
+            };
+            return estados[estado] || '⏱️ Pendiente';
+        }
+
+        async function iniciarAnalisis(carpetaId, nombreCarpeta) {
+            if (!confirm(`¿Iniciar análisis de la carpeta "${nombreCarpeta}"?\n\nEsto puede tardar varios minutos.`)) {
+                return;
+            }
+
+            try {
+                const token = localStorage.getItem('token');
+                const response = await fetch(`${API_URL}/admin/carpetas/${carpetaId}/iniciar-analisis`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.detail || 'Error al iniciar análisis');
+                }
+
+                alert(`✅ Análisis iniciado correctamente\n\n${data.mensaje || ''}\n\nLa página se actualizará cada 10 segundos.`);
+                await cargarCarpetas();
+
+            } catch (error) {
+                console.error('Error:', error);
+                alert(`❌ Error:\n\n${error.message}`);
+            }
+        }
+
+        function verResultados(carpetaId, nombreCarpeta) {
+            sessionStorage.setItem('carpetaAnalisisId', carpetaId);
+            sessionStorage.setItem('carpetaAnalisisNombre', nombreCarpeta);
+            window.location.href = `dashboard-usuario.html?analisis=${carpetaId}`;
+        }
+
+        async function mostrarSeleccionTomos(carpetaId, nombreCarpeta) {
+            try {
+                const token = localStorage.getItem('token');
+                const response = await fetch(`${API_URL}/tomos/${carpetaId}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (!response.ok) throw new Error('Error al cargar tomos');
+
+                const tomos = await response.json();
+                const tomosCompletados = tomos.filter(t => t.estado === 'completado');
+
+                if (tomosCompletados.length === 0) {
+                    alert('❌ No hay tomos con OCR completado en esta carpeta.\n\nPrimero debes procesar el OCR de los tomos.');
+                    return;
+                }
+
+                // Crear modal de selección
+                const modalHTML = `
+                    <div id="modalSeleccionTomos" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 10000;">
+                        <div style="background: white; border-radius: 16px; padding: 30px; max-width: 600px; width: 90%; max-height: 80vh; overflow-y: auto;">
+                            <h2 style="margin: 0 0 10px 0; color: #1a365d;">🔍 Seleccionar Tomos a Analizar</h2>
+                            <p style="color: #666; margin-bottom: 20px;">Carpeta: <strong>${nombreCarpeta}</strong></p>
+                            
+                            <div style="margin-bottom: 20px;">
+                                <label style="display: flex; align-items: center; padding: 12px; background: #f8f9fa; border-radius: 8px; margin-bottom: 10px; cursor: pointer; user-select: none;">
+                                    <input type="checkbox" id="selectAll" onclick="toggleSelectAll()" style="width: 20px; height: 20px; margin-right: 12px; cursor: pointer;">
+                                    <strong style="color: #1a365d;">✅ Seleccionar todos los tomos</strong>
+                                </label>
+                            </div>
+
+                            <div id="tomosCheckboxes" style="margin-bottom: 25px;">
+                                ${tomosCompletados.map(tomo => `
+                                    <label style="display: flex; align-items: center; padding: 15px; border: 2px solid #e9ecef; border-radius: 8px; margin-bottom: 10px; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.borderColor='#2c5aa0'; this.style.background='#f0f7ff';" onmouseout="this.style.borderColor='#e9ecef'; this.style.background='white';">
+                                        <input type="checkbox" class="tomo-checkbox" value="${tomo.id}" style="width: 20px; height: 20px; margin-right: 15px; cursor: pointer;" checked>
+                                        <div style="flex: 1;">
+                                            <div style="font-weight: 600; color: #1a365d; margin-bottom: 4px;">
+                                                📄 Tomo ${tomo.numero_tomo}
+                                            </div>
+                                            <div style="font-size: 13px; color: #666;">
+                                                ${tomo.nombre_archivo || 'Sin nombre'} • ${tomo.numero_paginas || 0} páginas
+                                            </div>
+                                        </div>
+                                    </label>
+                                `).join('')}
+                            </div>
+
+                            <div style="display: flex; gap: 12px;">
+                                <button onclick="confirmarAnalisis(${carpetaId}, '${nombreCarpeta}')" style="flex: 1; padding: 14px; background: linear-gradient(135deg, #28a745, #20c997); color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 15px;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 20px rgba(40,167,69,0.4)';" onmouseout="this.style.transform=''; this.style.boxShadow='';">
+                                    ✅ Analizar Seleccionados
+                                </button>
+                                <button onclick="cerrarModalSeleccion()" style="padding: 14px 24px; background: #6c757d; color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer;" onmouseover="this.style.background='#5a6268';" onmouseout="this.style.background='#6c757d';">
+                                    ❌ Cancelar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                document.body.insertAdjacentHTML('beforeend', modalHTML);
+
+            } catch (error) {
+                console.error('Error:', error);
+                alert(`❌ Error al cargar tomos:\n\n${error.message}`);
+            }
+        }
+
+        function toggleSelectAll() {
+            const selectAll = document.getElementById('selectAll');
+            const checkboxes = document.querySelectorAll('.tomo-checkbox');
+            checkboxes.forEach(cb => cb.checked = selectAll.checked);
+        }
+
+        function cerrarModalSeleccion() {
+            const modal = document.getElementById('modalSeleccionTomos');
+            if (modal) modal.remove();
+        }
+
+        async function confirmarAnalisis(carpetaId, nombreCarpeta) {
+            const checkboxes = document.querySelectorAll('.tomo-checkbox:checked');
+            const tomosSeleccionados = Array.from(checkboxes).map(cb => parseInt(cb.value));
+
+            if (tomosSeleccionados.length === 0) {
+                alert('⚠️ Debes seleccionar al menos un tomo para analizar.');
+                return;
+            }
+
+            cerrarModalSeleccion();
+
+            const mensaje = tomosSeleccionados.length === 1 
+                ? `¿Analizar 1 tomo de la carpeta "${nombreCarpeta}"?`
+                : `¿Analizar ${tomosSeleccionados.length} tomos de la carpeta "${nombreCarpeta}"?`;
+
+            if (!confirm(`${mensaje}\n\nEsto puede tardar varios minutos.`)) {
+                return;
+            }
+
+            try {
+                const token = localStorage.getItem('token');
+                const response = await fetch(`${API_URL}/admin/carpetas/${carpetaId}/iniciar-analisis`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        tomo_ids: tomosSeleccionados,
+                        generar_alertas: true,
+                        umbral_inactividad_dias: 60
+                    })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.detail || 'Error al iniciar análisis');
+                }
+
+                alert(`✅ Análisis iniciado correctamente\n\n${data.mensaje || ''}\n\nLa página se actualizará cada 10 segundos.`);
+                await cargarCarpetas();
+
+            } catch (error) {
+                console.error('Error:', error);
+                alert(`❌ Error:\n\n${error.message}`);
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem('token');
+            localStorage.removeItem('userData');
+            window.location.href = 'index';
+        }
+
+        document.getElementById('searchInput').addEventListener('input', () => renderizarCarpetas(carpetasData));
+    </script>
+</body>
+</html>
