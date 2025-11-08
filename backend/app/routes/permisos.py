@@ -211,8 +211,6 @@ async def obtener_tomos_accesibles_usuario(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error al obtener tomos accesibles: {str(e)}"
         )
-            detail=f"Error al obtener tomos accesibles: {str(e)}"
-        )
 
 @router.get("/tomos/{tomo_id}/permisos")
 async def obtener_permisos_tomo(
