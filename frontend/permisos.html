@@ -528,6 +528,11 @@
         function renderizarPermisos(tomosFiltrados = null) {
             const container = document.getElementById('permisosContainer');
             
+            console.log('🎨 RENDERIZANDO PERMISOS');
+            console.log('Usuario actual:', usuarioActual?.username);
+            console.log('Permisos en memoria:', permisosUsuario.length, permisosUsuario);
+            console.log('Tomos totales:', tomos.length);
+            
             if (!usuarioActual) {
                 container.innerHTML = `
                     <div class="text-center text-muted py-5">
@@ -584,6 +589,7 @@
 
                 grupo.tomos.forEach(tomo => {
                     const permisoExistente = permisosUsuario.find(p => p.tomo_id === tomo.id) || {};
+                    console.log(`📋 Tomo ${tomo.id}:`, permisoExistente);
                     
                     html += `
                         <div class="tomo-item p-3 mb-2 border rounded">
