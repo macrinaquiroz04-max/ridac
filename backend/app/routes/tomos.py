@@ -786,3 +786,268 @@ async def obtener_contenido_ocr(
         )
     
     return resultado
+
+
+# ==================== BÚSQUEDA EN TOMOS ====================
+
+class BusquedaTomoRequest(BaseModel):
+    query: str
+    fuzzy: bool = True  # Búsqueda difusa activada por defecto
+    case_sensitive: bool = False
+    whole_word: bool = False
+    max_results: int = 100
+    contexto_caracteres: int = 200  # Caracteres antes y después
+
+
+class ResultadoBusqueda(BaseModel):
+    pagina: int
+    texto: str
+    contexto_antes: str
+    contexto_despues: str
+    posicion: int
+    similitud: float = 1.0  # Para búsqueda fuzzy
+
+
+class BusquedaTomoResponse(BaseModel):
+    success: bool
+    tomo_id: int
+    tomo_nombre: str
+    query: str
+    total_resultados: int
+    resultados: List[ResultadoBusqueda]
+
+
+@router.post("/{tomo_id}/buscar-avanzada", response_model=BusquedaTomoResponse)
+async def buscar_avanzada_en_tomo(
+    tomo_id: int,
+    busqueda: BusquedaTomoRequest,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_active_user)
+):
+    """
+    POST /tomos/{tomo_id}/buscar-avanzada
+    
+    Búsqueda avanzada en el contenido OCR de un tomo.
+    
+    Características:
+    - 🔍 Búsqueda difusa (fuzzy) para manejar errores de OCR
+    - 📝 Contexto amplio (caracteres antes y después)
+    - 🎯 Resaltado visual de coincidencias
+    - ⚡ Búsqueda case-insensitive por defecto
+    - 🔢 Control de máximo de resultados
+    
+    Args:
+        tomo_id: ID del tomo
+        busqueda: Parámetros de búsqueda
+            - query: Texto a buscar
+            - fuzzy: Permite errores de escritura (default: True)
+            - case_sensitive: Distinguir mayúsculas/minúsculas (default: False)
+            - whole_word: Buscar palabra completa (default: False)
+            - max_results: Máximo de resultados (default: 100)
+            - contexto_caracteres: Caracteres de contexto (default: 200)
+    
+    Returns:
+        - success: Si la búsqueda fue exitosa
+        - tomo_id: ID del tomo
+        - tomo_nombre: Nombre del archivo
+        - query: Texto buscado
+        - total_resultados: Número total de coincidencias
+        - resultados: Lista de coincidencias con:
+            - pagina: Número de página
+            - texto: Texto coincidente
+            - contexto_antes: Texto antes de la coincidencia
+            - contexto_despues: Texto después de la coincidencia
+            - posicion: Posición en el texto
+            - similitud: Score de similitud (0-1) para fuzzy
+    """
+    try:
+        print(f"=" * 80)
+        print(f"🔍 BÚSQUEDA INICIADA - Tomo: {tomo_id}")
+        print(f"   Query: '{busqueda.query}'")
+        print(f"   Fuzzy: {busqueda.fuzzy}, Case Sensitive: {busqueda.case_sensitive}")
+        print(f"=" * 80)
+        logger.info(f"🔍 Búsqueda iniciada - Tomo: {tomo_id}, Query: '{busqueda.query}', Fuzzy: {busqueda.fuzzy}")
+        
+        # Verificar que el tomo existe
+        tomo = db.query(Tomo).filter(Tomo.id == tomo_id).first()
+        if not tomo:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Tomo no encontrado"
+            )
+        
+        # Verificar permisos de búsqueda
+        from app.models.permiso_tomo import PermisoTomo
+        permiso = db.query(PermisoTomo).filter(
+            PermisoTomo.usuario_id == current_user.id,
+            PermisoTomo.tomo_id == tomo_id
+        ).first()
+        
+        if not permiso or not permiso.puede_buscar:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="No tiene permisos de búsqueda en este tomo"
+            )
+        
+        # Obtener contenido OCR
+        contenidos = db.query(ContenidoOCR).filter(
+            ContenidoOCR.tomo_id == tomo_id
+        ).order_by(ContenidoOCR.numero_pagina).all()
+        
+        logger.info(f"📄 Páginas con contenido OCR: {len(contenidos)}")
+        
+        if not contenidos:
+            logger.warning(f"⚠️ No hay contenido OCR para tomo {tomo_id}")
+            return BusquedaTomoResponse(
+                success=True,
+                tomo_id=tomo_id,
+                tomo_nombre=tomo.nombre_archivo,
+                query=busqueda.query,
+                total_resultados=0,
+                resultados=[]
+            )
+        
+        # Realizar búsqueda
+        resultados = []
+        query_procesado = busqueda.query if busqueda.case_sensitive else busqueda.query.lower()
+        
+        logger.info(f"🔎 Buscando: '{query_procesado}' (fuzzy: {busqueda.fuzzy}, case_sensitive: {busqueda.case_sensitive})")
+        
+        # Importar para búsqueda fuzzy
+        from difflib import SequenceMatcher
+        import re
+        
+        for contenido in contenidos:
+            if not contenido.texto_extraido:
+                continue
+            
+            texto = contenido.texto_extraido
+            texto_busqueda = texto if busqueda.case_sensitive else texto.lower()
+            
+            if busqueda.fuzzy:
+                # Búsqueda difusa: buscar primero coincidencias exactas, luego fuzzy
+                # 1. Búsqueda exacta flexible (sin whole word)
+                start = 0
+                while len(resultados) < busqueda.max_results:
+                    pos = texto_busqueda.find(query_procesado, start)
+                    if pos == -1:
+                        break
+                    
+                    # Extraer contexto
+                    inicio_contexto = max(0, pos - busqueda.contexto_caracteres)
+                    fin_contexto = min(len(texto), pos + len(query_procesado) + busqueda.contexto_caracteres)
+                    
+                    contexto_antes = texto[inicio_contexto:pos]
+                    texto_encontrado = texto[pos:pos + len(query_procesado)]
+                    contexto_despues = texto[pos + len(query_procesado):fin_contexto]
+                    
+                    resultados.append(ResultadoBusqueda(
+                        pagina=contenido.numero_pagina,
+                        texto=texto_encontrado,
+                        contexto_antes=contexto_antes,
+                        contexto_despues=contexto_despues,
+                        posicion=pos,
+                        similitud=1.0
+                    ))
+                    start = pos + 1
+                
+                # 2. Si no hay suficientes resultados exactos, buscar fuzzy
+                if len(resultados) < 10:  # Buscar fuzzy solo si hay pocos resultados
+                    palabras_query = query_procesado.split()
+                    for palabra_query in palabras_query:
+                        if len(palabra_query) < 3:  # Ignorar palabras muy cortas
+                            continue
+                        
+                        # Buscar palabras similares en el texto
+                        palabras_texto = re.findall(r'\b\w+\b', texto_busqueda)
+                        
+                        for palabra_texto in palabras_texto:
+                            if len(resultados) >= busqueda.max_results:
+                                break
+                            
+                            # Calcular similitud
+                            similitud = SequenceMatcher(None, palabra_query, palabra_texto).ratio()
+                            
+                            # Si la similitud es mayor al 80% (tolerancia para errores de OCR)
+                            if similitud >= 0.8 and similitud < 1.0:  # Evitar duplicados exactos
+                                # Encontrar posición en el texto original
+                                patron = r'\b' + re.escape(palabra_texto) + r'\b'
+                                match = re.search(patron, texto_busqueda)
+                                
+                                if match:
+                                    pos = match.start()
+                                    
+                                    # Extraer contexto
+                                    inicio_contexto = max(0, pos - busqueda.contexto_caracteres)
+                                    fin_contexto = min(len(texto), pos + len(palabra_texto) + busqueda.contexto_caracteres)
+                                    
+                                    contexto_antes = texto[inicio_contexto:pos]
+                                    texto_encontrado = texto[pos:pos + len(palabra_texto)]
+                                    contexto_despues = texto[pos + len(palabra_texto):fin_contexto]
+                                    
+                                    resultados.append(ResultadoBusqueda(
+                                        pagina=contenido.numero_pagina,
+                                        texto=texto_encontrado,
+                                        contexto_antes=contexto_antes,
+                                        contexto_despues=contexto_despues,
+                                        posicion=pos,
+                                        similitud=round(similitud, 2)
+                                    ))
+            else:
+                # Búsqueda exacta
+                if busqueda.whole_word:
+                    patron = r'\b' + re.escape(query_procesado) + r'\b'
+                    matches = re.finditer(patron, texto_busqueda)
+                else:
+                    # Buscar todas las ocurrencias
+                    start = 0
+                    matches = []
+                    while True:
+                        pos = texto_busqueda.find(query_procesado, start)
+                        if pos == -1:
+                            break
+                        matches.append(type('obj', (object,), {'start': lambda p=pos: p, 'group': lambda: query_procesado})())
+                        start = pos + 1
+                
+                for match in matches:
+                    if len(resultados) >= busqueda.max_results:
+                        break
+                    
+                    pos = match.start()
+                    
+                    # Extraer contexto
+                    inicio_contexto = max(0, pos - busqueda.contexto_caracteres)
+                    fin_contexto = min(len(texto), pos + len(query_procesado) + busqueda.contexto_caracteres)
+                    
+                    contexto_antes = texto[inicio_contexto:pos]
+                    texto_encontrado = texto[pos:pos + len(query_procesado)]
+                    contexto_despues = texto[pos + len(query_procesado):fin_contexto]
+                    
+                    resultados.append(ResultadoBusqueda(
+                        pagina=contenido.numero_pagina,
+                        texto=texto_encontrado,
+                        contexto_antes=contexto_antes,
+                        contexto_despues=contexto_despues,
+                        posicion=pos,
+                        similitud=1.0
+                    ))
+        
+        logger.info(f"Búsqueda en tomo {tomo_id}: '{busqueda.query}' - {len(resultados)} resultados")
+        
+        return BusquedaTomoResponse(
+            success=True,
+            tomo_id=tomo_id,
+            tomo_nombre=tomo.nombre_archivo,
+            query=busqueda.query,
+            total_resultados=len(resultados),
+            resultados=resultados
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error en búsqueda de tomo {tomo_id}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al buscar en el tomo: {str(e)}"
+        )

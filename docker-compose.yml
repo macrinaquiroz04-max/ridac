@@ -69,6 +69,7 @@ services:
       - "8000:8000"
       - "8443:8443"
     volumes:
+      - ./backend:/app  # 🔥 Hot reload: cambios en código se reflejan automáticamente
       - documentos_data:/app/uploads
       - fgjcdmx_data:/FGJCDMX
       - system_logs:/app/logs  # Logs de errores del sistema

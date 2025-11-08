@@ -239,6 +239,15 @@ async def confirm_password_reset(
             detail="Usuario no encontrado"
         )
 
+    # Validar nueva contraseña
+    from app.utils.validators import validate_password
+    is_valid, error_message = validate_password(confirm_data.new_password)
+    if not is_valid:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=error_message
+        )
+
     user.password = hash_password(confirm_data.new_password)
 
     # Marcar token como usado
@@ -270,6 +279,15 @@ async def change_password(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Contraseña actual incorrecta"
+        )
+
+    # Validar nueva contraseña
+    from app.utils.validators import validate_password
+    is_valid, error_message = validate_password(change_data.new_password)
+    if not is_valid:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=error_message
         )
 
     # Actualizar contraseña

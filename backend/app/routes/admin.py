@@ -185,6 +185,15 @@ async def crear_usuario(
     POST /admin/usuarios
     Crear nuevo usuario.
     """
+    # Validar contraseña
+    from app.utils.validators import validate_password
+    is_valid, error_message = validate_password(usuario_data.password)
+    if not is_valid:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=error_message
+        )
+    
     # Verificar que no exista username o email
     existing_user = db.query(Usuario).filter(
         (Usuario.username == usuario_data.username) |
@@ -216,7 +225,7 @@ async def crear_usuario(
     db.execute(
         text("""
             INSERT INTO usuarios (id, username, email, nombre_completo, password, rol_id, activo, debe_cambiar_password)
-            VALUES (:id, :username, :email, :nombre, :password, :rol_id, :activo, false)
+            VALUES (:id, :username, :email, :nombre, :password, :rol_id, :activo, true)
         """),
         {
             "id": next_id,
@@ -299,6 +308,14 @@ async def actualizar_usuario(
         usuario.nombre_completo = usuario_data.nombre
 
     if usuario_data.password is not None:
+        # Validar contraseña
+        from app.utils.validators import validate_password
+        is_valid, error_message = validate_password(usuario_data.password)
+        if not is_valid:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=error_message
+            )
         usuario.password = hash_password(usuario_data.password)
 
     if usuario_data.rol_id is not None:

@@ -20,11 +20,36 @@ def validate_username(username: str) -> tuple[bool, Optional[str]]:
     return True, None
 
 def validate_password(password: str) -> tuple[bool, Optional[str]]:
-    """Validar contraseña (mínimo 6 caracteres)"""
-    if len(password) < 6:
-        return False, "La contraseña debe tener al menos 6 caracteres"
+    """
+    Validar contraseña con requisitos de seguridad completos:
+    - Mínimo 8 caracteres
+    - Al menos una letra mayúscula
+    - Al menos una letra minúscula
+    - Al menos un número
+    - Al menos un carácter especial (!@#$%^&*(),.?":{}|<>)
+    """
+    if len(password) < 8:
+        return False, "La contraseña debe tener al menos 8 caracteres"
+    
     if len(password) > 100:
         return False, "La contraseña no puede tener más de 100 caracteres"
+    
+    # Validar letra mayúscula
+    if not re.search(r'[A-Z]', password):
+        return False, "La contraseña debe contener al menos una letra mayúscula"
+    
+    # Validar letra minúscula
+    if not re.search(r'[a-z]', password):
+        return False, "La contraseña debe contener al menos una letra minúscula"
+    
+    # Validar número
+    if not re.search(r'\d', password):
+        return False, "La contraseña debe contener al menos un número"
+    
+    # Validar carácter especial
+    if not re.search(r'[!@#$%^&*(),.?":{}|<>]', password):
+        return False, "La contraseña debe contener al menos un carácter especial (!@#$%^&*)"
+    
     return True, None
 
 def validate_file_extension(filename: str, allowed_extensions: list[str]) -> bool:

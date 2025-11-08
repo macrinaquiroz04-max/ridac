@@ -578,8 +578,29 @@
                 </div>
                 <div class="form-group">
                     <label class="form-label">Contraseña:</label>
-                    <input type="password" class="form-control" id="password">
-                    <small id="password-help" style="color: #666; font-size: 12px;">Dejar vacío para mantener la contraseña actual (solo en edición)</small>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <input type="password" class="form-control" id="password" style="flex: 1;">
+                        <button type="button" class="btn-success" onclick="togglePasswordVisibility()" title="Mostrar/Ocultar contraseña" style="padding: 10px 15px; font-size: 14px;">
+                            👁️
+                        </button>
+                        <button type="button" class="btn-primary" onclick="generateSecurePassword()" title="Generar contraseña segura" style="padding: 10px 15px; font-size: 14px;">
+                            🔑 Generar
+                        </button>
+                    </div>
+                    <small id="password-help" style="color: #666; font-size: 12px; display: block; margin-top: 5px;">Dejar vacío para mantener la contraseña actual (solo en edición)</small>
+                    <div id="password-requirements" style="margin-top: 10px; padding: 10px; background: #f8f9fa; border-radius: 8px; font-size: 12px; display: none;">
+                        <strong>Requisitos de contraseña:</strong>
+                        <ul style="margin: 5px 0 0 20px; padding: 0;">
+                            <li id="req-length" style="color: #dc3545;">Mínimo 8 caracteres</li>
+                            <li id="req-uppercase" style="color: #dc3545;">Al menos una letra mayúscula</li>
+                            <li id="req-lowercase" style="color: #dc3545;">Al menos una letra minúscula</li>
+                            <li id="req-number" style="color: #dc3545;">Al menos un número</li>
+                            <li id="req-special" style="color: #dc3545;">Al menos un carácter especial (!@#$%^&*)</li>
+                        </ul>
+                    </div>
+                    <div id="password-first-login-notice" style="margin-top: 8px; padding: 10px; background: #fff3cd; border-left: 4px solid #ffc107; border-radius: 4px; font-size: 12px; display: none;">
+                        <strong>⚠️ Importante:</strong> El usuario deberá cambiar esta contraseña en su primer inicio de sesión por seguridad.
+                    </div>
                 </div>
                 <div class="form-group">
                     <label class="form-label">Rol:</label>
@@ -915,6 +936,121 @@
             return tipos[tipo] || tipo;
         }
 
+        // ==================== PASSWORD GENERATOR FUNCTIONS ====================
+        function generateSecurePassword() {
+            const length = 12;
+            const uppercase = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+            const lowercase = 'abcdefghijklmnopqrstuvwxyz';
+            const numbers = '0123456789';
+            const special = '!@#$%^&*';
+            
+            let password = '';
+            
+            // Garantizar al menos un carácter de cada tipo
+            password += uppercase[Math.floor(Math.random() * uppercase.length)];
+            password += lowercase[Math.floor(Math.random() * lowercase.length)];
+            password += numbers[Math.floor(Math.random() * numbers.length)];
+            password += special[Math.floor(Math.random() * special.length)];
+            
+            // Completar el resto de la contraseña
+            const allChars = uppercase + lowercase + numbers + special;
+            for (let i = password.length; i < length; i++) {
+                password += allChars[Math.floor(Math.random() * allChars.length)];
+            }
+            
+            // Mezclar caracteres para que no siempre estén en el mismo orden
+            password = password.split('').sort(() => Math.random() - 0.5).join('');
+            
+            // Asignar al campo
+            const passwordField = document.getElementById('password');
+            passwordField.value = password;
+            passwordField.type = 'text'; // Mostrar temporalmente
+            
+            // Mostrar requisitos validados
+            validatePasswordRequirements(password);
+            
+            // Copiar al portapapeles (con fallback para navegadores antiguos)
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(password).then(() => {
+                    alert('✅ Contraseña generada y copiada al portapapeles:\n\n' + password + '\n\n¡Guárdala en un lugar seguro!');
+                }).catch(() => {
+                    alert('✅ Contraseña generada:\n\n' + password + '\n\n¡Guárdala en un lugar seguro!');
+                });
+            } else {
+                // Fallback para copiar sin API moderna
+                alert('✅ Contraseña generada:\n\n' + password + '\n\n¡Guárdala en un lugar seguro!');
+            }
+        }
+
+        function togglePasswordVisibility() {
+            const passwordField = document.getElementById('password');
+            if (passwordField.type === 'password') {
+                passwordField.type = 'text';
+            } else {
+                passwordField.type = 'password';
+            }
+        }
+
+        function validatePasswordRequirements(password) {
+            const requirements = document.getElementById('password-requirements');
+            if (!password) {
+                requirements.style.display = 'none';
+                return;
+            }
+            
+            requirements.style.display = 'block';
+            
+            // Validar longitud
+            const reqLength = document.getElementById('req-length');
+            if (password.length >= 8) {
+                reqLength.style.color = '#28a745';
+                reqLength.innerHTML = '✓ Mínimo 8 caracteres';
+            } else {
+                reqLength.style.color = '#dc3545';
+                reqLength.innerHTML = '✗ Mínimo 8 caracteres';
+            }
+            
+            // Validar mayúscula
+            const reqUppercase = document.getElementById('req-uppercase');
+            if (/[A-Z]/.test(password)) {
+                reqUppercase.style.color = '#28a745';
+                reqUppercase.innerHTML = '✓ Al menos una letra mayúscula';
+            } else {
+                reqUppercase.style.color = '#dc3545';
+                reqUppercase.innerHTML = '✗ Al menos una letra mayúscula';
+            }
+            
+            // Validar minúscula
+            const reqLowercase = document.getElementById('req-lowercase');
+            if (/[a-z]/.test(password)) {
+                reqLowercase.style.color = '#28a745';
+                reqLowercase.innerHTML = '✓ Al menos una letra minúscula';
+            } else {
+                reqLowercase.style.color = '#dc3545';
+                reqLowercase.innerHTML = '✗ Al menos una letra minúscula';
+            }
+            
+            // Validar número
+            const reqNumber = document.getElementById('req-number');
+            if (/\d/.test(password)) {
+                reqNumber.style.color = '#28a745';
+                reqNumber.innerHTML = '✓ Al menos un número';
+            } else {
+                reqNumber.style.color = '#dc3545';
+                reqNumber.innerHTML = '✗ Al menos un número';
+            }
+            
+            // Validar carácter especial
+            const reqSpecial = document.getElementById('req-special');
+            if (/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
+                reqSpecial.style.color = '#28a745';
+                reqSpecial.innerHTML = '✓ Al menos un carácter especial (!@#$%^&*)';
+            } else {
+                reqSpecial.style.color = '#dc3545';
+                reqSpecial.innerHTML = '✗ Al menos un carácter especial (!@#$%^&*)';
+            }
+        }
+
         // ==================== MODAL FUNCTIONS ====================
         function openCreateUserModal() {
             editingUserId = null;
@@ -924,6 +1060,9 @@
             document.getElementById('userForm').reset();
             document.getElementById('activo').checked = true;
             document.getElementById('password').required = true;
+            document.getElementById('password-requirements').style.display = 'block';
+            document.getElementById('password-first-login-notice').style.display = 'block';
+            validatePasswordRequirements(''); // Mostrar requisitos vacíos
             document.getElementById('userModal').style.display = 'block';
         }
 
@@ -935,6 +1074,7 @@
             document.getElementById('userModalTitle').textContent = 'Editar Usuario';
             document.getElementById('userSubmitBtn').textContent = 'Actualizar Usuario';
             document.getElementById('password-help').style.display = 'block';
+            document.getElementById('password-first-login-notice').style.display = 'none';
             document.getElementById('password').required = false;
 
             // Llenar formulario
@@ -951,6 +1091,9 @@
         function closeUserModal() {
             document.getElementById('userModal').style.display = 'none';
             document.getElementById('userForm').reset();
+            document.getElementById('password-requirements').style.display = 'none';
+            document.getElementById('password-first-login-notice').style.display = 'none';
+            document.getElementById('password').type = 'password'; // Ocultar contraseña al cerrar
             editingUserId = null;
         }
 
@@ -1242,6 +1385,14 @@
             // Event listeners para paginación
             document.getElementById('prev-page').addEventListener('click', prevPage);
             document.getElementById('next-page').addEventListener('click', nextPage);
+            
+            // Event listener para validación de contraseña en tiempo real
+            const passwordField = document.getElementById('password');
+            if (passwordField) {
+                passwordField.addEventListener('input', function() {
+                    validatePasswordRequirements(this.value);
+                });
+            }
         });
         
         window.onload = checkAuth;

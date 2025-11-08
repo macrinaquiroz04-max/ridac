@@ -520,7 +520,6 @@
         </div>
         <div id="lens-loading" class="lens-loading">
             <div class="lens-loading-spinner"></div>
-            <p>Extrayendo texto...</p>
         </div>
     </div>
     
@@ -542,16 +541,10 @@
             ✕
         </button>
     </div>
-            <p>Extrayendo texto...</p>
-        </div>
     </div>
 
     <div class="pdf-container">
         <div class="pdf-toolbar">
-            <button onclick="volverAtras()">
-                <span>←</span> Volver
-            </button>
-            
             <div class="tomo-info" id="tomo-info" style="display: none;">
                 <span>📄</span>
                 <span id="tomo-nombre">Cargando...</span>
@@ -600,23 +593,7 @@
                 ✅ Modo activo - Arrastra sobre el texto
             </span>
 
-            <div class="search-box">
-                <input type="text" id="search-input" placeholder="Buscar en el documento..." 
-                       onkeypress="if(event.key==='Enter') searchText()">
-                <button onclick="searchText()" title="Buscar texto">
-                    🔍
-                </button>
-            </div>
 
-            <button onclick="copiarTextoSeleccionado()" title="Copiar texto seleccionado (Ctrl+C)" 
-                    style="background: #10b981;">
-                📋 Copiar Selección
-            </button>
-
-            <button onclick="copiarTextoPagina()" title="Copiar todo el texto de la página actual" 
-                    style="background: #3b82f6;">
-                📄 Copiar Página
-            </button>
         </div>
 
         <div class="pdf-viewer" id="pdf-viewer">
@@ -656,9 +633,18 @@
         let pdfUrl = null;
         let tomoNombre = '';
 
-        // Obtener ID del tomo desde URL
+        // Obtener ID del tomo y página desde URL
         const urlParams = new URLSearchParams(window.location.search);
         tomoId = urlParams.get('tomo_id');
+        const paginaInicial = urlParams.get('page');
+        
+        // Si se especificó una página, usarla como página inicial
+        if (paginaInicial) {
+            pageNum = parseInt(paginaInicial);
+            console.log(`📄 PÁGINA INICIAL DESDE URL: ${pageNum}`);
+        } else {
+            console.log(`📄 Sin página especificada, iniciando en página 1`);
+        }
 
         if (!tomoId) {
             mostrarError('No se especificó el documento a visualizar');
@@ -894,6 +880,7 @@
                     
                     document.getElementById('loading').style.display = 'none';
                     document.querySelector('.pdf-page-container').style.display = 'block';
+                    console.log(`🎯 Renderizando página: ${pageNum}`);
                     renderPage(pageNum);
                     
                     // 🔍 Inicializar Google Lens OCR después de cargar PDF

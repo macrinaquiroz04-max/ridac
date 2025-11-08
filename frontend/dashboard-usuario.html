@@ -656,6 +656,29 @@
             66% { transform: translateY(30px) rotate(240deg); }
         }
 
+        /* Animaciones para notificaciones */
+        @keyframes slideInRight {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes slideOutRight {
+            from {
+                transform: translateX(0);
+                opacity: 1;
+            }
+            to {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+        }
+
         /* Mejorar la sección de búsqueda */
         .search-container {
             background: linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05));
@@ -805,30 +828,6 @@
         </div>
     </nav>
 
-    <!-- 🚀 INDICADOR DE OPTIMIZACIONES V6 -->
-    <div class="container-fluid py-2" style="background: linear-gradient(90deg, #28a745 0%, #20c997 100%); color: white; font-size: 0.85rem;">
-        <div class="row align-items-center">
-            <div class="col-md-8">
-                <div class="d-flex align-items-center">
-                    <i class="fas fa-rocket me-2"></i>
-                    <strong>SISTEMA OPTIMIZADO V6:</strong>
-                    <span class="ms-2">
-                        🧠 spaCy MODELO GRANDE (es_core_news_lg) 
-                        <span class="badge bg-light text-dark ms-1">+25% precisión</span>
-                        ⚡ ccache 
-                        <span class="badge bg-light text-dark ms-1">10x compilación</span>
-                    </span>
-                </div>
-            </div>
-            <div class="col-md-4 text-end">
-                <small>
-                    <i class="fas fa-info-circle me-1"></i>
-                    Máximo rendimiento en análisis legal
-                </small>
-            </div>
-        </div>
-    </div>
-
     <div class="container-fluid py-4">
         <!-- Estadísticas -->
         <div class="row mb-4">
@@ -886,7 +885,9 @@
                         </div>
 
                         <!-- Contenido de tomos -->
-                        <div id="tomosContainer"></div>
+                        <div id="tomosWrapper" class="">
+                            <div id="tomosContainer"></div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1577,11 +1578,14 @@
         let tomosAccesibles = [];
         let tomosData = null;
         let carpetas = [];
+        let autoRefreshInterval = null; // Variable para el intervalo de auto-actualización
+        let previousTomosHash = ''; // Hash de los tomos para detectar cambios en permisos
 
         // Inicialización
         document.addEventListener('DOMContentLoaded', function() {
             verificarAuth();
             cargarDatosUsuario();
+            iniciarAutoActualizacion(); // Iniciar auto-actualización
         });
 
         async function cargarDatosUsuario() {
@@ -1732,25 +1736,59 @@
                 
                 if (tomosAccesibles.length === 0) {
                     console.log('📋 No hay tomos accesibles - mostrando mensaje');
-                    document.getElementById('noAccess').classList.remove('d-none');
+                    const noAccessDiv = document.getElementById('noAccess');
+                    const tomosWrapper = document.getElementById('tomosWrapper');
+                    if (noAccessDiv) noAccessDiv.classList.remove('d-none');
+                    if (tomosWrapper) tomosWrapper.classList.add('d-none');
                     return;
                 } else {
                     console.log('🎯 Tomos encontrados - ocultando mensaje de sin acceso');
-                    document.getElementById('noAccess').classList.add('d-none');
+                    const noAccessDiv = document.getElementById('noAccess');
+                    const tomosWrapper = document.getElementById('tomosWrapper');
+                    if (noAccessDiv) noAccessDiv.classList.add('d-none');
+                    if (tomosWrapper) tomosWrapper.classList.remove('d-none');
                 }
 
                 renderizarTomos();
                 // actualizarFiltroCarpetas(); // Comentado: elemento filtroCarpeta no existe
                 
+                // Actualizar el hash para la auto-actualización
+                previousTomosHash = generarHashTomos(tomosAccesibles);
+                
             } catch (error) {
                 console.error('❌ Error cargando tomos:', error);
-                document.getElementById('noAccess').classList.remove('d-none');
+                const noAccessDiv = document.getElementById('noAccess');
+                const tomosWrapper = document.getElementById('tomosWrapper');
+                if (noAccessDiv) noAccessDiv.classList.remove('d-none');
+                if (tomosWrapper) tomosWrapper.classList.add('d-none');
                 tomosAccesibles = [];
             }
         }
 
         function renderizarTomos() {
             const container = document.getElementById('tomosContainer');
+            const tomosWrapper = document.getElementById('tomosWrapper');
+            const noAccessDiv = document.getElementById('noAccess');
+            
+            // Si no hay tomos, mostrar mensaje de "Sin Acceso" y ocultar wrapper de tomos
+            if (tomosAccesibles.length === 0) {
+                container.innerHTML = '';
+                if (tomosWrapper) {
+                    tomosWrapper.classList.add('d-none');
+                }
+                if (noAccessDiv) {
+                    noAccessDiv.classList.remove('d-none');
+                }
+                return;
+            }
+            
+            // Si hay tomos, ocultar mensaje de "Sin Acceso" y mostrar wrapper de tomos
+            if (noAccessDiv) {
+                noAccessDiv.classList.add('d-none');
+            }
+            if (tomosWrapper) {
+                tomosWrapper.classList.remove('d-none');
+            }
             
             // Agrupar por carpeta
             const tomosPorCarpeta = {};
@@ -1802,12 +1840,14 @@
                                     </p>
                                     
                                     <div class="mb-3">
-                                        ${tomo.puede_ver ? '<span class="permission-badge bg-success text-white">Ver</span>' : ''}
-                                        ${tomo.puede_exportar ? '<span class="permission-badge bg-warning text-dark">Exportar</span>' : ''}
+                                        ${tomo.puede_ver ? '<span class="permission-badge bg-success text-white">VER</span>' : ''}
+                                        ${tomo.puede_buscar ? '<span class="permission-badge bg-info text-white">BUSCAR</span>' : ''}
+                                        ${tomo.puede_exportar ? '<span class="permission-badge bg-warning text-dark">EXPORTAR</span>' : ''}
                                     </div>
                                     
                                     <div class="tomo-actions">
                                         ${tomo.puede_ver ? `<button class="btn btn-outline-primary btn-sm btn-action" onclick="visualizarTomo(${tomo.id})"><i class="fas fa-eye me-1"></i>Ver</button>` : ''}
+                                        ${tomo.puede_buscar ? `<button class="btn btn-outline-info btn-sm btn-action" onclick="buscarEnTomo(${tomo.id})"><i class="fas fa-search me-1"></i>Buscar</button>` : ''}
                                         ${tomo.puede_exportar ? `<button class="btn btn-outline-warning btn-sm btn-action" onclick="exportarTomo(${tomo.id})"><i class="fas fa-download me-1"></i>Exportar</button>` : ''}
                                     </div>
                                 </div>
@@ -1846,6 +1886,172 @@
             }
         }
 
+        // ==================== AUTO-ACTUALIZACIÓN EN TIEMPO REAL ====================
+        function generarHashTomos(tomos) {
+            // Crear un hash único basado en los tomos y sus permisos
+            const tomosInfo = tomos.map(t => ({
+                id: t.id,
+                puede_ver: t.puede_ver,
+                puede_buscar: t.puede_buscar,
+                puede_exportar: t.puede_exportar
+            }));
+            return JSON.stringify(tomosInfo.sort((a, b) => a.id - b.id));
+        }
+
+        function iniciarAutoActualizacion() {
+            // Verificar cada 5 segundos si hay cambios en los permisos
+            autoRefreshInterval = setInterval(async () => {
+                try {
+                    if (!usuario || !usuario.id) return;
+                    
+                    // Consultar tomos accesibles sin mostrar loading
+                    const response = await apiGet(`/permisos/usuarios/${usuario.id}/tomos-accesibles`);
+                    
+                    let nuevosTomos = [];
+                    if (Array.isArray(response)) {
+                        nuevosTomos = response.map(item => ({
+                            id: item.tomo_id || item.id,
+                            puede_ver: item.permisos?.puede_ver || false,
+                            puede_buscar: item.permisos?.puede_buscar || false,
+                            puede_exportar: item.permisos?.puede_exportar || false
+                        }));
+                    } else if (response && response.tomos && Array.isArray(response.tomos)) {
+                        nuevosTomos = response.tomos.map(item => ({
+                            id: item.tomo_id || item.id,
+                            puede_ver: item.permisos?.puede_ver || false,
+                            puede_buscar: item.permisos?.puede_buscar || false,
+                            puede_exportar: item.permisos?.puede_exportar || false
+                        }));
+                    }
+                    
+                    const nuevoHash = generarHashTomos(nuevosTomos);
+                    const previousCount = tomosAccesibles.length;
+                    const nuevoCount = nuevosTomos.length;
+                    
+                    // Solo actuar si hay cambios REALES
+                    if (nuevoHash !== previousTomosHash && previousTomosHash !== '') {
+                        console.log(`🔄 Cambios detectados en permisos`);
+                        console.log(`   Anterior: ${previousCount} tomos`);
+                        console.log(`   Nuevo: ${nuevoCount} tomos`);
+                        
+                        // Determinar el tipo de cambio y mostrar notificación apropiada
+                        if (nuevoCount > previousCount) {
+                            // Nuevos tomos asignados
+                            mostrarNotificacionNuevoAcceso('¡Nuevo tomo asignado!');
+                        } else if (nuevoCount < previousCount) {
+                            // Tomos removidos
+                            if (nuevoCount === 0) {
+                                // Se quitaron TODOS los permisos
+                                mostrarNotificacionCambio('Todos los accesos removidos', 'warning');
+                            } else {
+                                mostrarNotificacionCambio('Acceso removido', 'warning');
+                            }
+                        } else if (nuevoCount === previousCount && nuevoCount > 0) {
+                            // Mismo número de tomos pero diferentes permisos
+                            mostrarNotificacionCambio('Permisos actualizados', 'info');
+                        }
+                        
+                        // Recargar tomos y estadísticas
+                        await cargarTomosAccesibles();
+                        await cargarEstadisticas();
+                    } else if (previousTomosHash === '') {
+                        // Primera carga, solo actualizar el hash sin notificación
+                        previousTomosHash = nuevoHash;
+                    }
+                } catch (error) {
+                    // Silenciar errores para no molestar al usuario
+                    console.log('Auto-actualización: sin cambios o error menor');
+                }
+            }, 5000); // Cada 5 segundos
+            
+            console.log('✅ Auto-actualización activada (cada 5 segundos)');
+        }
+
+        function detenerAutoActualizacion() {
+            if (autoRefreshInterval) {
+                clearInterval(autoRefreshInterval);
+                autoRefreshInterval = null;
+                console.log('⏹️ Auto-actualización detenida');
+            }
+        }
+
+        function mostrarNotificacionNuevoAcceso(mensaje = '¡Nuevo acceso asignado!') {
+            // Crear notificación toast
+            const toast = document.createElement('div');
+            toast.style.cssText = `
+                position: fixed;
+                top: 80px;
+                right: 20px;
+                background: linear-gradient(135deg, #28a745, #20c997);
+                color: white;
+                padding: 15px 25px;
+                border-radius: 12px;
+                box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+                z-index: 10000;
+                font-weight: 600;
+                animation: slideInRight 0.5s ease;
+            `;
+            toast.innerHTML = `
+                <i class="fas fa-check-circle me-2"></i>
+                ${mensaje}
+            `;
+            
+            document.body.appendChild(toast);
+            
+            // Eliminar después de 3 segundos
+            setTimeout(() => {
+                toast.style.animation = 'slideOutRight 0.5s ease';
+                setTimeout(() => toast.remove(), 500);
+            }, 3000);
+        }
+
+        function mostrarNotificacionCambio(mensaje, tipo = 'info') {
+            const colores = {
+                'success': 'linear-gradient(135deg, #28a745, #20c997)',
+                'warning': 'linear-gradient(135deg, #ffc107, #ff9800)',
+                'info': 'linear-gradient(135deg, #17a2b8, #0dcaf0)',
+                'danger': 'linear-gradient(135deg, #dc3545, #e57373)'
+            };
+            
+            const iconos = {
+                'success': 'fa-check-circle',
+                'warning': 'fa-exclamation-triangle',
+                'info': 'fa-info-circle',
+                'danger': 'fa-times-circle'
+            };
+            
+            const toast = document.createElement('div');
+            toast.style.cssText = `
+                position: fixed;
+                top: 80px;
+                right: 20px;
+                background: ${colores[tipo] || colores.info};
+                color: white;
+                padding: 15px 25px;
+                border-radius: 12px;
+                box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+                z-index: 10000;
+                font-weight: 600;
+                animation: slideInRight 0.5s ease;
+            `;
+            toast.innerHTML = `
+                <i class="fas ${iconos[tipo] || iconos.info} me-2"></i>
+                ${mensaje}
+            `;
+            
+            document.body.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.style.animation = 'slideOutRight 0.5s ease';
+                setTimeout(() => toast.remove(), 500);
+            }, 3000);
+        }
+
+        // Detener auto-actualización al cerrar la ventana
+        window.addEventListener('beforeunload', () => {
+            detenerAutoActualizacion();
+        });
+
         // function actualizarFiltroCarpetas() {
         //     const select = document.getElementById('filtroCarpeta');
         //     const carpetasUnicas = [...new Set(tomosAccesibles.map(t => t.nombre_carpeta || 'Sin Carpeta'))];
@@ -1857,8 +2063,12 @@
         // }
 
         async function visualizarTomo(tomoId, paginaEspecifica = null) {
-            // Abrir visor PDF en nueva pestaña
-            window.open(`visor-pdf.html?tomo_id=${tomoId}`, '_blank');
+            // Abrir visor PDF en nueva pestaña, directamente en la página especificada
+            if (paginaEspecifica) {
+                window.open(`visor-pdf.html?tomo_id=${tomoId}&page=${paginaEspecifica}`, '_blank');
+            } else {
+                window.open(`visor-pdf.html?tomo_id=${tomoId}`, '_blank');
+            }
         }
 
         async function mostrarVisorPDF(tomoId, tomoInfo) {
@@ -5146,6 +5356,402 @@
             } catch (error) {
                 console.error('Error exportando:', error);
                 mostrarError('Error al exportar tomo');
+            }
+        }
+
+        async function buscarEnTomo(tomoId) {
+            try {
+                // Obtener información del tomo
+                const tomo = tomosAccesibles.find(t => t.id === tomoId);
+                if (!tomo) {
+                    mostrarError('Tomo no encontrado');
+                    return;
+                }
+
+                // Mostrar modal de búsqueda avanzada
+                mostrarModalBusquedaAvanzada(tomoId, tomo);
+                
+            } catch (error) {
+                console.error('Error iniciando búsqueda:', error);
+                mostrarError('Error al iniciar búsqueda');
+            }
+        }
+
+        function mostrarModalBusquedaAvanzada(tomoId, tomo) {
+            const modalHTML = `
+                <div id="modalBusquedaAvanzada" style="
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    bottom: 0;
+                    background: rgba(0,0,0,0.7);
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    z-index: 10000;
+                    padding: 20px;
+                ">
+                    <div style="
+                        background: white;
+                        padding: 30px;
+                        border-radius: 12px;
+                        max-width: 600px;
+                        width: 100%;
+                        box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+                    ">
+                        <h4 style="color: #1a365d; margin-bottom: 20px;">
+                            <i class="fas fa-search me-2"></i>Búsqueda Avanzada
+                        </h4>
+                        
+                        <div style="margin-bottom: 15px; padding: 15px; background: #e3f2fd; border-left: 4px solid #2196f3; border-radius: 4px;">
+                            <strong>Tomo:</strong> ${tomo.numero} - ${tomo.nombre_archivo}
+                        </div>
+
+                        <div style="margin-bottom: 20px;">
+                            <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #333;">
+                                <i class="fas fa-font me-1"></i>Texto a buscar:
+                            </label>
+                            <input type="text" id="searchQueryInput" 
+                                placeholder="Ejemplo: José García, expediente 2024, etc."
+                                style="width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 6px; font-size: 16px;"
+                                onkeypress="if(event.key === 'Enter') ejecutarBusquedaAvanzada(${tomoId}, ${JSON.stringify(tomo).replace(/"/g, '&quot;')})">
+                        </div>
+
+                        <div style="margin-bottom: 20px; padding: 15px; background: #f8f9fa; border-radius: 6px;">
+                            <h6 style="margin-bottom: 15px; color: #555;">
+                                <i class="fas fa-sliders-h me-1"></i>Opciones de búsqueda:
+                            </h6>
+                            
+                            <div style="margin-bottom: 12px;">
+                                <label style="display: flex; align-items: center; cursor: pointer;">
+                                    <input type="checkbox" id="fuzzySearch" checked style="margin-right: 8px; width: 18px; height: 18px;">
+                                    <span>
+                                        <strong>Búsqueda Inteligente</strong>
+                                        <small style="display: block; color: #666; margin-top: 2px;">
+                                            Encuentra coincidencias aproximadas (tolerante a errores de OCR)
+                                        </small>
+                                    </span>
+                                </label>
+                            </div>
+
+                            <div style="margin-bottom: 12px;">
+                                <label style="display: flex; align-items: center; cursor: pointer;">
+                                    <input type="checkbox" id="caseSensitive" style="margin-right: 8px; width: 18px; height: 18px;">
+                                    <span>
+                                        <strong>Distinguir mayúsculas/minúsculas</strong>
+                                        <small style="display: block; color: #666; margin-top: 2px;">
+                                            "José" ≠ "josé"
+                                        </small>
+                                    </span>
+                                </label>
+                            </div>
+
+                            <div style="margin-bottom: 12px;">
+                                <label style="display: flex; align-items: center; cursor: pointer;">
+                                    <input type="checkbox" id="wholeWord" style="margin-right: 8px; width: 18px; height: 18px;">
+                                    <span>
+                                        <strong>Palabra completa</strong>
+                                        <small style="display: block; color: #666; margin-top: 2px;">
+                                            Buscar "fiscal" no encontrará "fiscalía"
+                                        </small>
+                                    </span>
+                                </label>
+                            </div>
+
+                            <div>
+                                <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #555;">
+                                    <i class="fas fa-list-ol me-1"></i>Máximo de resultados:
+                                </label>
+                                <select id="maxResults" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 6px;">
+                                    <option value="50">50 resultados</option>
+                                    <option value="100" selected>100 resultados</option>
+                                    <option value="200">200 resultados</option>
+                                    <option value="500">500 resultados</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                            <button onclick="cerrarModalBusqueda()" 
+                                style="padding: 12px 24px; background: #6c757d; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
+                                <i class="fas fa-times me-1"></i>Cancelar
+                            </button>
+                            <button onclick="ejecutarBusquedaAvanzada(${tomoId}, ${JSON.stringify(tomo).replace(/"/g, '&quot;')})" 
+                                style="padding: 12px 24px; background: #007bff; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
+                                <i class="fas fa-search me-1"></i>Buscar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            document.body.insertAdjacentHTML('beforeend', modalHTML);
+            document.getElementById('searchQueryInput').focus();
+        }
+
+        function cerrarModalBusqueda() {
+            const modal = document.getElementById('modalBusquedaAvanzada');
+            if (modal) {
+                modal.remove();
+            }
+        }
+
+        async function ejecutarBusquedaAvanzada(tomoId, tomo) {
+            const query = document.getElementById('searchQueryInput').value.trim();
+            
+            if (!query) {
+                alert('⚠️ Por favor ingrese un texto a buscar');
+                document.getElementById('searchQueryInput').focus();
+                return;
+            }
+
+            const fuzzy = document.getElementById('fuzzySearch').checked;
+            const caseSensitive = document.getElementById('caseSensitive').checked;
+            const wholeWord = document.getElementById('wholeWord').checked;
+            const maxResults = parseInt(document.getElementById('maxResults').value);
+
+            cerrarModalBusqueda();
+            mostrarLoading(true);
+
+            try {
+                const response = await apiPost(`/tomos/${tomoId}/buscar-avanzada`, {
+                    query: query,
+                    fuzzy: fuzzy,
+                    case_sensitive: caseSensitive,
+                    whole_word: wholeWord,
+                    max_results: maxResults,
+                    contexto_caracteres: 200
+                });
+
+                mostrarLoading(false);
+
+                if (response && response.resultados && response.resultados.length > 0) {
+                    mostrarResultadosBusqueda(response, tomo);
+                } else {
+                    alert(`ℹ️ No se encontraron resultados para: "${query}"\n\n💡 Intente:\n• Desactivar "Palabra completa"\n• Activar "Búsqueda Inteligente"\n• Verificar la ortografía`);
+                }
+                
+            } catch (error) {
+                mostrarLoading(false);
+                console.error('Error en búsqueda:', error);
+                mostrarError('Error al buscar en el tomo: ' + (error.detail || error.message || 'Error desconocido'));
+            }
+        }
+
+        function mostrarResultadosBusqueda(response, tomo) {
+            const resultados = response.resultados;
+            const query = response.query;
+            
+            // Función para resaltar el texto encontrado
+            function resaltarTexto(contextoAntes, textoEncontrado, contextoDespues, similitud) {
+                const antes = escapeHtml(contextoAntes).replace(/\n/g, '<br>');
+                const despues = escapeHtml(contextoDespues).replace(/\n/g, '<br>');
+                const match = escapeHtml(textoEncontrado);
+                
+                let colorResaltado = '#ffeb3b'; // Amarillo para exactas
+                if (similitud < 1.0) {
+                    colorResaltado = '#ffc107'; // Naranja para fuzzy
+                }
+                
+                return `<span style="color: #666;">${antes}</span><mark style="background: ${colorResaltado}; padding: 2px 4px; border-radius: 3px; font-weight: 600;">${match}</mark><span style="color: #666;">${despues}</span>`;
+            }
+            
+            function escapeHtml(text) {
+                const div = document.createElement('div');
+                div.textContent = text;
+                return div.innerHTML;
+            }
+            
+            let html = `
+                <div style="max-width: 900px; background: white; padding: 30px; border-radius: 12px; max-height: 85vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.3);">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; padding-bottom: 15px; border-bottom: 2px solid #e0e0e0;">
+                        <h4 style="color: #1a365d; margin: 0;">
+                            <i class="fas fa-search-plus me-2"></i>Resultados de Búsqueda
+                        </h4>
+                        <button onclick="closeModal()" style="background: none; border: none; font-size: 24px; color: #999; cursor: pointer; padding: 0; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;" title="Cerrar">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    
+                    <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; border-radius: 8px; margin-bottom: 25px; color: white;">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                            <div>
+                                <div style="opacity: 0.9; font-size: 13px; margin-bottom: 4px;">📚 Tomo</div>
+                                <div style="font-weight: 600; font-size: 16px;">${tomo.numero} - ${tomo.nombre_archivo}</div>
+                            </div>
+                            <div>
+                                <div style="opacity: 0.9; font-size: 13px; margin-bottom: 4px;">🔍 Búsqueda</div>
+                                <div style="font-weight: 600; font-size: 16px;">"${escapeHtml(query)}"</div>
+                            </div>
+                            <div>
+                                <div style="opacity: 0.9; font-size: 13px; margin-bottom: 4px;">✅ Resultados</div>
+                                <div style="font-weight: 600; font-size: 20px;">${resultados.length}</div>
+                            </div>
+                            <div>
+                                <div style="opacity: 0.9; font-size: 13px; margin-bottom: 4px;">📄 Páginas</div>
+                                <div style="font-weight: 600; font-size: 16px;">${[...new Set(resultados.map(r => r.pagina))].length} páginas diferentes</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="resultadosLista" style="margin-top: 20px;">
+            `;
+
+            resultados.forEach((resultado, index) => {
+                const esFuzzy = resultado.similitud < 1.0;
+                const iconoTipo = esFuzzy ? '🔶' : '🟢';
+                const tipoMatch = esFuzzy ? `Similitud: ${(resultado.similitud * 100).toFixed(0)}%` : 'Coincidencia exacta';
+                
+                html += `
+                    <div style="
+                        margin-bottom: 20px; 
+                        padding: 20px; 
+                        background: ${esFuzzy ? '#fff8e1' : '#f1f8ff'}; 
+                        border-left: 5px solid ${esFuzzy ? '#ff9800' : '#2196f3'}; 
+                        border-radius: 8px;
+                        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+                        transition: all 0.3s ease;
+                    " onmouseover="this.style.boxShadow='0 4px 16px rgba(0,0,0,0.15)'" onmouseout="this.style.boxShadow='0 2px 8px rgba(0,0,0,0.08)'">
+                        
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                            <div>
+                                <span style="font-weight: 700; color: #1a365d; font-size: 15px;">
+                                    ${iconoTipo} Resultado ${index + 1}
+                                </span>
+                                <span style="margin-left: 12px; font-size: 13px; color: #666; padding: 4px 10px; background: white; border-radius: 12px;">
+                                    ${tipoMatch}
+                                </span>
+                            </div>
+                            <div style="text-align: right;">
+                                <div style="font-size: 13px; color: #666; margin-bottom: 4px;">📄 Página</div>
+                                <div style="font-size: 20px; font-weight: 700; color: #2196f3;">${resultado.pagina}</div>
+                            </div>
+                        </div>
+                        
+                        <div style="
+                            font-family: 'Courier New', monospace; 
+                            font-size: 14px; 
+                            line-height: 1.8; 
+                            color: #333;
+                            background: white;
+                            padding: 15px;
+                            border-radius: 6px;
+                            margin-bottom: 15px;
+                            overflow-wrap: break-word;
+                            word-wrap: break-word;
+                        ">
+                            ${resaltarTexto(resultado.contexto_antes, resultado.texto, resultado.contexto_despues, resultado.similitud)}
+                        </div>
+                        
+                        <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                            <button onclick="visualizarTomo(${tomo.id}, ${resultado.pagina}); closeModal()" 
+                                style="
+                                    padding: 10px 20px; 
+                                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                                    color: white; 
+                                    border: none; 
+                                    border-radius: 6px; 
+                                    cursor: pointer;
+                                    font-weight: 600;
+                                    box-shadow: 0 3px 10px rgba(102, 126, 234, 0.3);
+                                    transition: all 0.3s ease;
+                                " onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 5px 15px rgba(102, 126, 234, 0.4)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 3px 10px rgba(102, 126, 234, 0.3)'">
+                                <i class="fas fa-file-pdf me-2"></i>Ver en PDF (pág. ${resultado.pagina})
+                            </button>
+                        </div>
+                    </div>
+                `;
+            });
+
+            html += `
+                    </div>
+                    
+                    <div style="
+                        margin-top: 30px; 
+                        padding-top: 20px; 
+                        border-top: 2px solid #e0e0e0;
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                    ">
+                        <div style="color: #666; font-size: 14px;">
+                            <i class="fas fa-info-circle me-1"></i>
+                            ${resultados.filter(r => r.similitud < 1.0).length > 0 ? 
+                                `🔶 Incluye ${resultados.filter(r => r.similitud < 1.0).length} coincidencias aproximadas (búsqueda inteligente)` : 
+                                '🟢 Todas las coincidencias son exactas'}
+                        </div>
+                        <button onclick="closeModal()" style="
+                            padding: 12px 30px; 
+                            background: #6c757d; 
+                            color: white; 
+                            border: none; 
+                            border-radius: 6px; 
+                            cursor: pointer;
+                            font-weight: 600;
+                            transition: all 0.3s ease;
+                        " onmouseover="this.style.background='#5a6268'" onmouseout="this.style.background='#6c757d'">
+                            <i class="fas fa-times me-2"></i>Cerrar
+                        </button>
+                    </div>
+                </div>
+            `;
+
+            // Crear modal
+            const modal = document.createElement('div');
+            modal.id = 'searchResultsModal';
+            modal.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: rgba(0,0,0,0.75);
+                backdrop-filter: blur(5px);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                z-index: 10000;
+                padding: 20px;
+                animation: fadeIn 0.3s ease;
+            `;
+            modal.innerHTML = html;
+            document.body.appendChild(modal);
+
+            // Agregar estilos de animación
+            if (!document.getElementById('searchModalStyles')) {
+                const style = document.createElement('style');
+                style.id = 'searchModalStyles';
+                style.textContent = `
+                    @keyframes fadeIn {
+                        from { opacity: 0; }
+                        to { opacity: 1; }
+                    }
+                `;
+                document.head.appendChild(style);
+            }
+
+            // Cerrar al hacer clic fuera
+            modal.addEventListener('click', function(e) {
+                if (e.target === modal) {
+                    closeModal();
+                }
+            });
+            
+            // Cerrar con tecla ESC
+            const closeOnEsc = function(e) {
+                if (e.key === 'Escape') {
+                    closeModal();
+                    document.removeEventListener('keydown', closeOnEsc);
+                }
+            };
+            document.addEventListener('keydown', closeOnEsc);
+        }
+
+        function closeModal() {
+            const modal = document.getElementById('searchResultsModal');
+            if (modal) {
+                modal.remove();
             }
         }
 
