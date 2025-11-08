@@ -700,6 +700,10 @@
                     cargarUsuarios()
                 ]);
                 
+                // Forzar re-renderizado inmediato de la UI
+                renderizarPermisos();
+                renderizarUsuarios();
+                
                 ultimaActualizacion = Date.now();
                 
                 const tipoTexto = {
@@ -899,6 +903,11 @@
                 await cargarConteoPermisos(usuarioActual.id);
                 // Actualizar lista de usuarios para reflejar cambios en conteos
                 await cargarUsuarios();
+                
+                // Forzar re-renderizado inmediato de la UI
+                renderizarPermisos();
+                renderizarUsuarios();
+                
                 ultimaActualizacion = Date.now();
                 
                 const mensajes = {
@@ -957,6 +966,11 @@
                 await cargarConteoPermisos(usuarioActual.id);
                 // Actualizar lista de usuarios para reflejar cambios en conteos
                 await cargarUsuarios();
+                
+                // Forzar re-renderizado inmediato de la UI
+                renderizarPermisos();
+                renderizarUsuarios();
+                
                 ultimaActualizacion = Date.now();
                 
                 const mensajes = {
@@ -1100,21 +1114,28 @@
         }
 
         function iniciarPolling() {
-            // Polling cada 10 segundos para detectar cambios en usuarios (más frecuente)
+            // Polling cada 5 segundos para detectar cambios (más frecuente)
             intervaloPoll = setInterval(async () => {
                 try {
                     console.log('⏰ Polling automático - Verificando usuarios...');
                     const ahora = Date.now();
-                    // Solo actualizar si han pasado más de 8 segundos desde la última actualización
-                    if (ahora - ultimaActualizacion > 8000) {
+                    // Solo actualizar si han pasado más de 4 segundos desde la última actualización
+                    if (ahora - ultimaActualizacion > 4000) {
                         await cargarUsuarios();
+                        // Si hay un usuario seleccionado, actualizar también sus permisos
+                        if (usuarioActual) {
+                            await cargarPermisosUsuario(usuarioActual.id);
+                            await cargarConteoPermisos(usuarioActual.id);
+                            renderizarPermisos();
+                        }
+                        renderizarUsuarios();
                         ultimaActualizacion = ahora;
-                        console.log('✅ Usuarios verificados por polling');
+                        console.log('✅ Usuarios y permisos verificados por polling');
                     }
                 } catch (error) {
                     console.error('❌ Error en polling:', error);
                 }
-            }, 10000); // Cada 10 segundos
+            }, 5000); // Cada 5 segundos (más frecuente)
         }
 
         function detenerPolling() {
