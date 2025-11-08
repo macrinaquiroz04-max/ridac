@@ -228,7 +228,15 @@ class PermisoTomoController:
             except Exception as e:
                 print(f"Warning: Error en limpieza automática masiva: {e}")
             
-            return permisos_creados
+            # IMPORTANTE: Recargar todos los permisos del usuario desde la BD
+            # para asegurar que la respuesta refleje el estado real
+            permisos_actuales = db.query(PermisoTomo).filter(
+                PermisoTomo.usuario_id == usuario_id
+            ).all()
+            
+            print(f"✅ Permisos masivos aplicados. Total permisos del usuario: {len(permisos_actuales)}")
+            
+            return permisos_actuales
             
         except HTTPException:
             db.rollback()
