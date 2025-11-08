@@ -904,31 +904,41 @@
                     ...permisos
                 };
 
+                console.log(`🔄 Aplicando permiso rápido: ${tipo} al tomo ${tomoId}`);
                 const response = await apiPost('/permisos/tomos/permisos', datosPermiso);
                 
-                // Manejar respuesta
+                // Actualizar array local inmediatamente
                 if (response && response.message) {
                     console.log('🗑️ Permiso eliminado:', response.message);
+                    permisosUsuario = permisosUsuario.filter(p => p.tomo_id !== tomoId);
                 } else {
                     console.log('✅ Permiso aplicado:', response);
+                    const index = permisosUsuario.findIndex(p => p.tomo_id === tomoId);
+                    if (index >= 0) {
+                        permisosUsuario[index] = response;
+                    } else {
+                        permisosUsuario.push(response);
+                    }
                 }
                 
-                // Actualizar permisos locales
+                // Renderizar inmediatamente
+                renderizarPermisos();
+                
+                // Actualizar permisos locales del servidor
                 await cargarPermisosUsuario(usuarioActual.id);
                 await cargarConteoPermisos(usuarioActual.id);
-                // Actualizar lista de usuarios para reflejar cambios en conteos
                 await cargarUsuarios();
                 
-                // Forzar re-renderizado inmediato de la UI
+                // Forzar re-renderizado final
                 renderizarPermisos();
                 renderizarUsuarios();
                 
                 ultimaActualizacion = Date.now();
                 
                 const mensajes = {
-                    'completo': 'Acceso completo activado',
-                    'lectura': 'Solo visualización activada',
-                    'ninguno': 'Todos los permisos removidos'
+                    'completo': '✅ Acceso completo activado',
+                    'lectura': '✅ Solo visualización activada',
+                    'ninguno': '✅ Todos los permisos removidos'
                 };
                 
                 mostrarAlerta(mensajes[tipo], 'success', 2000);
@@ -968,30 +978,46 @@
             }
 
             try {
+                // Mostrar indicador de carga
+                mostrarAlerta(`⏳ Aplicando permisos a ${tomosEnCarpeta.length} tomos...`, 'info', 999999);
+                
                 const tomosIds = tomosEnCarpeta.map(t => t.id);
                 
-                await apiPost('/permisos/tomos/permisos/masivos', {
+                console.log(`🔄 Aplicando permisos masivos: ${tipo} a ${tomosIds.length} tomos`);
+                
+                // Esperar a que el servidor procese todo
+                const response = await apiPost('/permisos/tomos/permisos/masivos', {
                     usuario_id: usuarioActual.id,
                     tomos_ids: tomosIds,
                     permisos: permisos
                 });
                 
-                // Actualizar permisos locales
+                console.log('✅ Respuesta del servidor:', response);
+                
+                // Esperar un momento para que la BD se actualice
+                await new Promise(resolve => setTimeout(resolve, 500));
+                
+                // Actualizar permisos locales - ESPERAR a que termine
+                console.log('🔄 Recargando permisos del usuario...');
                 await cargarPermisosUsuario(usuarioActual.id);
+                
+                console.log('🔄 Recargando conteo de permisos...');
                 await cargarConteoPermisos(usuarioActual.id);
-                // Actualizar lista de usuarios para reflejar cambios en conteos
+                
+                console.log('🔄 Recargando lista de usuarios...');
                 await cargarUsuarios();
                 
                 // Forzar re-renderizado inmediato de la UI
+                console.log('🎨 Renderizando UI...');
                 renderizarPermisos();
                 renderizarUsuarios();
                 
                 ultimaActualizacion = Date.now();
                 
                 const mensajes = {
-                    'completo': `Acceso completo aplicado a ${tomosEnCarpeta.length} tomos`,
-                    'lectura': `Solo visualización aplicada a ${tomosEnCarpeta.length} tomos`,
-                    'ninguno': `Permisos removidos de ${tomosEnCarpeta.length} tomos`
+                    'completo': `✅ Acceso completo aplicado a ${tomosEnCarpeta.length} tomos`,
+                    'lectura': `✅ Solo visualización aplicada a ${tomosEnCarpeta.length} tomos`,
+                    'ninguno': `✅ Permisos removidos de ${tomosEnCarpeta.length} tomos`
                 };
                 
                 mostrarAlerta(mensajes[tipo], 'success', 3000);
