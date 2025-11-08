@@ -193,31 +193,24 @@ async def obtener_tomos_accesibles_usuario(
     current_user: Usuario = Depends(get_current_user)
 ):
     """
-    Obtiene todos los tomos a los que tiene acceso un usuario específico
-    Los usuarios pueden ver sus propios tomos, los administradores pueden ver todos
+    Obtiene todos los tomos a los que tiene acceso un usuario con información detallada
     """
-    # Verificar permisos: el usuario puede ver sus propios tomos o ser administrador
-    if current_user.id != usuario_id:
-        if not PermisoTomoController.verificar_permisos_administrador(db, current_user.id):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Solo puede ver sus propios tomos o ser administrador"
-            )
+    # Los usuarios pueden ver sus propios tomos, los administradores pueden ver cualquiera
+    if current_user.id != usuario_id and not PermisoTomoController.verificar_permisos_administrador(db, current_user.id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tienes permisos para ver esta información"
+        )
     
     try:
-        tomos_accesibles_raw = PermisoTomoController.obtener_tomos_accesibles_usuario(db, usuario_id)
-        
-        # Formato compatible con el frontend
-        resultado = {
-            "tomos": tomos_accesibles_raw,
-            "total": len(tomos_accesibles_raw),
-            "usuario_id": usuario_id
-        }
-        
-        return resultado
+        # Devolver array directo, compatible con frontend
+        tomos_accesibles = PermisoTomoController.obtener_tomos_accesibles_usuario(db, usuario_id)
+        return tomos_accesibles
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al obtener tomos accesibles: {str(e)}"
+        )
             detail=f"Error al obtener tomos accesibles: {str(e)}"
         )
 
@@ -344,31 +337,6 @@ async def revocar_permiso_tomo(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error al revocar permiso: {str(e)}"
-        )
-
-@router.get("/usuarios/{usuario_id}/tomos-accesibles")
-async def obtener_tomos_con_acceso(
-    usuario_id: int,
-    db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
-):
-    """
-    Obtiene todos los tomos a los que un usuario tiene acceso con información detallada
-    """
-    # Los usuarios pueden ver sus propios tomos accesibles, los admins pueden ver cualquiera
-    if current_user.id != usuario_id and not PermisoTomoController.verificar_permisos_administrador(db, current_user.id):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="No tienes permisos para ver esta información"
-        )
-    
-    try:
-        tomos_accesibles = PermisoTomoController.obtener_tomos_con_acceso(db, usuario_id)
-        return tomos_accesibles
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error al obtener tomos accesibles: {str(e)}"
         )
 
 @router.get("/carpetas/{carpeta_id}/usuarios-con-permisos")

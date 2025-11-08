@@ -1654,7 +1654,9 @@
         async function cargarTomosAccesibles() {
             try {
                 console.log('🔍 Cargando tomos accesibles para usuario:', usuario.id);
-                const response = await apiGet(`/permisos/usuarios/${usuario.id}/tomos-accesibles`);
+                // Forzar recarga sin caché
+                const timestamp = new Date().getTime();
+                const response = await apiGet(`/permisos/usuarios/${usuario.id}/tomos-accesibles?_t=${timestamp}`);
                 console.log('📊 Respuesta del servidor (completa):', JSON.stringify(response, null, 2));
                 console.log('📊 Tipo de respuesta:', typeof response);
                 console.log('📊 Es array?:', Array.isArray(response));
@@ -1904,8 +1906,9 @@
                 try {
                     if (!usuario || !usuario.id) return;
                     
-                    // Consultar tomos accesibles sin mostrar loading
-                    const response = await apiGet(`/permisos/usuarios/${usuario.id}/tomos-accesibles`);
+                    // Consultar tomos accesibles sin caché (timestamp para forzar recarga)
+                    const timestamp = new Date().getTime();
+                    const response = await apiGet(`/permisos/usuarios/${usuario.id}/tomos-accesibles?_t=${timestamp}`);
                     
                     let nuevosTomos = [];
                     if (Array.isArray(response)) {
