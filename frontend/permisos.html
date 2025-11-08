@@ -511,7 +511,11 @@
             try {
                 console.log('🔄 Cargando permisos del usuario:', usuarioId);
                 const permisosAnteriores = permisosUsuario.length;
-                permisosUsuario = await apiGet(`/permisos/usuarios/${usuarioId}/tomos/permisos`);
+                
+                // Forzar recarga sin caché agregando timestamp
+                const timestamp = new Date().getTime();
+                permisosUsuario = await apiGet(`/permisos/usuarios/${usuarioId}/tomos/permisos?_t=${timestamp}`);
+                
                 console.log(`✅ Permisos cargados: ${permisosAnteriores} → ${permisosUsuario.length}`);
                 console.log('📊 Permisos:', permisosUsuario);
                 // NO renderizar aquí, dejar que lo haga la función que llama
@@ -994,11 +998,16 @@
                 
                 console.log('✅ Respuesta del servidor:', response);
                 
-                // Esperar un momento para que la BD se actualice
-                await new Promise(resolve => setTimeout(resolve, 500));
+                // Esperar 1 segundo para que la BD termine de procesar
+                await new Promise(resolve => setTimeout(resolve, 1000));
                 
                 // Actualizar permisos locales - ESPERAR a que termine
-                console.log('🔄 Recargando permisos del usuario...');
+                console.log('🔄 Recargando permisos del usuario (intento 1)...');
+                await cargarPermisosUsuario(usuarioActual.id);
+                
+                // Segundo intento para asegurar
+                console.log('🔄 Recargando permisos del usuario (intento 2)...');
+                await new Promise(resolve => setTimeout(resolve, 300));
                 await cargarPermisosUsuario(usuarioActual.id);
                 
                 console.log('🔄 Recargando conteo de permisos...');
