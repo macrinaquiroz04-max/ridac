@@ -502,14 +502,19 @@
             
             renderizarUsuarios(); // Re-renderizar para actualizar selección
             
-            // Cargar permisos del usuario
+            // Cargar permisos del usuario y renderizar
             await cargarPermisosUsuario(usuarioId);
+            renderizarPermisos();
         }
 
         async function cargarPermisosUsuario(usuarioId) {
             try {
+                console.log('🔄 Cargando permisos del usuario:', usuarioId);
+                const permisosAnteriores = permisosUsuario.length;
                 permisosUsuario = await apiGet(`/permisos/usuarios/${usuarioId}/tomos/permisos`);
-                renderizarPermisos();
+                console.log(`✅ Permisos cargados: ${permisosAnteriores} → ${permisosUsuario.length}`);
+                console.log('📊 Permisos:', permisosUsuario);
+                // NO renderizar aquí, dejar que lo haga la función que llama
             } catch (error) {
                 console.error('Error cargando permisos:', error);
                 mostrarAlerta('Error al cargar permisos del usuario', 'danger');
@@ -684,23 +689,33 @@
                 
                 const response = await apiPost('/permisos/tomos/permisos', datosPermiso);
                 
-                // Manejar respuesta (puede ser un permiso o un mensaje)
+                // Manejar respuesta y actualizar permisos locales inmediatamente
                 if (response && response.message) {
-                    // Es un mensaje de eliminación
+                    // Es un mensaje de eliminación - quitar permiso del array local
                     console.log('🗑️ Permiso eliminado:', response.message);
+                    permisosUsuario = permisosUsuario.filter(p => p.tomo_id !== tomoId);
                 } else {
-                    // Es un permiso actualizado
+                    // Es un permiso actualizado - actualizar en el array local
                     console.log('✅ Permiso actualizado:', response);
+                    const index = permisosUsuario.findIndex(p => p.tomo_id === tomoId);
+                    if (index >= 0) {
+                        permisosUsuario[index] = response;
+                    } else {
+                        permisosUsuario.push(response);
+                    }
                 }
                 
-                // Actualizar permisos locales y usuarios
+                // Renderizar inmediatamente con los datos actualizados
+                renderizarPermisos();
+                
+                // Luego recargar del servidor para asegurar sincronización
                 await Promise.all([
                     cargarPermisosUsuario(usuarioActual.id),
                     cargarConteoPermisos(usuarioActual.id),
                     cargarUsuarios()
                 ]);
                 
-                // Forzar re-renderizado inmediato de la UI
+                // Forzar re-renderizado final de la UI
                 renderizarPermisos();
                 renderizarUsuarios();
                 
