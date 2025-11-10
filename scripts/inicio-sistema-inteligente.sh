@@ -4,7 +4,12 @@
 # Este script verifica y configura todo automáticamente antes de iniciar
 
 PROJECT_DIR="/home/eduardo/Descargas/sistemaocr"
-LOG_FILE="/tmp/sistema-ocr-startup.log"
+LOG_DIR="$PROJECT_DIR/logs"
+LOG_FILE="$LOG_DIR/sistema-inicio-$(date '+%Y%m%d-%H%M%S').log"
+
+# Crear directorio de logs si no existe
+mkdir -p "$LOG_DIR"
+chmod 755 "$LOG_DIR"
 
 # Función de logging
 log() {
@@ -48,6 +53,44 @@ configure_network() {
             netplan apply
             log "✅ Configuración de red aplicada"
         fi
+    fi
+}
+
+# Función para configurar Avahi
+configure_avahi() {
+    log "📡 Configurando Avahi para anuncio mDNS..."
+    
+    # Verificar si Avahi está instalado
+    if ! command -v avahi-daemon &> /dev/null; then
+        log "⚠️ Avahi no está instalado"
+        return 1
+    fi
+    
+    # Hacer backup de la configuración si no existe
+    if [ ! -f /etc/avahi/avahi-daemon.conf.backup ]; then
+        cp /etc/avahi/avahi-daemon.conf /etc/avahi/avahi-daemon.conf.backup
+        log "✅ Backup de configuración Avahi creado"
+    fi
+    
+    # Configurar hostname en Avahi
+    if grep -q "^host-name=sistema-ocr" /etc/avahi/avahi-daemon.conf; then
+        log "✅ Avahi ya está configurado con hostname sistema-ocr"
+    else
+        log "📝 Configurando hostname en Avahi..."
+        sed -i 's/#host-name=foo/host-name=sistema-ocr/' /etc/avahi/avahi-daemon.conf
+        sed -i 's/^host-name=.*/host-name=sistema-ocr/' /etc/avahi/avahi-daemon.conf
+        
+        # Reiniciar Avahi
+        systemctl restart avahi-daemon
+        log "✅ Avahi configurado y reiniciado"
+    fi
+    
+    # Verificar que esté anunciando correctamente
+    sleep 2
+    if timeout 3 avahi-browse -a -t -r 2>/dev/null | grep -q "sistema-ocr.local"; then
+        log "✅ sistema-ocr.local está siendo anunciado en la red"
+    else
+        log "⚠️ No se pudo verificar el anuncio mDNS"
     fi
 }
 
@@ -137,6 +180,7 @@ main() {
     # Ejecutar pasos de configuración
     if check_prerequisites; then
         configure_network
+        configure_avahi
         configure_dns
         
         if start_services; then
