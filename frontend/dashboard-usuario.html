@@ -5988,11 +5988,27 @@
 
         function resetearFotoPerfil() {
             const defaultAvatar = 'images/profiles/default-avatar.svg';
+            
+            // Actualizar preview del modal
             document.getElementById('profilePreview').src = defaultAvatar;
             document.getElementById('profileInput').value = '';
             
-            // También resetear en el servidor
+            // Actualizar foto principal inmediatamente
+            const profilePhoto = document.getElementById('profilePhoto');
+            if (profilePhoto) {
+                profilePhoto.src = defaultAvatar;
+            }
+            
+            // También actualizar en el servidor
             actualizarFotoPerfilServidor(null);
+            
+            // Cerrar modal después de 500ms
+            setTimeout(() => {
+                const modal = bootstrap.Modal.getInstance(document.getElementById('modalCambiarFoto'));
+                if (modal) {
+                    modal.hide();
+                }
+            }, 500);
         }
 
         async function actualizarFotoPerfilServidor(imageUrl) {
@@ -6002,12 +6018,22 @@
                 });
                 
                 if (response.success) {
-                    document.getElementById('profilePhoto').src = imageUrl || 'images/profiles/default-avatar.svg';
+                    // Agregar timestamp para forzar recarga (cache busting)
+                    const timestamp = new Date().getTime();
+                    const photoUrl = imageUrl ? `${imageUrl}?t=${timestamp}` : `images/profiles/default-avatar.svg?t=${timestamp}`;
+                    
+                    // Actualizar foto principal
+                    const profilePhoto = document.getElementById('profilePhoto');
+                    if (profilePhoto) {
+                        profilePhoto.src = photoUrl;
+                    }
                     
                     // Actualizar localStorage
                     const usuario = JSON.parse(localStorage.getItem('usuario'));
                     usuario.foto_perfil = imageUrl;
                     localStorage.setItem('usuario', JSON.stringify(usuario));
+                    
+                    console.log('✅ Foto de perfil actualizada correctamente');
                 }
             } catch (error) {
                 console.error('Error actualizando foto de perfil:', error);
