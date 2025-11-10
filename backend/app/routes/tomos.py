@@ -128,38 +128,6 @@ async def listar_tomos_carpeta(
     ]
 
 
-@router.get("/info/{tomo_id}", response_model=TomoDetailResponse)
-async def obtener_info_tomo(
-    tomo_id: int,
-    db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_active_user)
-):
-    """
-    GET /tomos/info/{tomo_id}
-    Obtener información detallada de un tomo específico.
-    """
-    tomo = db.query(Tomo).filter(Tomo.id == tomo_id).first()
-
-    if not tomo:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Tomo no encontrado"
-        )
-
-    return TomoDetailResponse(
-        id=tomo.id,
-        nombre_archivo=tomo.nombre_archivo,
-        numero_tomo=tomo.numero_tomo,
-        tamanio_bytes=tomo.tamanio_bytes,
-        numero_paginas=tomo.numero_paginas,
-        estado=tomo.estado,
-        fecha_subida=tomo.fecha_subida.isoformat() if tomo.fecha_subida else "",
-        fecha_procesamiento=tomo.fecha_procesamiento.isoformat() if tomo.fecha_procesamiento else None,
-        carpeta_id=tomo.carpeta_id,
-        usuario_subida=tomo.usuario_subida.username if tomo.usuario_subida else None
-    )
-
-
 @router.post("/upload", response_model=TomoResponse, status_code=status.HTTP_201_CREATED)
 async def subir_tomo(
     archivo: UploadFile = File(...),

@@ -45,7 +45,7 @@ from app.models.tomo import Tomo, ContenidoOCR
 from app.models.extraccion import ExtraccionTomo, DiligenciaTomo, PersonaMencionada, Declaracion, AlertaInactividad
 from app.models.permiso_tomo import PermisoTomo
 
-from app.routes import auth, admin, carpetas, tomos, busqueda, test, permisos, busqueda_tomos, notificaciones, usuarios, desarrollo, ocr_quality, semantica_test, analisis_admin, analisis_usuario, auditoria, ocr_area, system_health
+from app.routes import auth, admin, carpetas, tomos, busqueda, test, permisos, busqueda_tomos, notificaciones, usuarios, desarrollo, ocr_quality, analisis_admin, analisis_usuario, auditoria, ocr_area, system_health
 from app.controllers import ocr_controller, correccion_controller
 # 🚀 CONTROLADORES AVANZADOS
 try:
@@ -183,7 +183,6 @@ app.include_router(busqueda_tomos.router, prefix="/api/busqueda-tomos", tags=["�
 app.include_router(ocr_quality.router, tags=["🔍 Calidad OCR"])
 app.include_router(ocr_area.router, tags=["🔍 OCR Área Seleccionada"])
 app.include_router(busqueda.router, prefix="/api/busqueda", tags=["🔎 Búsqueda"])
-app.include_router(semantica_test.router, prefix="/api/busqueda", tags=["🔎 Test Semántica"])
 app.include_router(ocr_controller.router, prefix="/api", tags=["📄 OCR"])
 app.include_router(desarrollo.router, prefix="/api", tags=["🔧 Desarrollo"])
 

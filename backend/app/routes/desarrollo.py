@@ -66,7 +66,7 @@ async def optimizar_sistema_desarrollo(
             detail=f"Error en optimización: {str(e)}"
         )
 
-@router.get("/estadisticas")
+@router.get("/desarrollo/estadisticas")
 async def estadisticas_desarrollo(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
