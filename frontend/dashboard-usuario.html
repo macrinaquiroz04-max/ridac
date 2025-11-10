@@ -820,6 +820,10 @@
                         <small class="d-block" id="userRole">Rol</small>
                     </div>
                 </div>
+                <button class="btn btn-outline-warning btn-sm me-2" onclick="reiniciarTutorial()" title="Ver tutorial">
+                    <i class="fas fa-question-circle me-1"></i>
+                    Ayuda
+                </button>
                 <button class="btn btn-outline-light btn-sm" onclick="logout()">
                     <i class="fas fa-sign-out-alt me-1"></i>
                     Cerrar Sesión
@@ -7255,5 +7259,9 @@
             AnalisisJuridico.cargarAlertas('activa', prioridad);
         }
     </script>
+    
+    <!-- Tutorial Interactivo para Usuarios -->
+    <script src="js/tutorial.js"></script>
+    <script src="js/tutorial-usuario.js"></script>
 </body>
 </html>

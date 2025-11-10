@@ -213,6 +213,9 @@
         </div>
         <div class="user-info">
             <span id="userName">Cargando...</span>
+            <button class="btn-logout" onclick="reiniciarTutorial()" style="margin-right: 10px; background: rgba(255,193,7,0.2); border-color: rgba(255,193,7,0.5);">
+                ❓ Ayuda
+            </button>
             <button class="btn-logout" onclick="logout()">Cerrar Sesión</button>
         </div>
     </div>
@@ -504,5 +507,9 @@
             checkAuth();
         };
     </script>
+    
+    <!-- Tutorial Interactivo para Administradores -->
+    <script src="js/tutorial.js"></script>
+    <script src="js/tutorial-admin.js"></script>
 </body>
 </html>
