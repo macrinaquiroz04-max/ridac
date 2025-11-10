@@ -1050,6 +1050,9 @@
                 
                 ultimaActualizacion = Date.now();
                 
+                // Cerrar la alerta de "Aplicando permisos..." antes de mostrar la de éxito
+                cerrarTodasLasAlertas();
+                
                 const mensajes = {
                     'completo': `✅ Acceso completo aplicado a ${tomosEnCarpeta.length} tomos`,
                     'lectura': `✅ Solo visualización aplicada a ${tomosEnCarpeta.length} tomos`,
@@ -1063,6 +1066,10 @@
                 console.error('Mensaje:', error.message);
                 console.error('Stack:', error.stack);
                 console.error('Error completo:', error);
+                
+                // Cerrar la alerta de "Aplicando permisos..." antes de mostrar la de error
+                cerrarTodasLasAlertas();
+                
                 mostrarAlerta('Error al aplicar permisos masivos: ' + error.message, 'danger', 10000);
             }
         }
@@ -1098,13 +1105,21 @@
             
             alertContainer.insertAdjacentHTML('beforeend', alertHTML);
             
-            if (duracion > 0) {
+            if (duracion > 0 && duracion < 999999) {
                 setTimeout(() => {
                     const alert = document.getElementById(alertId);
                     if (alert) {
                         alert.remove();
                     }
                 }, duracion);
+            }
+        }
+        
+        // Función para cerrar todas las alertas activas
+        function cerrarTodasLasAlertas() {
+            const alertContainer = document.getElementById('alertContainer');
+            if (alertContainer) {
+                alertContainer.innerHTML = '';
             }
         }
 
