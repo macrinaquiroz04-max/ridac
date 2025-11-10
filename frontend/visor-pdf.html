@@ -583,11 +583,11 @@
                 </button>
             </div>
             
-            <!-- Botón Google Lens OCR -->
+            <!-- Botón Selección Inteligente OCR -->
             <button id="google-lens-btn" onclick="toggleGoogleLens()" 
-                    title="Activar modo Google Lens - Selecciona texto con el mouse"
+                    title="Activar modo selección - Selecciona texto con el mouse"
                     style="background: #34a853; font-weight: 600;">
-                🔍 Google Lens
+                🔍 Selección Inteligente
             </button>
             <span id="lens-status" style="display: none; color: #34a853; font-size: 12px;">
                 ✅ Modo activo - Arrastra sobre el texto
@@ -1619,24 +1619,24 @@
                 document.getElementById('pdf-canvas').style.pointerEvents = 'auto';
                 document.getElementById('text-layer').style.pointerEvents = 'none';
                 
-                mostrarExito('✅ Google Lens activado - Arrastra sobre el texto para extraerlo');
+                mostrarExito('✅ Selección Inteligente activada - Arrastra sobre el texto para extraerlo');
                 
             } else {
-                // Desactivar Google Lens
+                // Desactivar modo selección
                 googleLensActive = false;
                 btn.style.background = '#34a853';
-                btn.innerHTML = '🔍 Google Lens';
+                btn.innerHTML = '🔍 Selección Inteligente';
                 status.style.display = 'none';
                 
                 // Restaurar navegación normal
                 document.getElementById('pdf-canvas').style.pointerEvents = 'auto';
                 document.getElementById('text-layer').style.pointerEvents = 'auto';
                 
-                mostrarExito('Google Lens desactivado');
+                mostrarExito('Selección Inteligente desactivada');
             }
         }
         
-        // Inicializar Google Lens OCR cuando el PDF esté cargado
+        // Inicializar selección inteligente cuando el PDF esté cargado
         async function initGoogleLensAfterPDFLoad() {
             // Esperar a que el canvas esté listo
             const canvas = document.getElementById('pdf-canvas');
