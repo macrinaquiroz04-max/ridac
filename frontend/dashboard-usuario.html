@@ -1957,6 +1957,9 @@
                         // Recargar tomos y estadísticas
                         await cargarTomosAccesibles();
                         await cargarEstadisticas();
+                        
+                        // IMPORTANTE: Actualizar el hash después de recargar para no detectar los mismos cambios
+                        previousTomosHash = nuevoHash;
                     } else if (previousTomosHash === '') {
                         // Primera carga, solo actualizar el hash sin notificación
                         previousTomosHash = nuevoHash;
