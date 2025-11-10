@@ -1433,7 +1433,7 @@
                                 </button>
                             </div>
                             <div class="col-6">
-                                <button type="button" class="btn btn-primary w-100" onclick="subirFotoPerfil()">
+                                <button type="button" id="btnGuardarFoto" class="btn btn-primary w-100" onclick="subirFotoPerfil()" disabled>
                                     <i class="fas fa-save me-1"></i>
                                     Guardar Cambios
                                 </button>
@@ -5931,6 +5931,11 @@
                 const reader = new FileReader();
                 reader.onload = function(e) {
                     document.getElementById('profilePreview').src = e.target.result;
+                    // Habilitar botón de guardar cuando hay una imagen seleccionada
+                    const btnGuardar = document.getElementById('btnGuardarFoto');
+                    if (btnGuardar) {
+                        btnGuardar.disabled = false;
+                    }
                 };
                 reader.readAsDataURL(file);
             }
@@ -5940,7 +5945,8 @@
             const fileInput = document.getElementById('profileInput');
             
             if (!fileInput.files || !fileInput.files[0]) {
-                alert('Por favor, selecciona una imagen primero.');
+                // No hacer nada si no hay archivo, el botón debería estar deshabilitado
+                console.log('No hay imagen seleccionada');
                 return;
             }
 
@@ -5992,6 +5998,12 @@
             // Actualizar preview del modal
             document.getElementById('profilePreview').src = defaultAvatar;
             document.getElementById('profileInput').value = '';
+            
+            // Deshabilitar botón de guardar (no hay imagen seleccionada)
+            const btnGuardar = document.getElementById('btnGuardarFoto');
+            if (btnGuardar) {
+                btnGuardar.disabled = true;
+            }
             
             // Actualizar foto principal inmediatamente
             const profilePhoto = document.getElementById('profilePhoto');
