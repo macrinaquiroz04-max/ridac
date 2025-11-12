@@ -64,32 +64,105 @@ async def login(
     """
     POST /auth/login
     Autenticar usuario y generar tokens JWT.
+    
+    🛡️ PROTECCIÓN ANTI-CRASH:
+    - Captura TODOS los errores
+    - Registra en log de errores
+    - NUNCA rompe el sistema
+    - Siempre devuelve respuesta
     """
-    # Extraer información del request para auditoría
+    import traceback
     from app.utils.auditoria_utils import AuditoriaLogger
-    ip_address, user_agent = AuditoriaLogger.extraer_info_request(request)
     
-    # Usar el controlador que ya tiene auditoría integrada
-    # El controlador registrará el login con IP y User-Agent
-    result = auth_controller.login(
-        db=db,
-        username_or_email=login_data.username,
-        password=login_data.password,
-        ip_address=ip_address,
-        user_agent=user_agent
-    )
-    
-    if not result["success"]:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=result["message"]
+    try:
+        # Extraer información del request para auditoría
+        ip_address, user_agent = AuditoriaLogger.extraer_info_request(request)
+        
+        # Usar el controlador que ya tiene auditoría integrada
+        result = auth_controller.login(
+            db=db,
+            username_or_email=login_data.username,
+            password=login_data.password,
+            ip_address=ip_address,
+            user_agent=user_agent
+        )
+        
+        if not result["success"]:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=result["message"]
+            )
+        
+        return LoginResponse(
+            access_token=result["access_token"],
+            refresh_token=result["refresh_token"],
+            user=result["user"]
         )
     
-    return LoginResponse(
-        access_token=result["access_token"],
-        refresh_token=result["refresh_token"],
-        user=result["user"]
-    )
+    except HTTPException:
+        # Re-lanzar errores HTTP normales (401, 403, etc.)
+        raise
+    
+    except Exception as e:
+        # 🔥 CAPTURAR CUALQUIER ERROR INESPERADO
+        error_trace = traceback.format_exc()
+        
+        # Guardar en log de errores de login
+        import os
+        from datetime import datetime
+        
+        log_dir = "logs/login_errors"
+        os.makedirs(log_dir, exist_ok=True)
+        
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        log_file = f"{log_dir}/login_error_{timestamp}.log"
+        
+        with open(log_file, "w", encoding="utf-8") as f:
+            f.write(f"=" * 80 + "\n")
+            f.write(f"ERROR EN LOGIN - {datetime.now().isoformat()}\n")
+            f.write(f"=" * 80 + "\n\n")
+            f.write(f"Usuario intentado: {login_data.username}\n")
+            f.write(f"IP: {request.client.host if request.client else 'Desconocida'}\n")
+            f.write(f"User-Agent: {request.headers.get('user-agent', 'Desconocido')}\n\n")
+            f.write(f"TIPO DE ERROR: {type(e).__name__}\n")
+            f.write(f"MENSAJE: {str(e)}\n\n")
+            f.write(f"TRACEBACK COMPLETO:\n")
+            f.write(error_trace)
+            f.write("\n" + "=" * 80 + "\n")
+        
+        logger.error(f"🚨 ERROR CRÍTICO EN LOGIN - Guardado en: {log_file}")
+        logger.error(f"   Usuario: {login_data.username}")
+        logger.error(f"   Error: {type(e).__name__}: {str(e)}")
+        
+        # 🔄 REINTENTAR una vez más con datos limpios
+        try:
+            logger.info("🔄 Reintentando login después de error...")
+            db.rollback()  # Limpiar transacción
+            
+            ip_address, user_agent = AuditoriaLogger.extraer_info_request(request)
+            result = auth_controller.login(
+                db=db,
+                username_or_email=login_data.username,
+                password=login_data.password,
+                ip_address=ip_address,
+                user_agent=user_agent
+            )
+            
+            if result["success"]:
+                logger.info("✅ Login exitoso en segundo intento")
+                return LoginResponse(
+                    access_token=result["access_token"],
+                    refresh_token=result["refresh_token"],
+                    user=result["user"]
+                )
+        except:
+            pass  # Si falla el reintento, continuar con error
+        
+        # Si todo falla, devolver error genérico SIN ROMPER
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error temporal del servidor. El error fue registrado. Por favor intente nuevamente."
+        )
 
 
 @router.post("/refresh", response_model=Dict[str, str])

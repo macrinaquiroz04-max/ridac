@@ -13,6 +13,8 @@ from app.models.tomo import Tomo
 from app.models.usuario import Usuario
 from app.models.analisis_ia import AnalisisIA
 from app.middlewares.auth_middleware import get_current_active_user
+from app.services.cache_service import cache_service
+from app.utils.auditoria_utils import registrar_auditoria
 import logging
 
 logger = logging.getLogger(__name__)
@@ -59,7 +61,17 @@ async def listar_carpetas(
     """
     GET /carpetas
     Listar carpetas con filtros opcionales.
+    ⚡ OPTIMIZADO: Usa caché Redis para listado de carpetas
     """
+    # Crear clave de caché
+    cache_key = f"carpetas:lista:{skip}:{limit}:{buscar or 'all'}"
+    
+    # Intentar obtener desde caché
+    cached_data = cache_service.get(cache_key)
+    if cached_data:
+        logger.info("✅ Carpetas obtenidas desde caché")
+        return cached_data
+    
     query = db.query(Carpeta)
 
     # Búsqueda por nombre o descripción
@@ -89,6 +101,11 @@ async def listar_carpetas(
             created_at=c.created_at.isoformat() if c.created_at else ""
         ))
 
+    # Guardar en caché por 5 minutos (convertir a dict para serialización)
+    carpetas_dict = [c.model_dump() for c in carpetas_response]
+    cache_service.set(cache_key, carpetas_dict, ttl=300)
+    logger.info(f"💾 {len(carpetas_response)} carpetas guardadas en caché")
+    
     return carpetas_response
 
 
@@ -158,7 +175,25 @@ async def crear_carpeta(
     db.commit()
     db.refresh(nueva_carpeta)
 
+    # ⚡ Invalidar caché de carpetas
+    cache_service.invalidate_pattern("carpetas:lista:*")
     logger.info(f"Carpeta creada: {nueva_carpeta.nombre} por {current_user.username}")
+    logger.info("🔄 Caché de carpetas invalidado")
+
+    # 📝 AUDITORÍA
+    # Registrar auditoría
+    registrar_auditoria(
+        db=db,
+        usuario_id=current_user.id,
+        accion="CREAR_CARPETA",
+        tabla_afectada="carpetas",
+        registro_id=nueva_carpeta.id,
+        valores_nuevos={
+            "nombre": nueva_carpeta.nombre,
+            "descripcion": nueva_carpeta.descripcion,
+            "numero_expediente": nueva_carpeta.numero_expediente
+        }
+    )
 
     return CarpetaResponse(
         id=nueva_carpeta.id,
@@ -190,6 +225,12 @@ async def actualizar_carpeta(
             detail="Carpeta no encontrada"
         )
 
+    # Guardar valores anteriores para auditoría
+    valores_anteriores = {
+        "nombre": carpeta.nombre,
+        "descripcion": carpeta.descripcion
+    }
+
     # Actualizar campos
     if carpeta_data.nombre is not None:
         # Verificar que no exista otra carpeta con ese nombre
@@ -213,7 +254,25 @@ async def actualizar_carpeta(
     db.commit()
     db.refresh(carpeta)
 
+    # ⚡ Invalidar caché de carpetas
+    cache_service.invalidate_pattern("carpetas:lista:*")
+    logger.info(f"🔄 Caché de carpetas invalidado")
+
     logger.info(f"Carpeta actualizada: {carpeta.nombre} por {current_user.username}")
+
+    # Registrar auditoría
+    registrar_auditoria(
+        db=db,
+        usuario_id=current_user.id,
+        accion="MODIFICAR_CARPETA",
+        tabla_afectada="carpetas",
+        registro_id=carpeta_id,
+        valores_anteriores=valores_anteriores,
+        valores_nuevos={
+            "nombre": carpeta.nombre,
+            "descripcion": carpeta.descripcion
+        }
+    )
 
     # Obtener el conteo de tomos actualizado
     total_tomos = db.query(func.count(Tomo.id)).filter(Tomo.carpeta_id == carpeta.id).scalar() or 0
@@ -249,6 +308,14 @@ async def eliminar_carpeta(
             )
 
         carpeta_nombre = carpeta.nombre
+        
+        # Guardar información para auditoría antes de eliminar
+        valores_anteriores = {
+            "nombre": carpeta.nombre,
+            "descripcion": carpeta.descripcion,
+            "estado": carpeta.estado,
+            "total_tomos": db.query(func.count(Tomo.id)).filter(Tomo.carpeta_id == carpeta_id).scalar() or 0
+        }
 
         # Borrar primero los análisis IA que referencian los tomos de esta carpeta
         # Esto evita violaciones de FK si la constraint en la BD no tiene ON DELETE CASCADE
@@ -268,7 +335,22 @@ async def eliminar_carpeta(
         db.delete(carpeta)
         db.commit()
 
+        # ⚡ Invalidar caché de carpetas y tomos
+        cache_service.invalidate_pattern("carpetas:lista:*")
+        cache_service.delete(f"tomos:carpeta:{carpeta_id}")
+        logger.info(f"🔄 Caché invalidado para carpeta {carpeta_id}")
+
         logger.info(f"Carpeta eliminada: {carpeta_nombre} por {current_user.username}")
+
+        # Registrar auditoría
+        registrar_auditoria(
+            db=db,
+            usuario_id=current_user.id,
+            accion="ELIMINAR_CARPETA",
+            tabla_afectada="carpetas",
+            registro_id=carpeta_id,
+            valores_anteriores=valores_anteriores
+        )
 
         return {
             "message": "Carpeta eliminada correctamente",

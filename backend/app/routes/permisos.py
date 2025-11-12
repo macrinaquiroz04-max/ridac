@@ -1,6 +1,6 @@
 # backend/app/routes/permisos.py
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.orm import Session
 from typing import List, Dict, Optional, Union
 from pydantic import BaseModel
@@ -9,6 +9,7 @@ from app.database import get_db
 from app.controllers.permiso_tomo_controller import PermisoTomoController
 from app.middlewares.auth_middleware import get_current_user
 from app.models.usuario import Usuario
+from app.utils.auditoria_utils import registrar_auditoria
 
 router = APIRouter()
 
@@ -52,6 +53,7 @@ PermisoTomoResult = Union[PermisoTomoResponse, MensajeResponse]
 @router.post("/tomos/permisos")
 async def asignar_permiso_tomo(
     permiso_data: PermisoTomoCreate,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ) -> PermisoTomoResult:
@@ -67,9 +69,9 @@ async def asignar_permiso_tomo(
         )
     
     try:
-        # Debug logging
-        print(f"DEBUG: Asignando permiso - Usuario: {permiso_data.usuario_id}, Tomo: {permiso_data.tomo_id}")
-        print(f"DEBUG: Permisos - Ver: {permiso_data.puede_ver}, Buscar: {permiso_data.puede_buscar}, Exportar: {permiso_data.puede_exportar}")
+        # Logging mejorado
+        logger.info(f"Asignando permiso - Usuario: {permiso_data.usuario_id}, Tomo: {permiso_data.tomo_id}")
+        logger.debug(f"Permisos - Ver: {permiso_data.puede_ver}, Buscar: {permiso_data.puede_buscar}, Exportar: {permiso_data.puede_exportar}")
         
         permiso = PermisoTomoController.asignar_permiso(
             db=db,
@@ -81,14 +83,65 @@ async def asignar_permiso_tomo(
             usuario_admin_id=current_user.id
         )
         
-        print(f"DEBUG: Resultado del permiso: {permiso}")
+        logger.debug(f"Resultado del permiso: {permiso}")
+        
+        # Obtener información del usuario afectado para auditoría
+        usuario_afectado = db.query(Usuario).filter(Usuario.id == permiso_data.usuario_id).first()
+        usuario_info = {
+            "nombre": usuario_afectado.nombre_completo if usuario_afectado else "Desconocido",
+            "username": usuario_afectado.username if usuario_afectado else "desconocido",
+            "rol": usuario_afectado.rol.nombre if usuario_afectado and usuario_afectado.rol else "Sin rol"
+        }
+        
+        # Obtener información del tomo
+        from app.models.tomo import Tomo
+        tomo = db.query(Tomo).filter(Tomo.id == permiso_data.tomo_id).first()
+        tomo_info = {
+            "nombre": tomo.nombre_archivo if tomo else "Desconocido",
+            "numero_tomo": tomo.numero_tomo if tomo else None
+        }
         
         # Si se retorna None, significa que se eliminó un permiso vacío
         if permiso is None:
+            # 📝 AUDITORÍA: Revocar permiso
+            registrar_auditoria(
+                request=request,
+                db=db,
+                usuario_id=current_user.id,
+                accion="REVOCAR_PERMISO",
+                tabla_afectada="permisos_tomo",
+                valores_anteriores={
+                    "usuario_afectado": f"{usuario_info['nombre']} ({usuario_info['rol']})",
+                    "username": usuario_info['username'],
+                    "tomo": tomo_info['nombre'],
+                    "usuario_id": permiso_data.usuario_id,
+                    "tomo_id": permiso_data.tomo_id
+                }
+            )
             return MensajeResponse(
                 message="Permiso eliminado - todos los permisos estaban desactivados",
                 success=True
             )
+        
+        # 📝 AUDITORÍA: Asignar/Modificar permiso
+        registrar_auditoria(
+            request=request,
+            db=db,
+            usuario_id=current_user.id,
+            accion="MODIFICAR_PERMISOS",
+            tabla_afectada="permisos_tomo",
+            registro_id=permiso.id,
+            valores_nuevos={
+                "usuario_afectado": f"{usuario_info['nombre']} ({usuario_info['rol']})",
+                "username": usuario_info['username'],
+                "tomo": tomo_info['nombre'],
+                "usuario_id": permiso.usuario_id,
+                "tomo_id": permiso.tomo_id,
+                "puede_ver": permiso.puede_ver,
+                "puede_buscar": permiso.puede_buscar,
+                "puede_exportar": permiso.puede_exportar
+            }
+        )
         
         return PermisoTomoResponse(
             id=permiso.id,
@@ -111,6 +164,7 @@ async def asignar_permiso_tomo(
 @router.post("/tomos/permisos/masivos", response_model=List[PermisoTomoResponse])
 async def asignar_permisos_masivos(
     permisos_data: PermisosMasivos,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
@@ -131,6 +185,28 @@ async def asignar_permisos_masivos(
             tomos_ids=permisos_data.tomos_ids,
             permisos=permisos_data.permisos,
             usuario_admin_id=current_user.id
+        )
+        
+        # Obtener información del usuario afectado para auditoría
+        usuario_afectado = db.query(Usuario).filter(Usuario.id == permisos_data.usuario_id).first()
+        usuario_info = f"{usuario_afectado.nombre_completo} ({usuario_afectado.rol.nombre})" if usuario_afectado and usuario_afectado.rol else "Usuario desconocido"
+        
+        # 📝 AUDITORÍA: Registrar permisos masivos
+        registrar_auditoria(
+            request=request,
+            db=db,
+            usuario_id=current_user.id,
+            accion="MODIFICAR_PERMISOS",
+            tabla_afectada="permisos_tomo",
+            valores_nuevos={
+                "usuario_afectado": usuario_info,
+                "username": usuario_afectado.username if usuario_afectado else "desconocido",
+                "total_tomos": len(permisos_data.tomos_ids),
+                "tomos_ids": permisos_data.tomos_ids,
+                "permisos": permisos_data.permisos,
+                "total_permisos": len(permisos),
+                "tipo": "masivo"
+            }
         )
         
         return [
@@ -252,6 +328,7 @@ async def actualizar_permiso_tomo(
     usuario_id: int,
     tomo_id: int,
     permiso_update: PermisoTomoUpdate,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
@@ -290,6 +367,39 @@ async def actualizar_permiso_tomo(
             usuario_admin_id=current_user.id
         )
         
+        # Obtener información del usuario afectado y tomo para auditoría
+        usuario_afectado = db.query(Usuario).filter(Usuario.id == usuario_id).first()
+        usuario_info = f"{usuario_afectado.nombre_completo} ({usuario_afectado.rol.nombre})" if usuario_afectado and usuario_afectado.rol else "Usuario desconocido"
+        
+        from app.models.tomo import Tomo
+        tomo = db.query(Tomo).filter(Tomo.id == tomo_id).first()
+        tomo_nombre = tomo.nombre_archivo if tomo else "Tomo desconocido"
+        
+        # 📝 AUDITORÍA
+        registrar_auditoria(
+            request=request,
+            db=db,
+            usuario_id=current_user.id,
+            accion="MODIFICAR_PERMISOS",
+            tabla_afectada="permisos_tomo",
+            registro_id=permiso_actualizado.id,
+            valores_anteriores={
+                "puede_ver": permiso_actual.puede_ver,
+                "puede_buscar": permiso_actual.puede_buscar,
+                "puede_exportar": permiso_actual.puede_exportar
+            },
+            valores_nuevos={
+                "usuario_afectado": usuario_info,
+                "username": usuario_afectado.username if usuario_afectado else "desconocido",
+                "tomo": tomo_nombre,
+                "usuario_id": permiso_actualizado.usuario_id,
+                "tomo_id": permiso_actualizado.tomo_id,
+                "puede_ver": permiso_actualizado.puede_ver,
+                "puede_buscar": permiso_actualizado.puede_buscar,
+                "puede_exportar": permiso_actualizado.puede_exportar
+            }
+        )
+        
         return {
             "id": permiso_actualizado.id,
             "usuario_id": permiso_actualizado.usuario_id,
@@ -309,6 +419,7 @@ async def actualizar_permiso_tomo(
 async def revocar_permiso_tomo(
     usuario_id: int,
     tomo_id: int,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
@@ -322,12 +433,44 @@ async def revocar_permiso_tomo(
         )
     
     try:
+        # Obtener info del permiso antes de revocar
+        permisos_actuales = PermisoTomoController.obtener_permisos_usuario(db, usuario_id)
+        permiso_a_revocar = next((p for p in permisos_actuales if p.tomo_id == tomo_id), None)
+        
         revocado = PermisoTomoController.revocar_permiso(db, usuario_id, tomo_id)
         
         if not revocado:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="No se encontró permiso para revocar"
+            )
+        
+        # 📝 AUDITORÍA
+        if permiso_a_revocar:
+            # Obtener información del usuario afectado y tomo
+            usuario_afectado = db.query(Usuario).filter(Usuario.id == usuario_id).first()
+            usuario_info = f"{usuario_afectado.nombre_completo} ({usuario_afectado.rol.nombre})" if usuario_afectado and usuario_afectado.rol else "Usuario desconocido"
+            
+            from app.models.tomo import Tomo
+            tomo = db.query(Tomo).filter(Tomo.id == tomo_id).first()
+            tomo_nombre = tomo.nombre_archivo if tomo else "Tomo desconocido"
+            
+            registrar_auditoria(
+                request=request,
+                db=db,
+                usuario_id=current_user.id,
+                accion="REVOCAR_PERMISO",
+                tabla_afectada="permisos_tomo",
+                valores_anteriores={
+                    "usuario_afectado": usuario_info,
+                    "username": usuario_afectado.username if usuario_afectado else "desconocido",
+                    "tomo": tomo_nombre,
+                    "usuario_id": usuario_id,
+                    "tomo_id": tomo_id,
+                    "puede_ver": permiso_a_revocar.puede_ver,
+                    "puede_buscar": permiso_a_revocar.puede_buscar,
+                    "puede_exportar": permiso_a_revocar.puede_exportar
+                }
             )
         
         return {"message": "Permiso revocado exitosamente"}

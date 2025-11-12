@@ -268,8 +268,14 @@ class AuditoriaLogger:
         return ip_address, user_agent
 
 # Funciones de conveniencia
-def registrar_auditoria(usuario_id: int, accion: str, **kwargs):
+def registrar_auditoria(usuario_id: int, accion: str, request: Request = None, **kwargs):
     """Función de conveniencia para registrar auditoría"""
+    # Extraer IP y user agent del request si está disponible
+    if request and 'ip_address' not in kwargs:
+        ip, user_agent = AuditoriaLogger.extraer_info_request(request)
+        kwargs['ip_address'] = ip
+        kwargs['user_agent'] = user_agent
+    
     AuditoriaLogger.registrar_evento(usuario_id, accion, **kwargs)
 
 def audit_login_success(usuario_id: int, username: str, request: Request = None):

@@ -3,6 +3,19 @@ set -e
 
 echo "🚀 Iniciando Sistema OCR Fiscalía..."
 
+# Si se pasaron argumentos de Celery, ejecutarlos directamente
+if [ "$1" = "celery" ]; then
+  echo "🔄 Iniciando Celery: $@"
+  # Esperar a Redis
+  echo "⏳ Esperando a Redis..."
+  until redis-cli -h redis ping 2>/dev/null; do
+    echo "Redis no está listo - esperando..."
+    sleep 2
+  done
+  echo "✅ Redis está listo!"
+  exec "$@"
+fi
+
 # Esperar a que PostgreSQL esté listo
 echo "⏳ Esperando a PostgreSQL..."
 until PGPASSWORD=$DB_PASSWORD psql -h "$DB_HOST" -U "$DB_USER" -d "$DB_NAME" -c '\q' 2>/dev/null; do
@@ -16,7 +29,7 @@ echo "✅ PostgreSQL está listo!"
 echo "📊 Verificando esquema de base de datos..."
 python -c "from app.database import init_db; init_db()" || echo "⚠️ Error al inicializar BD"
 
-# Iniciar aplicación
+# Iniciar aplicación FastAPI
 echo "🎯 Iniciando servidor FastAPI..."
 # Configuración optimizada para procesos largos de OCR
 exec uvicorn main:app \

@@ -5,6 +5,8 @@ from sqlalchemy import or_
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
 import secrets
+import traceback
+import os
 
 from app.models.usuario import Usuario, TokenReset
 from app.models.permiso import PermisoSistema
@@ -30,7 +32,14 @@ class AuthController:
 
         Returns:
             dict: Tokens de acceso y refresh con información del usuario
+            
+        🛡️ PROTECCIÓN ANTI-CRASH:
+        - Captura errores de BD
+        - Registra en logs
+        - Siempre devuelve respuesta
         """
+        import traceback
+        
         try:
             # Buscar usuario por username o email
             usuario = db.query(Usuario).filter(
@@ -136,11 +145,40 @@ class AuthController:
             }
 
         except Exception as e:
+            # 🔥 CAPTURA DE ERROR CON LOGGING DETALLADO
+            error_trace = traceback.format_exc()
+            
             db.rollback()
-            logger.error(f"Error en login: {str(e)}")
+            
+            # Guardar error en log específico de auth
+            log_dir = "logs/auth_errors"
+            os.makedirs(log_dir, exist_ok=True)
+            
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            log_file = f"{log_dir}/auth_controller_error_{timestamp}.log"
+            
+            with open(log_file, "w", encoding="utf-8") as f:
+                f.write(f"=" * 80 + "\n")
+                f.write(f"ERROR EN AUTH CONTROLLER - {datetime.now().isoformat()}\n")
+                f.write(f"=" * 80 + "\n\n")
+                f.write(f"Usuario: {username_or_email}\n")
+                f.write(f"IP: {ip_address}\n")
+                f.write(f"User-Agent: {user_agent}\n\n")
+                f.write(f"TIPO DE ERROR: {type(e).__name__}\n")
+                f.write(f"MENSAJE: {str(e)}\n\n")
+                f.write(f"TRACEBACK:\n")
+                f.write(error_trace)
+                f.write("\n" + "=" * 80 + "\n")
+            
+            logger.error(f"🚨 ERROR EN AUTH CONTROLLER - Log: {log_file}")
+            logger.error(f"   Usuario: {username_or_email}")
+            logger.error(f"   Error: {type(e).__name__}: {str(e)}")
+            
             return {
                 "success": False,
-                "message": f"Error al iniciar sesión: {str(e)}"
+                "message": "Error temporal del servidor. Por favor intente nuevamente.",
+                "error_logged": True,
+                "error_file": log_file
             }
 
     def logout(self, db: Session, user_id: int) -> Dict[str, Any]:

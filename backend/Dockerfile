@@ -21,6 +21,7 @@ RUN apt-get update && apt-get install -y \
     g++ \
     curl \
     postgresql-client \
+    redis-tools \
     && rm -rf /var/lib/apt/lists/*
 
 # Crear directorios necesarios
@@ -34,7 +35,7 @@ RUN mkdir -p /FGJCDMX/documentos \
 WORKDIR /app
 
 # Copiar requirements
-COPY requirements.simple.txt requirements.txt
+COPY requirements.txt requirements.txt
 
 # Instalar dependencias de Python
 RUN pip install --no-cache-dir --upgrade pip && \

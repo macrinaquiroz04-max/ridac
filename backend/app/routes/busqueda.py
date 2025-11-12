@@ -14,6 +14,8 @@ from app.models.usuario import Usuario
 from app.models.permiso import PermisoCarpeta
 from app.middlewares.auth_middleware import get_current_active_user
 from app.middlewares.permission_middleware import check_folder_access
+from app.services.cache_service import cache_service
+from app.utils.auditoria_utils import registrar_auditoria
 import logging
 
 logger = logging.getLogger(__name__)
@@ -61,13 +63,14 @@ class ResultadoBusqueda(BaseModel):
 async def busqueda_simple(
     busqueda: BusquedaSimple,
     skip: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1, le=500),
+    limit: int = Query(50, ge=1, le=100),  # Reducido de 500 a 100 para mejor rendimiento
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_active_user)
 ):
     """
     POST /busqueda/simple
     Búsqueda simple por término en títulos y contenido OCR.
+    ⚡ OPTIMIZADO: Usa caché Redis para búsquedas frecuentes
     """
     if not busqueda.termino or len(busqueda.termino.strip()) < 2:
         raise HTTPException(
@@ -76,6 +79,16 @@ async def busqueda_simple(
         )
 
     termino = busqueda.termino.strip()
+    
+    # Crear clave de caché basada en el término y parámetros
+    cache_key = f"busqueda:simple:{termino}:{busqueda.carpeta_id}:{busqueda.solo_titulos}:{current_user.id}:{skip}:{limit}"
+    
+    # Intentar obtener desde caché
+    cached_data = cache_service.get(cache_key)
+    if cached_data:
+        logger.info(f"✅ Búsqueda '{termino}' obtenida desde caché")
+        return cached_data
+    
     search_pattern = f"%{termino}%"
 
     resultados = []
@@ -172,7 +185,29 @@ async def busqueda_simple(
     resultados.sort(key=lambda x: x.relevancia, reverse=True)
 
     # Aplicar paginación
-    return resultados[skip:skip + limit]
+    result = resultados[skip:skip + limit]
+    
+    # Registrar auditoría
+    registrar_auditoria(
+        db=db,
+        usuario_id=current_user.id,
+        accion="BUSQUEDA_SIMPLE",
+        tabla_afectada="contenido_ocr",
+        valores_nuevos={
+            "termino": termino,
+            "carpeta_id": busqueda.carpeta_id,
+            "solo_titulos": busqueda.solo_titulos,
+            "total_resultados": len(resultados),
+            "resultados_devueltos": len(result)
+        }
+    )
+    
+    # Guardar en caché por 10 minutos (convertir a dict para serialización)
+    result_dict = [r.model_dump() for r in result]
+    cache_service.set(cache_key, result_dict, ttl=600)
+    logger.info(f"💾 Búsqueda '{termino}' guardada en caché ({len(result)} resultados)")
+    
+    return result
 
 
 # ==================== BÚSQUEDA AVANZADA ====================
@@ -181,7 +216,7 @@ async def busqueda_simple(
 async def busqueda_avanzada(
     busqueda: BusquedaAvanzada,
     skip: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1, le=500),
+    limit: int = Query(50, ge=1, le=100),  # Reducido de 500 a 100 para mejor rendimiento
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_active_user)
 ):
@@ -312,7 +347,25 @@ async def busqueda_avanzada(
     resultados.sort(key=lambda x: x.relevancia, reverse=True)
 
     # Aplicar paginación
-    return resultados[skip:skip + limit]
+    resultados_paginados = resultados[skip:skip + limit]
+    
+    # Registrar auditoría
+    registrar_auditoria(
+        db=db,
+        usuario_id=current_user.id,
+        accion="BUSQUEDA_AVANZADA",
+        tabla_afectada="contenido_ocr",
+        valores_nuevos={
+            "terminos": busqueda.terminos,
+            "carpeta_ids": busqueda.carpeta_ids,
+            "fecha_desde": busqueda.fecha_desde.isoformat() if busqueda.fecha_desde else None,
+            "fecha_hasta": busqueda.fecha_hasta.isoformat() if busqueda.fecha_hasta else None,
+            "total_resultados": len(resultados),
+            "resultados_devueltos": len(resultados_paginados)
+        }
+    )
+    
+    return resultados_paginados
 
 
 # ==================== ESTADÍSTICAS DE BÚSQUEDA ====================
@@ -620,6 +673,22 @@ async def busqueda_semantica(
                 current_user_id=current_user.id
             )
             
+            # Registrar auditoría
+            registrar_auditoria(
+                db=db,
+                usuario_id=current_user.id,
+                accion="BUSQUEDA_SEMANTICA",
+                tabla_afectada="contenido_ocr",
+                valores_nuevos={
+                    "query": busqueda.query,
+                    "carpeta_id": busqueda.carpeta_id,
+                    "tomo_id": busqueda.tomo_id,
+                    "similitud_minima": busqueda.similitud_minima,
+                    "total_resultados": resultado.get("total", 0),
+                    "tipo_busqueda": "semantica"
+                }
+            )
+            
             return resultado
             
         except ImportError as import_error:
@@ -694,7 +763,7 @@ async def busqueda_semantica(
                         "motor_usado": "fallback-tradicional"
                     })
             
-            return {
+            resultado_fallback = {
                 "success": True,
                 "message": "Búsqueda realizada con método tradicional (dependencias de IA no disponibles)",
                 "total": len(resultados_list),
@@ -705,6 +774,24 @@ async def busqueda_semantica(
                     "tipo_busqueda": "tradicional-fallback"
                 }
             }
+            
+            # Registrar auditoría
+            registrar_auditoria(
+                db=db,
+                usuario_id=current_user.id,
+                accion="BUSQUEDA_SEMANTICA",
+                tabla_afectada="contenido_ocr",
+                valores_nuevos={
+                    "query": busqueda.query,
+                    "carpeta_id": busqueda.carpeta_id,
+                    "tomo_id": busqueda.tomo_id,
+                    "similitud_minima": busqueda.similitud_minima,
+                    "total_resultados": len(resultados_list),
+                    "tipo_busqueda": "tradicional-fallback"
+                }
+            )
+            
+            return resultado_fallback
         
     except Exception as e:
         logger.error(f"Error en búsqueda semántica: {str(e)}")
@@ -750,6 +837,18 @@ async def actualizar_embeddings(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=resultado["message"]
         )
+    
+    # Registrar auditoría
+    registrar_auditoria(
+        db=db,
+        usuario_id=current_user.id,
+        accion="ACTUALIZAR_EMBEDDINGS",
+        tabla_afectada="contenido_ocr",
+        valores_nuevos={
+            "tomo_id": tomo_id,
+            "total_actualizado": resultado["total_actualizado"]
+        }
+    )
     
     return {
         "message": "Embeddings actualizados correctamente",

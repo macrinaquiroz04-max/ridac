@@ -12,6 +12,7 @@ from app.models.permiso import PermisoCarpeta, PermisoSistema
 from app.middlewares.auth_middleware import get_current_active_user, get_current_user
 from app.middlewares.permission_middleware import require_admin
 from app.utils.security import hash_password
+from app.utils.auditoria_utils import registrar_auditoria
 import logging
 
 logger = logging.getLogger(__name__)
@@ -246,6 +247,22 @@ async def crear_usuario(
 
     logger.info(f"Usuario creado: {nuevo_usuario.username} por {current_user.username}")
 
+    # 📝 REGISTRAR AUDITORÍA
+    registrar_auditoria(
+        db=db,
+        usuario_id=current_user.id,
+        accion="CREAR_USUARIO",
+        tabla_afectada="usuarios",
+        registro_id=nuevo_usuario.id,
+        valores_nuevos={
+            "username": nuevo_usuario.username,
+            "email": nuevo_usuario.email,
+            "nombre_completo": nuevo_usuario.nombre_completo,
+            "rol_id": nuevo_usuario.rol_id,
+            "activo": nuevo_usuario.activo
+        }
+    )
+
     return UsuarioResponse(
         id=nuevo_usuario.id,
         username=nuevo_usuario.username,
@@ -327,11 +344,37 @@ async def actualizar_usuario(
             )
         usuario.rol_id = usuario_data.rol_id
 
+    # Guardar valores anteriores para auditoría
+    valores_anteriores = {
+        "username": usuario.username,
+        "email": usuario.email,
+        "nombre_completo": usuario.nombre_completo,
+        "rol_id": usuario.rol_id,
+        "activo": usuario.activo
+    }
+
     if usuario_data.activo is not None:
         usuario.activo = usuario_data.activo
 
     db.commit()
     db.refresh(usuario)
+
+    # 📝 REGISTRAR AUDITORÍA
+    registrar_auditoria(
+        db=db,
+        usuario_id=current_user.id,
+        accion="MODIFICAR_USUARIO",
+        tabla_afectada="usuarios",
+        registro_id=usuario.id,
+        valores_anteriores=valores_anteriores,
+        valores_nuevos={
+            "username": usuario.username,
+            "email": usuario.email,
+            "nombre_completo": usuario.nombre_completo,
+            "rol_id": usuario.rol_id,
+            "activo": usuario.activo
+        }
+    )
 
     logger.info(f"Usuario actualizado: {usuario.username} por {current_user.username}")
 
@@ -376,12 +419,31 @@ async def eliminar_usuario(
         # ELIMINAR DEFINITIVAMENTE
         username = usuario.username
         
+        # Guardar datos para auditoría antes de eliminar
+        valores_anteriores = {
+            "username": usuario.username,
+            "email": usuario.email,
+            "nombre_completo": usuario.nombre_completo,
+            "rol_id": usuario.rol_id,
+            "activo": usuario.activo
+        }
+        
         # Eliminar con expire_on_commit=False para evitar cargar relaciones
         db.expire_on_commit = False
         db.delete(usuario)
         db.commit()
 
         logger.info(f"✅ Usuario ELIMINADO DEFINITIVAMENTE: {username} por {current_user.username}")
+
+        # 📝 REGISTRAR AUDITORÍA
+        registrar_auditoria(
+            db=db,
+            usuario_id=current_user.id,
+            accion="ELIMINAR_USUARIO",
+            tabla_afectada="usuarios",
+            registro_id=usuario_id,
+            valores_anteriores=valores_anteriores
+        )
 
         return {
             "message": "Usuario eliminado definitivamente",

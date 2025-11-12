@@ -1,0 +1,406 @@
+<!-- Componente de Barra de Progreso para Tareas Asíncronas -->
+<!-- Desarrollador: Eduardo Lozada Quiroz, ISC -->
+<!-- Año: 2025 -->
+
+<style>
+.task-progress-container {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    width: 400px;
+    max-width: 90vw;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    padding: 20px;
+    z-index: 9999;
+    animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateX(450px);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+.task-progress-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.task-progress-title {
+    font-weight: 600;
+    color: #2c3e50;
+    font-size: 16px;
+}
+
+.task-progress-close {
+    background: none;
+    border: none;
+    font-size: 24px;
+    color: #95a5a6;
+    cursor: pointer;
+    padding: 0;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: all 0.2s;
+}
+
+.task-progress-close:hover {
+    background: #ecf0f1;
+    color: #2c3e50;
+}
+
+.task-progress-bar-container {
+    width: 100%;
+    height: 8px;
+    background: #ecf0f1;
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 12px;
+}
+
+.task-progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #3498db, #2ecc71);
+    border-radius: 10px;
+    transition: width 0.3s ease;
+    animation: shimmer 2s infinite;
+}
+
+@keyframes shimmer {
+    0% {
+        background-position: -400px 0;
+    }
+    100% {
+        background-position: 400px 0;
+    }
+}
+
+.task-progress-bar.processing {
+    background: linear-gradient(90deg, #3498db 25%, #5dade2 50%, #3498db 75%);
+    background-size: 400px 100%;
+}
+
+.task-progress-bar.completed {
+    background: linear-gradient(90deg, #27ae60, #2ecc71);
+    animation: none;
+}
+
+.task-progress-bar.failed {
+    background: linear-gradient(90deg, #c0392b, #e74c3c);
+    animation: none;
+}
+
+.task-progress-text {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 14px;
+    color: #7f8c8d;
+}
+
+.task-progress-percent {
+    font-weight: 600;
+    color: #3498db;
+    font-size: 18px;
+}
+
+.task-progress-message {
+    margin-top: 10px;
+    padding: 10px;
+    background: #f8f9fa;
+    border-radius: 6px;
+    font-size: 13px;
+    color: #495057;
+}
+
+.task-progress-icon {
+    font-size: 24px;
+    margin-right: 10px;
+}
+
+.task-progress-completed {
+    color: #27ae60;
+}
+
+.task-progress-failed {
+    color: #e74c3c;
+}
+
+.task-progress-spinner {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 3px solid #f3f3f3;
+    border-top: 3px solid #3498db;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+</style>
+
+<div id="taskProgressContainer" class="task-progress-container" style="display: none;">
+    <div class="task-progress-header">
+        <div class="task-progress-title">
+            <span id="taskProgressIcon" class="task-progress-icon">📄</span>
+            <span id="taskProgressTitleText">Procesando OCR...</span>
+        </div>
+        <button class="task-progress-close" onclick="closeTaskProgress()">&times;</button>
+    </div>
+    
+    <div class="task-progress-bar-container">
+        <div id="taskProgressBar" class="task-progress-bar processing" style="width: 0%"></div>
+    </div>
+    
+    <div class="task-progress-text">
+        <span id="taskProgressMessage">Iniciando...</span>
+        <span id="taskProgressPercent" class="task-progress-percent">0%</span>
+    </div>
+    
+    <div id="taskProgressDetails" class="task-progress-message" style="display: none;">
+        <span id="taskProgressDetailsText"></span>
+    </div>
+</div>
+
+<script>
+let taskProgressInterval = null;
+let currentTaskId = null;
+
+/**
+ * Iniciar procesamiento OCR asíncrono
+ */
+async function iniciarOCRAsincrono(tomoId) {
+    try {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`/api/tasks/ocr/${tomoId}`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error('Error iniciando procesamiento OCR');
+        }
+        
+        const data = await response.json();
+        currentTaskId = data.task_id;
+        
+        // Mostrar barra de progreso
+        showTaskProgress();
+        
+        // Iniciar polling de estado
+        monitorearProgreso(currentTaskId);
+        
+        return currentTaskId;
+        
+    } catch (error) {
+        console.error('Error:', error);
+        mostrarError('Error iniciando procesamiento OCR');
+        return null;
+    }
+}
+
+/**
+ * Mostrar contenedor de progreso
+ */
+function showTaskProgress() {
+    const container = document.getElementById('taskProgressContainer');
+    container.style.display = 'block';
+    
+    // Reset valores
+    updateTaskProgress(0, 'Iniciando procesamiento...', 'processing');
+}
+
+/**
+ * Ocultar contenedor de progreso
+ */
+function closeTaskProgress() {
+    const container = document.getElementById('taskProgressContainer');
+    container.style.display = 'none';
+    
+    if (taskProgressInterval) {
+        clearInterval(taskProgressInterval);
+        taskProgressInterval = null;
+    }
+    
+    currentTaskId = null;
+}
+
+/**
+ * Actualizar barra de progreso
+ */
+function updateTaskProgress(percent, message, status = 'processing') {
+    const bar = document.getElementById('taskProgressBar');
+    const percentText = document.getElementById('taskProgressPercent');
+    const messageText = document.getElementById('taskProgressMessage');
+    const icon = document.getElementById('taskProgressIcon');
+    
+    // Actualizar porcentaje
+    bar.style.width = `${percent}%`;
+    percentText.textContent = `${percent}%`;
+    messageText.textContent = message;
+    
+    // Actualizar clase según estado
+    bar.className = 'task-progress-bar ' + status;
+    
+    // Actualizar icono
+    if (status === 'completed') {
+        icon.textContent = '✅';
+        icon.className = 'task-progress-icon task-progress-completed';
+    } else if (status === 'failed') {
+        icon.textContent = '❌';
+        icon.className = 'task-progress-icon task-progress-failed';
+    } else {
+        icon.innerHTML = '<div class="task-progress-spinner"></div>';
+    }
+}
+
+/**
+ * Monitorear progreso de tarea
+ */
+function monitorearProgreso(taskId) {
+    // Limpiar intervalo anterior si existe
+    if (taskProgressInterval) {
+        clearInterval(taskProgressInterval);
+    }
+    
+    // Polling cada segundo
+    taskProgressInterval = setInterval(async () => {
+        try {
+            const token = localStorage.getItem('token');
+            const response = await fetch(`/api/tasks/status/${taskId}`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+            
+            if (!response.ok) {
+                throw new Error('Error obteniendo estado de tarea');
+            }
+            
+            const data = await response.json();
+            
+            if (data.status === 'processing') {
+                const progreso = data.progreso || {};
+                const percent = progreso.percent || 0;
+                const mensaje = progreso.mensaje || 'Procesando...';
+                
+                updateTaskProgress(percent, mensaje, 'processing');
+                
+            } else if (data.status === 'completed') {
+                updateTaskProgress(100, '¡OCR completado exitosamente!', 'completed');
+                
+                // Detener polling
+                clearInterval(taskProgressInterval);
+                taskProgressInterval = null;
+                
+                // Cerrar automáticamente después de 3 segundos
+                setTimeout(() => {
+                    closeTaskProgress();
+                    // Recargar lista de tomos si existe
+                    if (typeof cargarTomos === 'function') {
+                        cargarTomos();
+                    }
+                }, 3000);
+                
+            } else if (data.status === 'failed') {
+                const error = data.error || 'Error desconocido';
+                updateTaskProgress(0, `Error: ${error}`, 'failed');
+                
+                // Detener polling
+                clearInterval(taskProgressInterval);
+                taskProgressInterval = null;
+                
+            } else if (data.status === 'pending') {
+                updateTaskProgress(0, 'Tarea en cola de espera...', 'processing');
+            }
+            
+        } catch (error) {
+            console.error('Error monitoreando progreso:', error);
+            clearInterval(taskProgressInterval);
+            taskProgressInterval = null;
+        }
+    }, 1000); // Actualizar cada segundo
+}
+
+/**
+ * Procesar múltiples tomos en lote
+ */
+async function procesarLoteOCR(tomoIds) {
+    try {
+        const token = localStorage.getItem('token');
+        const response = await fetch('/api/tasks/ocr/batch', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(tomoIds)
+        });
+        
+        if (!response.ok) {
+            throw new Error('Error iniciando procesamiento en lote');
+        }
+        
+        const data = await response.json();
+        currentTaskId = data.task_id;
+        
+        // Actualizar título
+        document.getElementById('taskProgressTitleText').textContent = 
+            `Procesando ${tomoIds.length} tomos...`;
+        
+        showTaskProgress();
+        monitorearProgreso(currentTaskId);
+        
+        return currentTaskId;
+        
+    } catch (error) {
+        console.error('Error:', error);
+        mostrarError('Error procesando lote de tomos');
+        return null;
+    }
+}
+
+/**
+ * Cancelar tarea en ejecución
+ */
+async function cancelarTarea(taskId) {
+    try {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`/api/tasks/${taskId}`, {
+            method: 'DELETE',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error('Error cancelando tarea');
+        }
+        
+        closeTaskProgress();
+        mostrarExito('Tarea cancelada exitosamente');
+        
+    } catch (error) {
+        console.error('Error:', error);
+        mostrarError('Error cancelando tarea');
+    }
+}
+</script>

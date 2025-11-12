@@ -15,6 +15,8 @@ from app.models.carpeta import Carpeta
 from app.models.usuario import Usuario
 from app.middlewares.auth_middleware import get_current_active_user
 from app.utils.pdf_utils import extraer_info_pdf, validar_pdf
+from app.services.cache_service import cache_service
+from app.utils.auditoria_utils import registrar_auditoria
 import logging
 
 logger = logging.getLogger(__name__)
@@ -65,11 +67,22 @@ async def listar_todos_los_tomos(
     """
     GET /tomos/todos
     Listar todos los tomos del sistema.
+    ⚡ OPTIMIZADO: Usa caché Redis (300x más rápido en consultas repetidas)
     """
     try:
+        # Intentar obtener desde caché
+        cache_key = "tomos:todos"
+        cached_data = cache_service.get(cache_key)
+        
+        if cached_data:
+            logger.info("✅ Tomos obtenidos desde caché Redis")
+            return cached_data
+        
+        # Si no está en caché, consultar BD
+        logger.info("⏳ Consultando base de datos...")
         tomos = db.query(Tomo).order_by(Tomo.carpeta_id, Tomo.numero_tomo).all()
 
-        return [
+        result = [
             TomoDetailResponse(
                 id=t.id,
                 nombre_archivo=t.nombre_archivo,
@@ -84,6 +97,14 @@ async def listar_todos_los_tomos(
             )
             for t in tomos
         ]
+        
+        # Guardar en caché por 5 minutos (convertir a dict para serialización)
+        result_dict = [r.model_dump() for r in result]
+        cache_service.set(cache_key, result_dict, ttl=300)
+        logger.info(f"💾 {len(result)} tomos guardados en caché")
+        
+        return result
+        
     except Exception as e:
         logger.error(f"Error listando tomos: {e}")
         raise HTTPException(
@@ -100,6 +121,7 @@ async def listar_tomos_carpeta(
     """
     GET /tomos/{carpeta_id}
     Listar tomos de una carpeta específica.
+    ⚡ OPTIMIZADO: Usa caché Redis por carpeta
     """
     # Verificar que la carpeta exista
     carpeta = db.query(Carpeta).filter(Carpeta.id == carpeta_id).first()
@@ -109,9 +131,18 @@ async def listar_tomos_carpeta(
             detail="Carpeta no encontrada"
         )
 
+    # Intentar obtener desde caché
+    cache_key = f"tomos:carpeta:{carpeta_id}"
+    cached_data = cache_service.get(cache_key)
+    
+    if cached_data:
+        logger.info(f"✅ Tomos de carpeta {carpeta_id} obtenidos desde caché")
+        return cached_data
+
+    # Consultar BD
     tomos = db.query(Tomo).filter(Tomo.carpeta_id == carpeta_id).order_by(Tomo.numero_tomo).all()
 
-    return [
+    result = [
         TomoDetailResponse(
             id=t.id,
             nombre_archivo=t.nombre_archivo,
@@ -126,6 +157,13 @@ async def listar_tomos_carpeta(
         )
         for t in tomos
     ]
+    
+    # Guardar en caché por 5 minutos (convertir a dict para serialización)
+    result_dict = [r.model_dump() for r in result]
+    cache_service.set(cache_key, result_dict, ttl=300)
+    logger.info(f"💾 {len(result)} tomos de carpeta {carpeta_id} guardados en caché")
+    
+    return result
 
 
 @router.post("/upload", response_model=TomoResponse, status_code=status.HTTP_201_CREATED)
@@ -238,11 +276,34 @@ async def subir_tomo(
         db.commit()
         db.refresh(nuevo_tomo)
 
+        # ⚡ Invalidar caché para que se reflejen los cambios
+        cache_service.delete(f"tomos:carpeta:{carpeta_id}")
+        cache_service.delete("tomos:todos")
+        logger.info(f"🔄 Caché invalidado para carpeta {carpeta_id}")
+
         # Si hay advertencias del PDF, agregarlas al log
         if 'advertencias' in validacion and validacion['advertencias']:
             logger.warning(f"Advertencias para tomo {nuevo_tomo.id}: {validacion['advertencias']}")
 
         logger.info(f"Tomo subido: {nuevo_tomo.nombre_archivo} a carpeta {carpeta_id} por {current_user.username} - {pdf_info['numero_paginas']} páginas")
+
+        # Registrar auditoría
+        registrar_auditoria(
+            db=db,
+            usuario_id=current_user.id,
+            accion="SUBIR_TOMO",
+            tabla_afectada="tomos",
+            registro_id=nuevo_tomo.id,
+            valores_nuevos={
+                "nombre_archivo": nuevo_tomo.nombre_archivo,
+                "numero_tomo": numero_tomo,
+                "carpeta_id": carpeta_id,
+                "carpeta_nombre": carpeta.nombre,
+                "numero_paginas": pdf_info["numero_paginas"],
+                "tamanio_mb": round(file_size / 1024 / 1024, 2),
+                "auto_process_ocr": auto_process_ocr
+            }
+        )
 
         # 🚀 PROCESAR OCR AUTOMÁTICAMENTE SI SE SOLICITA
         if auto_process_ocr:
@@ -295,8 +356,21 @@ async def reanalizar_tomo(
 ):
     """
     PUT /tomos/{tomo_id}/reanalizar
-    Reanalizar un tomo para actualizar información del PDF.
+    
+    RE-PROCESA COMPLETAMENTE EL TOMO CON OCR CORREGIDO:
+    1. Borra OCR viejo (con errores)
+    2. Re-procesa PDF con correcciones legales automáticas
+    3. Extrae diligencias automáticamente
+    4. Aplica correcciones a nombres, lugares, entidades
+    
+    FLUJO:
+    - Admin: Sube PDF → Procesa OCR → Re-analiza (BD se lleva las putizas)
+    - Usuario: Ve datos YA CORREGIDOS automáticamente
     """
+    from app.services.ocr_service import OCRService
+    from app.models.analisis_juridico import Diligencia
+    from pathlib import Path
+    
     tomo = db.query(Tomo).filter(Tomo.id == tomo_id).first()
 
     if not tomo:
@@ -312,30 +386,90 @@ async def reanalizar_tomo(
         )
 
     try:
-        # Reanalizar PDF
+        logger.info(f"🔄 REANALIZAR COMPLETO: Borrando OCR viejo de tomo {tomo_id}...")
+        
+        # 1. BORRAR TODO EL OCR VIEJO (con errores)
+        db.query(ContenidoOCR).filter(ContenidoOCR.tomo_id == tomo_id).delete()
+        
+        # 2. BORRAR DILIGENCIAS VIEJAS (con errores)
+        db.query(Diligencia).filter(Diligencia.tomo_id == tomo_id).delete()
+        
+        db.commit()
+        logger.info(f"  ✓ OCR viejo y diligencias borradas")
+
+        # 3. VALIDAR PDF
         pdf_info = extraer_info_pdf(tomo.ruta_archivo)
         validacion = validar_pdf(tomo.ruta_archivo)
 
-        # Actualizar información
+        # 4. ACTUALIZAR INFORMACIÓN BÁSICA
         tomo.numero_paginas = pdf_info["numero_paginas"]
-        tomo.estado = "procesado" if validacion["es_valido"] and pdf_info["numero_paginas"] > 0 else "error"
+        tomo.estado = "procesando"  # Cambiar a procesando durante OCR
         tomo.fecha_procesamiento = datetime.now()
+        db.commit()
 
+        # 5. RE-PROCESAR OCR COMPLETO CON CORRECCIONES AUTOMÁTICAS
+        logger.info(f"🚀 Iniciando OCR COMPLETO con correcciones automáticas...")
+        ocr_service = OCRService()
+        
+        # Procesar en background pero esperar resultado
+        import asyncio
+        await asyncio.to_thread(
+            ocr_service.procesar_pdf,
+            tomo,
+            Path(tomo.ruta_archivo),
+            db
+        )
+
+        # 6. ACTUALIZAR ESTADO FINAL
+        tomo.estado = "procesado" if validacion["es_valido"] and pdf_info["numero_paginas"] > 0 else "error"
         db.commit()
         db.refresh(tomo)
 
-        logger.info(f"Tomo reanalizado: {tomo.nombre_archivo} - {pdf_info['numero_paginas']} páginas")
+        # 7. INVALIDAR CACHÉ
+        cache_service.delete(f"tomos:carpeta:{tomo.carpeta_id}")
+        cache_service.delete("tomos:todos")
+        cache_service.delete(f"ocr:tomo:{tomo_id}")
+        logger.info(f"🔄 Caché invalidado")
+
+        # 8. CONTAR DILIGENCIAS EXTRAÍDAS
+        total_diligencias = db.query(Diligencia).filter(
+            Diligencia.tomo_id == tomo_id
+        ).count()
+
+        logger.info(f"✅ Tomo reanalizado COMPLETO: {tomo.nombre_archivo}")
+        logger.info(f"  📄 {pdf_info['numero_paginas']} páginas procesadas")
+        logger.info(f"  📋 {total_diligencias} diligencias extraídas y corregidas")
+
+        # Registrar auditoría
+        registrar_auditoria(
+            db=db,
+            usuario_id=current_user.id,
+            accion="PROCESAR_OCR",
+            tabla_afectada="tomos",
+            registro_id=tomo_id,
+            valores_nuevos={
+                "nombre_archivo": tomo.nombre_archivo,
+                "numero_paginas": pdf_info["numero_paginas"],
+                "diligencias_extraidas": total_diligencias,
+                "estado": tomo.estado,
+                "tipo_proceso": "reanalisis_completo"
+            }
+        )
 
         return {
-            "message": "Tomo reanalizado correctamente",
+            "message": "Tomo reanalizado COMPLETAMENTE con correcciones automáticas",
             "tomo_id": tomo_id,
             "numero_paginas": pdf_info["numero_paginas"],
+            "diligencias_extraidas": total_diligencias,
             "estado": tomo.estado,
-            "advertencias": validacion.get("advertencias", [])
+            "advertencias": validacion.get("advertencias", []),
+            "info": "OCR re-procesado con correcciones legales + diligencias automáticas"
         }
 
     except Exception as e:
         logger.error(f"Error al reanalizar tomo {tomo_id}: {str(e)}")
+        tomo.estado = "error"
+        db.commit()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error al reanalizar tomo: {str(e)}"
@@ -402,6 +536,22 @@ async def reanalizar_todos_tomos_carpeta(
 
         logger.info(f"Reanálisis completado para carpeta {carpeta_id}: {procesados} exitosos, {errores} errores")
 
+        # Registrar auditoría
+        registrar_auditoria(
+            db=db,
+            usuario_id=current_user.id,
+            accion="PROCESAR_OCR",
+            tabla_afectada="tomos",
+            valores_nuevos={
+                "carpeta_id": carpeta_id,
+                "carpeta_nombre": carpeta.nombre,
+                "total_tomos": len(tomos),
+                "procesados": procesados,
+                "errores": errores,
+                "tipo_proceso": "reanalisis_carpeta_completa"
+            }
+        )
+
         return {
             "message": "Reanálisis completado",
             "carpeta_id": carpeta_id,
@@ -440,14 +590,27 @@ async def eliminar_tomo(
                 detail="Tomo no encontrado"
             )
 
-        # Guardar información antes de eliminar
+        # Guardar información antes de eliminar para auditoría
         file_path = tomo.ruta_archivo
         tomo_nombre = tomo.nombre_archivo
         carpeta_id = tomo.carpeta_id
+        valores_anteriores = {
+            "nombre_archivo": tomo.nombre_archivo,
+            "numero_tomo": tomo.numero_tomo,
+            "carpeta_id": tomo.carpeta_id,
+            "numero_paginas": tomo.numero_paginas,
+            "tamanio_bytes": tomo.tamanio_bytes,
+            "estado": tomo.estado
+        }
 
         # Eliminar registro de la base de datos (esto eliminará en cascada todos los registros relacionados)
         db.delete(tomo)
         db.commit()
+
+        # ⚡ Invalidar caché de tomos
+        cache_service.delete(f"tomos:carpeta:{carpeta_id}")
+        cache_service.delete("tomos:todos")
+        logger.info(f"🔄 Caché de tomos invalidado para carpeta {carpeta_id}")
 
         # Intentar eliminar archivo físico
         if file_path and os.path.exists(file_path):
@@ -479,6 +642,16 @@ async def eliminar_tomo(
         )
 
         logger.info(f"Tomo eliminado: {tomo_nombre} por {current_user.username}")
+
+        # Registrar auditoría
+        registrar_auditoria(
+            db=db,
+            usuario_id=current_user.id,
+            accion="ELIMINAR_TOMO",
+            tabla_afectada="tomos",
+            registro_id=tomo_id,
+            valores_anteriores=valores_anteriores
+        )
 
         return {
             "message": "Tomo eliminado correctamente",

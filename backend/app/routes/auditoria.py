@@ -10,7 +10,7 @@ import logging
 
 from app.database import get_db
 from app.models.auditoria import Auditoria
-from app.models.usuario import Usuario
+from app.models.usuario import Usuario, Rol
 from app.middlewares.auth_middleware import get_current_active_user
 from app.middlewares.permission_middleware import require_permission
 
@@ -27,6 +27,7 @@ class AuditoriaResponse(BaseModel):
     usuario_id: Optional[int]
     username: Optional[str]
     nombre_completo: Optional[str]
+    rol: Optional[str]
     accion: str
     tabla_afectada: Optional[str]
     registro_id: Optional[int]
@@ -80,7 +81,8 @@ async def obtener_eventos(
     query = db.query(
         Auditoria,
         Usuario.username,
-        Usuario.nombre_completo
+        Usuario.nombre_completo,
+        Usuario.rol_id
     ).outerjoin(
         Usuario, Auditoria.usuario_id == Usuario.id
     )
@@ -121,12 +123,20 @@ async def obtener_eventos(
     
     # Formatear respuesta
     eventos = []
-    for auditoria, username, nombre_completo in resultados:
+    for auditoria, username, nombre_completo, rol_id in resultados:
+        # Obtener el nombre del rol si existe
+        rol_nombre = None
+        if rol_id:
+            rol = db.query(Rol).filter(Rol.id == rol_id).first()
+            if rol:
+                rol_nombre = rol.nombre
+        
         eventos.append(AuditoriaResponse(
             id=auditoria.id,
             usuario_id=auditoria.usuario_id,
             username=username,
             nombre_completo=nombre_completo,
+            rol=rol_nombre,
             accion=auditoria.accion,
             tabla_afectada=auditoria.tabla_afectada,
             registro_id=auditoria.registro_id,

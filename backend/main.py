@@ -29,12 +29,17 @@ os.environ['GLOG_minloglevel'] = '3'  # Google logging (PaddleOCR)
 os.environ['TOKENIZERS_PARALLELISM'] = 'false'  # Transformers
 # Metadata autor: E.Lozada.Q (ISC)
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import sys
 from pathlib import Path
+
+# Rate Limiting para proteger contra abuso
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
 # Agregar el directorio app al path
 sys.path.insert(0, str(Path(__file__).parent))
@@ -45,7 +50,7 @@ from app.models.tomo import Tomo, ContenidoOCR
 from app.models.extraccion import ExtraccionTomo, DiligenciaTomo, PersonaMencionada, Declaracion, AlertaInactividad
 from app.models.permiso_tomo import PermisoTomo
 
-from app.routes import auth, admin, carpetas, tomos, busqueda, test, permisos, busqueda_tomos, notificaciones, usuarios, desarrollo, ocr_quality, analisis_admin, analisis_usuario, auditoria, ocr_area, system_health
+from app.routes import auth, admin, carpetas, tomos, busqueda, test, permisos, busqueda_tomos, notificaciones, usuarios, desarrollo, ocr_quality, analisis_admin, analisis_usuario, auditoria, ocr_area, system_health, tasks, stats
 from app.controllers import ocr_controller, correccion_controller
 # 🚀 CONTROLADORES AVANZADOS
 try:
@@ -133,6 +138,11 @@ app = FastAPI(
     redoc_url="/redoc"
 )
 
+# 🛡️ Configurar Rate Limiting (protección para 20+ usuarios concurrentes)
+limiter = Limiter(key_func=get_remote_address, default_limits=["100/minute"])
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
 # Configurar límites para archivos grandes
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 
@@ -185,6 +195,10 @@ app.include_router(ocr_area.router, tags=["🔍 OCR Área Seleccionada"])
 app.include_router(busqueda.router, prefix="/api/busqueda", tags=["🔎 Búsqueda"])
 app.include_router(ocr_controller.router, prefix="/api", tags=["📄 OCR"])
 app.include_router(desarrollo.router, prefix="/api", tags=["🔧 Desarrollo"])
+
+# 🚀 Nuevas rutas - Tareas asíncronas y estadísticas
+app.include_router(tasks.router, tags=["⚡ Tareas Asíncronas"])
+app.include_router(stats.router, tags=["📊 Estadísticas del Sistema"])
 
 # Análisis Jurídico (OCR + NLP para documentos legales mexicanos)
 app.include_router(analisis_admin.router, prefix="/api", tags=["⚖️ Análisis Jurídico - Admin"])
@@ -353,6 +367,18 @@ async def health_check():
             "status": "unhealthy",
             "error": str(e)
         }
+
+@app.get("/metrics")
+async def metrics():
+    """Endpoint de métricas para Prometheus"""
+    try:
+        from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
+        from starlette.responses import Response
+        
+        return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
+    except Exception as e:
+        logger.error(f"Error generando métricas: {e}")
+        return {"error": str(e)}
 
 if __name__ == "__main__":
     import uvicorn
