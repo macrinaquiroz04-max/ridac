@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.orm import Session
 from typing import List, Dict, Optional, Union
 from pydantic import BaseModel
+import logging
 
 from app.database import get_db
 from app.controllers.permiso_tomo_controller import PermisoTomoController
@@ -12,6 +13,69 @@ from app.models.usuario import Usuario
 from app.utils.auditoria_utils import registrar_auditoria
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
+
+# Función helper para generar descripción detallada de cambios de permisos
+def generar_descripcion_cambios_permisos(
+    usuario_info: str,
+    permisos_anteriores: dict,
+    permisos_nuevos: dict,
+    tomo_nombre: str = None
+) -> str:
+    """
+    Genera una descripción legible y detallada de los cambios de permisos.
+    
+    Ejemplos de salida:
+    - "Se otorgaron permisos de LECTURA al usuario Juan Pérez (Analista)"
+    - "Se quitaron permisos de BÚSQUEDA y EXPORTACIÓN al usuario María López"
+    - "Se otorgó acceso COMPLETO al usuario Carlos García"
+    """
+    permisos_otorgados = []
+    permisos_quitados = []
+    
+    # Mapeo de permisos a nombres legibles
+    permisos_map = {
+        'puede_ver': 'LECTURA',
+        'puede_buscar': 'BÚSQUEDA',
+        'puede_exportar': 'EXPORTACIÓN'
+    }
+    
+    # Detectar cambios
+    for key, nombre in permisos_map.items():
+        antes = permisos_anteriores.get(key, False)
+        ahora = permisos_nuevos.get(key, False)
+        
+        if not antes and ahora:
+            permisos_otorgados.append(nombre)
+        elif antes and not ahora:
+            permisos_quitados.append(nombre)
+    
+    # Generar descripción
+    descripciones = []
+    
+    if permisos_otorgados:
+        if len(permisos_otorgados) == 3:
+            descripciones.append(f"Se otorgó ACCESO COMPLETO a {usuario_info}")
+        else:
+            permisos_str = " y ".join(permisos_otorgados) if len(permisos_otorgados) == 2 else ", ".join(permisos_otorgados)
+            descripciones.append(f"Se otorgaron permisos de {permisos_str} a {usuario_info}")
+    
+    if permisos_quitados:
+        if len(permisos_quitados) == 3:
+            descripciones.append(f"Se revocó TODO el acceso a {usuario_info}")
+        else:
+            permisos_str = " y ".join(permisos_quitados) if len(permisos_quitados) == 2 else ", ".join(permisos_quitados)
+            descripciones.append(f"Se quitaron permisos de {permisos_str} a {usuario_info}")
+    
+    # Si no hay cambios
+    if not descripciones:
+        descripciones.append(f"Se actualizaron permisos de {usuario_info} (sin cambios efectivos)")
+    
+    # Agregar información del tomo si está disponible
+    if tomo_nombre:
+        descripciones[0] += f" para el tomo '{tomo_nombre}'"
+    
+    return " | ".join(descripciones)
 
 # Modelos Pydantic para requests/responses
 class PermisoTomoCreate(BaseModel):
@@ -73,17 +137,12 @@ async def asignar_permiso_tomo(
         logger.info(f"Asignando permiso - Usuario: {permiso_data.usuario_id}, Tomo: {permiso_data.tomo_id}")
         logger.debug(f"Permisos - Ver: {permiso_data.puede_ver}, Buscar: {permiso_data.puede_buscar}, Exportar: {permiso_data.puede_exportar}")
         
-        permiso = PermisoTomoController.asignar_permiso(
-            db=db,
-            usuario_id=permiso_data.usuario_id,
-            tomo_id=permiso_data.tomo_id,
-            puede_ver=permiso_data.puede_ver,
-            puede_buscar=permiso_data.puede_buscar,
-            puede_exportar=permiso_data.puede_exportar,
-            usuario_admin_id=current_user.id
-        )
-        
-        logger.debug(f"Resultado del permiso: {permiso}")
+        # Verificar si ya existe un permiso para determinar si es nuevo o modificación
+        from app.models.permiso_tomo import PermisoTomo
+        permiso_existente = db.query(PermisoTomo).filter(
+            PermisoTomo.usuario_id == permiso_data.usuario_id,
+            PermisoTomo.tomo_id == permiso_data.tomo_id
+        ).first()
         
         # Obtener información del usuario afectado para auditoría
         usuario_afectado = db.query(Usuario).filter(Usuario.id == permiso_data.usuario_id).first()
@@ -101,36 +160,86 @@ async def asignar_permiso_tomo(
             "numero_tomo": tomo.numero_tomo if tomo else None
         }
         
-        # Si se retorna None, significa que se eliminó un permiso vacío
+        # Guardar valores anteriores si existe
+        valores_anteriores = None
+        if permiso_existente:
+            valores_anteriores = {
+                "puede_ver": permiso_existente.puede_ver,
+                "puede_buscar": permiso_existente.puede_buscar,
+                "puede_exportar": permiso_existente.puede_exportar
+            }
+        
+        permiso = PermisoTomoController.asignar_permiso(
+            db=db,
+            usuario_id=permiso_data.usuario_id,
+            tomo_id=permiso_data.tomo_id,
+            puede_ver=permiso_data.puede_ver,
+            puede_buscar=permiso_data.puede_buscar,
+            puede_exportar=permiso_data.puede_exportar,
+            usuario_admin_id=current_user.id
+        )
+        
+        logger.debug(f"Resultado del permiso: {permiso}")
+        
+        # Si se retorna None, significa que se eliminó un permiso vacío (TODOS en False)
         if permiso is None:
-            # 📝 AUDITORÍA: Revocar permiso
+            # 📝 AUDITORÍA: REVOCACIÓN DE PERMISOS
             registrar_auditoria(
                 request=request,
-                db=db,
                 usuario_id=current_user.id,
-                accion="REVOCAR_PERMISO",
+                accion="REVOCACION_PERMISOS",
                 tabla_afectada="permisos_tomo",
                 valores_anteriores={
                     "usuario_afectado": f"{usuario_info['nombre']} ({usuario_info['rol']})",
                     "username": usuario_info['username'],
                     "tomo": tomo_info['nombre'],
                     "usuario_id": permiso_data.usuario_id,
-                    "tomo_id": permiso_data.tomo_id
+                    "tomo_id": permiso_data.tomo_id,
+                    "permisos_anteriores": valores_anteriores
                 }
             )
             return MensajeResponse(
-                message="Permiso eliminado - todos los permisos estaban desactivados",
+                message=f"Permisos revocados para {usuario_info['nombre']} ({usuario_info['rol']})",
                 success=True
             )
         
-        # 📝 AUDITORÍA: Asignar/Modificar permiso
+        # Determinar la acción basándose en si existía antes y qué permisos tiene ahora
+        tiene_permisos_activos = permiso.puede_ver or permiso.puede_buscar or permiso.puede_exportar
+        
+        if not permiso_existente:
+            # NUEVA ASIGNACIÓN
+            accion = "ASIGNACION_PERMISOS"
+            mensaje_log = f"Asignó permisos a {usuario_info['nombre']} ({usuario_info['rol']})"
+        elif valores_anteriores:
+            # Verificar si está agregando o quitando permisos
+            permisos_antes = sum([valores_anteriores.get('puede_ver', False), 
+                                 valores_anteriores.get('puede_buscar', False), 
+                                 valores_anteriores.get('puede_exportar', False)])
+            permisos_ahora = sum([permiso.puede_ver, permiso.puede_buscar, permiso.puede_exportar])
+            
+            if permisos_ahora > permisos_antes:
+                accion = "AMPLIACION_PERMISOS"
+                mensaje_log = f"Amplió permisos de {usuario_info['nombre']} ({usuario_info['rol']})"
+            elif permisos_ahora < permisos_antes:
+                accion = "REDUCCION_PERMISOS"
+                mensaje_log = f"Redujo permisos de {usuario_info['nombre']} ({usuario_info['rol']})"
+            else:
+                accion = "MODIFICACION_PERMISOS"
+                mensaje_log = f"Modificó permisos de {usuario_info['nombre']} ({usuario_info['rol']})"
+        else:
+            accion = "MODIFICACION_PERMISOS"
+            mensaje_log = f"Modificó permisos de {usuario_info['nombre']} ({usuario_info['rol']})"
+        
+        logger.info(mensaje_log)
+        
+        # 📝 AUDITORÍA
         registrar_auditoria(
             request=request,
-            db=db,
             usuario_id=current_user.id,
-            accion="MODIFICAR_PERMISOS",
+            accion=accion,
             tabla_afectada="permisos_tomo",
             registro_id=permiso.id,
+            valores_anteriores=valores_anteriores,
             valores_nuevos={
                 "usuario_afectado": f"{usuario_info['nombre']} ({usuario_info['rol']})",
                 "username": usuario_info['username'],
@@ -191,19 +300,39 @@ async def asignar_permisos_masivos(
         usuario_afectado = db.query(Usuario).filter(Usuario.id == permisos_data.usuario_id).first()
         usuario_info = f"{usuario_afectado.nombre_completo} ({usuario_afectado.rol.nombre})" if usuario_afectado and usuario_afectado.rol else "Usuario desconocido"
         
+        # Generar descripción detallada para permisos masivos
+        permisos_otorgados = []
+        for key, value in permisos_data.permisos.items():
+            if value:
+                if key == 'puede_ver':
+                    permisos_otorgados.append('LECTURA')
+                elif key == 'puede_buscar':
+                    permisos_otorgados.append('BÚSQUEDA')
+                elif key == 'puede_exportar':
+                    permisos_otorgados.append('EXPORTACIÓN')
+        
+        if len(permisos_otorgados) == 3:
+            descripcion = f"Se otorgó ACCESO COMPLETO a {usuario_info} en {len(permisos_data.tomos_ids)} tomos"
+        elif permisos_otorgados:
+            permisos_str = ", ".join(permisos_otorgados)
+            descripcion = f"Se otorgaron permisos de {permisos_str} a {usuario_info} en {len(permisos_data.tomos_ids)} tomos"
+        else:
+            descripcion = f"Se configuraron permisos personalizados para {usuario_info} en {len(permisos_data.tomos_ids)} tomos"
+        
         # 📝 AUDITORÍA: Registrar permisos masivos
         registrar_auditoria(
             request=request,
-            db=db,
             usuario_id=current_user.id,
             accion="MODIFICAR_PERMISOS",
             tabla_afectada="permisos_tomo",
+            descripcion=descripcion,
             valores_nuevos={
                 "usuario_afectado": usuario_info,
                 "username": usuario_afectado.username if usuario_afectado else "desconocido",
                 "total_tomos": len(permisos_data.tomos_ids),
                 "tomos_ids": permisos_data.tomos_ids,
                 "permisos": permisos_data.permisos,
+                "permisos_legibles": ", ".join(permisos_otorgados) if permisos_otorgados else "Ninguno",
                 "total_permisos": len(permisos),
                 "tipo": "masivo"
             }
@@ -375,14 +504,30 @@ async def actualizar_permiso_tomo(
         tomo = db.query(Tomo).filter(Tomo.id == tomo_id).first()
         tomo_nombre = tomo.nombre_archivo if tomo else "Tomo desconocido"
         
+        # Generar descripción detallada del cambio
+        descripcion = generar_descripcion_cambios_permisos(
+            usuario_info=usuario_info,
+            permisos_anteriores={
+                "puede_ver": permiso_actual.puede_ver,
+                "puede_buscar": permiso_actual.puede_buscar,
+                "puede_exportar": permiso_actual.puede_exportar
+            },
+            permisos_nuevos={
+                "puede_ver": permiso_actualizado.puede_ver,
+                "puede_buscar": permiso_actualizado.puede_buscar,
+                "puede_exportar": permiso_actualizado.puede_exportar
+            },
+            tomo_nombre=tomo_nombre
+        )
+        
         # 📝 AUDITORÍA
         registrar_auditoria(
             request=request,
-            db=db,
             usuario_id=current_user.id,
             accion="MODIFICAR_PERMISOS",
             tabla_afectada="permisos_tomo",
             registro_id=permiso_actualizado.id,
+            descripcion=descripcion,
             valores_anteriores={
                 "puede_ver": permiso_actual.puede_ver,
                 "puede_buscar": permiso_actual.puede_buscar,
@@ -457,7 +602,6 @@ async def revocar_permiso_tomo(
             
             registrar_auditoria(
                 request=request,
-                db=db,
                 usuario_id=current_user.id,
                 accion="REVOCAR_PERMISO",
                 tabla_afectada="permisos_tomo",

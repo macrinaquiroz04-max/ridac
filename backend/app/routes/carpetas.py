@@ -1,6 +1,6 @@
 # backend/app/routes/carpetas.py
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, func
 from pydantic import BaseModel
@@ -144,6 +144,7 @@ async def obtener_carpeta(
 @router.post("", response_model=CarpetaResponse, status_code=status.HTTP_201_CREATED)
 async def crear_carpeta(
     carpeta_data: CarpetaCreate,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_active_user)
 ):
@@ -183,9 +184,9 @@ async def crear_carpeta(
     # 📝 AUDITORÍA
     # Registrar auditoría
     registrar_auditoria(
-        db=db,
         usuario_id=current_user.id,
         accion="CREAR_CARPETA",
+        request=request,
         tabla_afectada="carpetas",
         registro_id=nueva_carpeta.id,
         valores_nuevos={
@@ -210,6 +211,7 @@ async def crear_carpeta(
 async def actualizar_carpeta(
     carpeta_id: int,
     carpeta_data: CarpetaUpdate,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_active_user)
 ):
@@ -262,9 +264,9 @@ async def actualizar_carpeta(
 
     # Registrar auditoría
     registrar_auditoria(
-        db=db,
         usuario_id=current_user.id,
         accion="MODIFICAR_CARPETA",
+        request=request,
         tabla_afectada="carpetas",
         registro_id=carpeta_id,
         valores_anteriores=valores_anteriores,
@@ -291,6 +293,7 @@ async def actualizar_carpeta(
 @router.delete("/{carpeta_id}")
 async def eliminar_carpeta(
     carpeta_id: int,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_active_user)
 ):
@@ -344,9 +347,9 @@ async def eliminar_carpeta(
 
         # Registrar auditoría
         registrar_auditoria(
-            db=db,
             usuario_id=current_user.id,
             accion="ELIMINAR_CARPETA",
+            request=request,
             tabla_afectada="carpetas",
             registro_id=carpeta_id,
             valores_anteriores=valores_anteriores

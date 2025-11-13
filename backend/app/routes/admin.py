@@ -1,6 +1,6 @@
 # backend/app/routes/admin.py
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr
 from typing import List, Dict, Any, Optional
@@ -179,6 +179,7 @@ async def obtener_usuario(
 @router.post("/usuarios", response_model=UsuarioResponse, status_code=status.HTTP_201_CREATED)
 async def crear_usuario(
     usuario_data: UsuarioCreate,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(require_admin)
 ):
@@ -249,9 +250,9 @@ async def crear_usuario(
 
     # 📝 REGISTRAR AUDITORÍA
     registrar_auditoria(
-        db=db,
         usuario_id=current_user.id,
         accion="CREAR_USUARIO",
+        request=request,
         tabla_afectada="usuarios",
         registro_id=nuevo_usuario.id,
         valores_nuevos={
@@ -279,6 +280,7 @@ async def crear_usuario(
 async def actualizar_usuario(
     usuario_id: int,
     usuario_data: UsuarioUpdate,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(require_admin)
 ):
@@ -361,9 +363,9 @@ async def actualizar_usuario(
 
     # 📝 REGISTRAR AUDITORÍA
     registrar_auditoria(
-        db=db,
         usuario_id=current_user.id,
         accion="MODIFICAR_USUARIO",
+        request=request,
         tabla_afectada="usuarios",
         registro_id=usuario.id,
         valores_anteriores=valores_anteriores,
@@ -393,6 +395,7 @@ async def actualizar_usuario(
 @router.delete("/usuarios/{usuario_id}")
 async def eliminar_usuario(
     usuario_id: int,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(require_admin)
 ):
@@ -437,9 +440,9 @@ async def eliminar_usuario(
 
         # 📝 REGISTRAR AUDITORÍA
         registrar_auditoria(
-            db=db,
             usuario_id=current_user.id,
             accion="ELIMINAR_USUARIO",
+            request=request,
             tabla_afectada="usuarios",
             registro_id=usuario_id,
             valores_anteriores=valores_anteriores

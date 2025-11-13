@@ -1,6 +1,6 @@
 # backend/app/routes/tomos.py
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File, Form, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
 from pydantic import BaseModel
@@ -16,7 +16,7 @@ from app.models.usuario import Usuario
 from app.middlewares.auth_middleware import get_current_active_user
 from app.utils.pdf_utils import extraer_info_pdf, validar_pdf
 from app.services.cache_service import cache_service
-from app.utils.auditoria_utils import registrar_auditoria
+from app.utils.auditoria_utils import registrar_auditoria, AuditoriaLogger
 import logging
 
 logger = logging.getLogger(__name__)
@@ -168,6 +168,7 @@ async def listar_tomos_carpeta(
 
 @router.post("/upload", response_model=TomoResponse, status_code=status.HTTP_201_CREATED)
 async def subir_tomo(
+    request: Request,
     archivo: UploadFile = File(...),
     nombre: str = Form(...),
     descripcion: Optional[str] = Form(None),
@@ -289,9 +290,9 @@ async def subir_tomo(
 
         # Registrar auditoría
         registrar_auditoria(
-            db=db,
             usuario_id=current_user.id,
             accion="SUBIR_TOMO",
+            request=request,
             tabla_afectada="tomos",
             registro_id=nuevo_tomo.id,
             valores_nuevos={
@@ -313,9 +314,19 @@ async def subir_tomo(
                 
                 logger.info(f"🚀 Iniciando procesamiento OCR automático para tomo {nuevo_tomo.id}")
                 
-                # Iniciar procesamiento en background
+                # Extraer IP del request para auditoría
+                ip_address, _ = AuditoriaLogger.extraer_info_request(request)
+                
+                # Iniciar procesamiento en background con auditoría
                 ocr_service = OCRService()
-                asyncio.create_task(asyncio.to_thread(ocr_service.procesar_pdf, db, nuevo_tomo))
+                asyncio.create_task(asyncio.to_thread(
+                    ocr_service.procesar_pdf, 
+                    nuevo_tomo, 
+                    full_path, 
+                    db,
+                    current_user.id,  # usuario_id para auditoría
+                    ip_address  # IP para auditoría
+                ))
                 
                 logger.info(f"✅ OCR automático iniciado en background para tomo {nuevo_tomo.id}")
                 
@@ -351,6 +362,7 @@ async def subir_tomo(
 @router.put("/{tomo_id}/reanalizar")
 async def reanalizar_tomo(
     tomo_id: int,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_active_user)
 ):
@@ -442,9 +454,10 @@ async def reanalizar_tomo(
 
         # Registrar auditoría
         registrar_auditoria(
-            db=db,
             usuario_id=current_user.id,
             accion="PROCESAR_OCR",
+            request=request,
+            
             tabla_afectada="tomos",
             registro_id=tomo_id,
             valores_nuevos={
@@ -479,6 +492,7 @@ async def reanalizar_tomo(
 @router.put("/carpeta/{carpeta_id}/reanalizar-todos")
 async def reanalizar_todos_tomos_carpeta(
     carpeta_id: int,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_active_user)
 ):
@@ -538,9 +552,10 @@ async def reanalizar_todos_tomos_carpeta(
 
         # Registrar auditoría
         registrar_auditoria(
-            db=db,
             usuario_id=current_user.id,
             accion="PROCESAR_OCR",
+            request=request,
+            
             tabla_afectada="tomos",
             valores_nuevos={
                 "carpeta_id": carpeta_id,
@@ -572,6 +587,7 @@ async def reanalizar_todos_tomos_carpeta(
 @router.delete("/{tomo_id}")
 async def eliminar_tomo(
     tomo_id: int,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_active_user)
 ):
@@ -645,9 +661,10 @@ async def eliminar_tomo(
 
         # Registrar auditoría
         registrar_auditoria(
-            db=db,
             usuario_id=current_user.id,
             accion="ELIMINAR_TOMO",
+            request=request,
+            
             tabla_afectada="tomos",
             registro_id=tomo_id,
             valores_anteriores=valores_anteriores
@@ -915,7 +932,6 @@ async def obtener_contenido_ocr(
     from app.controllers.tomo_controller import tomo_controller
     
     resultado = tomo_controller.obtener_contenido_ocr(
-        db=db,
         tomo_id=tomo_id,
         current_user_id=current_user.id
     )
@@ -962,6 +978,7 @@ class BusquedaTomoResponse(BaseModel):
 async def buscar_avanzada_en_tomo(
     tomo_id: int,
     busqueda: BusquedaTomoRequest,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_active_user)
 ):
@@ -1174,6 +1191,24 @@ async def buscar_avanzada_en_tomo(
                     ))
         
         logger.info(f"Búsqueda en tomo {tomo_id}: '{busqueda.query}' - {len(resultados)} resultados")
+        
+        # 🔍 Registrar auditoría de la búsqueda
+        registrar_auditoria(
+            usuario_id=current_user.id,
+            accion="BUSQUEDA_TOMO",
+            request=request,
+            tabla_afectada="contenido_ocr",
+            registro_id=tomo_id,
+            valores_nuevos={
+                "tomo_id": tomo_id,
+                "tomo_nombre": tomo.nombre_archivo,
+                "query": busqueda.query,
+                "fuzzy": busqueda.fuzzy,
+                "case_sensitive": busqueda.case_sensitive,
+                "whole_word": busqueda.whole_word,
+                "total_resultados": len(resultados)
+            }
+        )
         
         return BusquedaTomoResponse(
             success=True,

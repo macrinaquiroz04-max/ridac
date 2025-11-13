@@ -33,6 +33,7 @@ class AuditoriaResponse(BaseModel):
     registro_id: Optional[int]
     valores_anteriores: Optional[dict]
     valores_nuevos: Optional[dict]
+    descripcion: Optional[str]
     ip_address: Optional[str]
     user_agent: Optional[str]
     created_at: datetime
@@ -142,6 +143,7 @@ async def obtener_eventos(
             registro_id=auditoria.registro_id,
             valores_anteriores=auditoria.valores_anteriores,
             valores_nuevos=auditoria.valores_nuevos,
+            descripcion=auditoria.descripcion,
             ip_address=str(auditoria.ip_address) if auditoria.ip_address else None,
             user_agent=auditoria.user_agent,
             created_at=auditoria.created_at

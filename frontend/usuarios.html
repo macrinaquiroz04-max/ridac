@@ -642,6 +642,38 @@
         let currentPage = 1;
         let usersPerPage = 5;
         let totalUsers = 0;
+        
+        // Variable para control de auto-refresh
+        let autoRefreshInterval = null;
+
+        // ==================== AUTO-REFRESH ====================
+        function setupAutoRefresh() {
+            // Limpiar intervalo anterior si existe
+            if (autoRefreshInterval) {
+                clearInterval(autoRefreshInterval);
+            }
+            
+            // Actualizar cada 15 segundos
+            autoRefreshInterval = setInterval(async () => {
+                console.log('🔄 Auto-refresh: Actualizando usuarios...');
+                await loadUsuarios();
+            }, 15000); // 15 segundos
+            
+            console.log('✅ Auto-refresh activado (cada 15 segundos)');
+        }
+        
+        // Limpiar intervalo cuando se cierra/oculta la página
+        document.addEventListener('visibilitychange', function() {
+            if (document.hidden) {
+                if (autoRefreshInterval) {
+                    clearInterval(autoRefreshInterval);
+                    console.log('⏸️  Auto-refresh pausado (página oculta)');
+                }
+            } else {
+                setupAutoRefresh();
+                console.log('▶️  Auto-refresh reanudado');
+            }
+        });
 
         // ==================== AUTHENTICATION ====================
         async function checkAuth() {
@@ -672,6 +704,9 @@
 
                 // Cargar datos iniciales
                 await loadInitialData();
+                
+                // 🔄 AUTO-REFRESH: Actualizar usuarios cada 15 segundos
+                setupAutoRefresh();
             } catch (error) {
                 console.error('Error de autenticación:', error);
                 localStorage.clear();

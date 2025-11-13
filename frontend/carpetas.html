@@ -462,6 +462,38 @@
                 loadingDiv.remove();
             }
         }
+        
+        // Variable para control de auto-refresh
+        let autoRefreshInterval = null;
+
+        // ==================== AUTO-REFRESH ====================
+        function setupAutoRefresh() {
+            // Limpiar intervalo anterior si existe
+            if (autoRefreshInterval) {
+                clearInterval(autoRefreshInterval);
+            }
+            
+            // Actualizar cada 15 segundos
+            autoRefreshInterval = setInterval(async () => {
+                console.log('🔄 Auto-refresh: Actualizando carpetas...');
+                await cargarCarpetas();
+            }, 15000); // 15 segundos
+            
+            console.log('✅ Auto-refresh activado para carpetas (cada 15 segundos)');
+        }
+        
+        // Limpiar intervalo cuando se cierra/oculta la página
+        document.addEventListener('visibilitychange', function() {
+            if (document.hidden) {
+                if (autoRefreshInterval) {
+                    clearInterval(autoRefreshInterval);
+                    console.log('⏸️  Auto-refresh pausado (página oculta)');
+                }
+            } else {
+                setupAutoRefresh();
+                console.log('▶️  Auto-refresh reanudado');
+            }
+        });
 
         // Verificar autenticación al cargar
         document.addEventListener('DOMContentLoaded', function() {
@@ -490,6 +522,9 @@
                 }
                 
                 cargarCarpetas();
+                
+                // 🔄 AUTO-REFRESH: Actualizar carpetas cada 15 segundos
+                setupAutoRefresh();
             } catch (error) {
                 window.location.href = 'index';
             }

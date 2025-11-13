@@ -27,6 +27,7 @@ from app.middlewares.permission_middleware import require_admin
 from app.services.legal_ocr_service import legal_ocr_service
 from app.services.legal_nlp_analysis_service import legal_nlp_service
 from app.services.ocr_worker_pool import ocr_worker_pool
+from app.utils.auditoria_utils import registrar_auditoria
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -1837,6 +1838,29 @@ def _procesar_ocr_tomo_sync(tomo_id: int, ruta_archivo: str, db_url: str, usuari
         })
         
         logger.info(f"✅ OCR Tomo {tomo_id} completado exitosamente - {personas_encontradas} personas encontradas")
+        
+        # 📝 Registrar auditoría del procesamiento OCR
+        try:
+            tiempo_total = (datetime.now() - inicio_timestamp).total_seconds()
+            registrar_auditoria(
+                usuario_id=usuario_id,
+                accion="PROCESAR_OCR",
+                request=None,  # No tenemos Request en worker thread
+                tabla_afectada="tomos",
+                registro_id=tomo_id,
+                valores_nuevos={
+                    "nombre_archivo": tomo.nombre_archivo,
+                    "numero_paginas": tomo.numero_paginas,
+                    "paginas_procesadas": len(resultado.get("paginas", [])),
+                    "personas_encontradas": personas_encontradas,
+                    "tiempo_total": round(tiempo_total, 2),
+                    "velocidad": round(len(resultado.get("paginas", [])) / tiempo_total if tiempo_total > 0 else 0, 2),
+                    "tipo_proceso": "ocr_worker_pool"
+                }
+            )
+            logger.info(f"📝 Auditoría registrada para OCR del tomo {tomo_id}")
+        except Exception as e:
+            logger.error(f"Error registrando auditoría de OCR: {e}")
         
         return resultado
         

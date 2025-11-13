@@ -1,6 +1,6 @@
 # backend/app/routes/busqueda.py
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, and_, func
 from pydantic import BaseModel
@@ -62,6 +62,7 @@ class ResultadoBusqueda(BaseModel):
 @router.post("/simple", response_model=List[ResultadoBusqueda])
 async def busqueda_simple(
     busqueda: BusquedaSimple,
+    request: Request,
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),  # Reducido de 500 a 100 para mejor rendimiento
     db: Session = Depends(get_db),
@@ -87,6 +88,23 @@ async def busqueda_simple(
     cached_data = cache_service.get(cache_key)
     if cached_data:
         logger.info(f"✅ Búsqueda '{termino}' obtenida desde caché")
+        
+        # Registrar auditoría incluso si viene del caché
+        registrar_auditoria(
+            usuario_id=current_user.id,
+            accion="BUSQUEDA_SIMPLE",
+            request=request,
+            tabla_afectada="contenido_ocr",
+            valores_nuevos={
+                "termino": termino,
+                "carpeta_id": busqueda.carpeta_id,
+                "solo_titulos": busqueda.solo_titulos,
+                "total_resultados": len(cached_data),
+                "resultados_devueltos": len(cached_data),
+                "desde_cache": True
+            }
+        )
+        
         return cached_data
     
     search_pattern = f"%{termino}%"
@@ -107,7 +125,6 @@ async def busqueda_simple(
         has_access = await check_folder_access(
             carpeta_id=busqueda.carpeta_id,
             user=current_user,
-            db=db,
             required_permission="lectura"
         )
 
@@ -189,9 +206,9 @@ async def busqueda_simple(
     
     # Registrar auditoría
     registrar_auditoria(
-        db=db,
         usuario_id=current_user.id,
         accion="BUSQUEDA_SIMPLE",
+        request=request,
         tabla_afectada="contenido_ocr",
         valores_nuevos={
             "termino": termino,
@@ -215,6 +232,7 @@ async def busqueda_simple(
 @router.post("/avanzada", response_model=List[ResultadoBusqueda])
 async def busqueda_avanzada(
     busqueda: BusquedaAvanzada,
+    request: Request,
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),  # Reducido de 500 a 100 para mejor rendimiento
     db: Session = Depends(get_db),
@@ -241,7 +259,6 @@ async def busqueda_avanzada(
             has_access = await check_folder_access(
                 carpeta_id=carpeta_id,
                 user=current_user,
-                db=db,
                 required_permission="lectura"
             )
 
@@ -351,9 +368,9 @@ async def busqueda_avanzada(
     
     # Registrar auditoría
     registrar_auditoria(
-        db=db,
         usuario_id=current_user.id,
         accion="BUSQUEDA_AVANZADA",
+        request=request,
         tabla_afectada="contenido_ocr",
         valores_nuevos={
             "terminos": busqueda.terminos,
@@ -397,7 +414,6 @@ async def obtener_estadisticas(
             has_access = await check_folder_access(
                 carpeta_id=carpeta_id,
                 user=current_user,
-                db=db,
                 required_permission="lectura"
             )
 
@@ -529,7 +545,6 @@ async def obtener_terminos_frecuentes(
             has_access = await check_folder_access(
                 carpeta_id=carpeta_id,
                 user=current_user,
-                db=db,
                 required_permission="lectura"
             )
 
@@ -602,6 +617,7 @@ async def test_busqueda_semantica():
 @router.post("/semantica", response_model=Dict[str, Any])
 async def busqueda_semantica(
     busqueda: BusquedaSemantica,
+    request: Request,
     skip: int = Query(0, ge=0),
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_active_user)
@@ -663,7 +679,6 @@ async def busqueda_semantica(
             
             # Realizar búsqueda semántica
             resultado = busqueda_controller.busqueda_semantica(
-                db=db,
                 query=busqueda.query,
                 carpeta_id=busqueda.carpeta_id,
                 tomo_id=busqueda.tomo_id,
@@ -675,9 +690,9 @@ async def busqueda_semantica(
             
             # Registrar auditoría
             registrar_auditoria(
-                db=db,
                 usuario_id=current_user.id,
                 accion="BUSQUEDA_SEMANTICA",
+                request=request,
                 tabla_afectada="contenido_ocr",
                 valores_nuevos={
                     "query": busqueda.query,
@@ -777,9 +792,9 @@ async def busqueda_semantica(
             
             # Registrar auditoría
             registrar_auditoria(
-                db=db,
                 usuario_id=current_user.id,
                 accion="BUSQUEDA_SEMANTICA",
+                request=request,
                 tabla_afectada="contenido_ocr",
                 valores_nuevos={
                     "query": busqueda.query,
@@ -805,6 +820,7 @@ async def busqueda_semantica(
 
 @router.post("/actualizar-embeddings")
 async def actualizar_embeddings(
+    request: Request,
     tomo_id: Optional[int] = None,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_active_user)
@@ -828,7 +844,6 @@ async def actualizar_embeddings(
     
     # Actualizar embeddings
     resultado = busqueda_controller.actualizar_embeddings_contenido(
-        db=db,
         tomo_id=tomo_id
     )
     
@@ -840,9 +855,9 @@ async def actualizar_embeddings(
     
     # Registrar auditoría
     registrar_auditoria(
-        db=db,
         usuario_id=current_user.id,
         accion="ACTUALIZAR_EMBEDDINGS",
+        request=request,
         tabla_afectada="contenido_ocr",
         valores_nuevos={
             "tomo_id": tomo_id,

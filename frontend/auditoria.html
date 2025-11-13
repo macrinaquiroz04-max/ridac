@@ -573,9 +573,13 @@
                             <option value="ELIMINAR_USUARIO">🗑️ Eliminar Usuario</option>
                         </optgroup>
                         <optgroup label="🔑 Permisos">
-                            <option value="MODIFICAR_PERMISOS">🔐 Modificar Permisos</option>
-                            <option value="ASIGNAR_PERMISO">➕ Asignar Permiso</option>
-                            <option value="REVOCAR_PERMISO">➖ Revocar Permiso</option>
+                            <option value="ASIGNACION_PERMISOS">✅ Asignación de Permisos</option>
+                            <option value="AMPLIACION_PERMISOS">⬆️ Ampliación de Permisos</option>
+                            <option value="REDUCCION_PERMISOS">⬇️ Reducción de Permisos</option>
+                            <option value="MODIFICACION_PERMISOS">� Modificación de Permisos</option>
+                            <option value="REVOCACION_PERMISOS">❌ Revocación de Permisos</option>
+                            <option value="MODIFICAR_PERMISOS">🔐 Modificar Permisos (legacy)</option>
+                            <option value="REVOCAR_PERMISO">➖ Revocar Permiso (legacy)</option>
                         </optgroup>
                         <optgroup label="📄 OCR y Documentos">
                             <option value="PROCESAR_OCR">🔍 Procesar OCR</option>
@@ -1000,8 +1004,8 @@
             const checkbox = document.getElementById('autoRefresh');
             
             if (checkbox.checked) {
-                autoRefreshInterval = setInterval(loadAuditData, 30000);
-                console.log('Actualización automática activada');
+                autoRefreshInterval = setInterval(loadAuditData, 10000); // 🔄 Mejorado: 10s (antes 30s)
+                console.log('✅ Actualización automática activada (cada 10 segundos)');
             } else {
                 if (autoRefreshInterval) {
                     clearInterval(autoRefreshInterval);
@@ -1010,6 +1014,25 @@
                 console.log('Actualización automática desactivada');
             }
         }
+        
+        // Pausar auto-refresh cuando la página está oculta (ahorrar recursos)
+        document.addEventListener('visibilitychange', function() {
+            const checkbox = document.getElementById('autoRefresh');
+            if (!checkbox || !checkbox.checked) return;
+            
+            if (document.hidden) {
+                if (autoRefreshInterval) {
+                    clearInterval(autoRefreshInterval);
+                    autoRefreshInterval = null;
+                    console.log('⏸️  Auto-refresh pausado (página oculta)');
+                }
+            } else {
+                if (!autoRefreshInterval) {
+                    autoRefreshInterval = setInterval(loadAuditData, 10000);
+                    console.log('▶️  Auto-refresh reanudado (cada 10 segundos)');
+                }
+            }
+        });
 
         // Exportar datos
         function exportData() {
@@ -1063,8 +1086,19 @@
                     ` : ''}
                 </div>
                 
+                ${event.descripcion ? `
+                    <div style="background: linear-gradient(135deg, #e3f2fd, #bbdefb); padding: 15px; border-radius: 10px; margin: 1.5rem 0; border-left: 4px solid #2196f3;">
+                        <h3 style="margin: 0 0 10px 0; color: #1565c0; font-size: 16px;">
+                            💬 Descripción de la Acción:
+                        </h3>
+                        <p style="margin: 0; color: #0d47a1; font-size: 15px; font-weight: 500; line-height: 1.6;">
+                            ${event.descripcion}
+                        </p>
+                    </div>
+                ` : ''}
+                
                 <h3 style="margin: 1.5rem 0 1rem 0; color: var(--primary-color);">
-                    📋 Cambios Realizados:
+                    📋 Detalles Técnicos:
                 </h3>
             `;
             
@@ -1074,8 +1108,8 @@
             if (cambios.length === 0) {
                 html += `
                     <div class="sin-cambios">
-                        <p>ℹ️ No se detectaron cambios específicos en los valores</p>
-                        <small>Este evento puede ser una acción que no modifica datos directamente</small>
+                        <p>ℹ️ No se detectaron cambios específicos en los valores técnicos</p>
+                        <small>Consulta la descripción arriba para entender qué se modificó</small>
                     </div>
                 `;
             } else {

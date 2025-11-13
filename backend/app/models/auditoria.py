@@ -17,6 +17,7 @@ class Auditoria(Base):
     accion = Column(String(100), nullable=False)
     tabla_afectada = Column(String(50))  # Nombre real de la columna en la DB
     registro_id = Column(Integer)        # Nombre real de la columna en la DB
+    descripcion = Column(Text)           # Descripción legible de la acción
     valores_anteriores = Column(JSONB)   # Valores antes del cambio
     valores_nuevos = Column(JSONB)       # Valores después del cambio
     ip_address = Column(String(50))      # Dirección IP
