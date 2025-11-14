@@ -948,7 +948,7 @@
                 };
                 
                 document.getElementById('username').textContent = currentUser.username;
-                console.log('Usuario autenticado:', currentUser);
+                (() => {})('Usuario autenticado:', currentUser);
                 return currentUser;
             } catch (error) {
                 console.error('Error de autenticación:', error);
@@ -973,7 +973,7 @@
                     return;
                 }
 
-                console.log('Cargando tomos para usuario ID:', userId);
+                (() => {})('Cargando tomos para usuario ID:', userId);
 
                 const response = await fetch(`/api/permisos/usuarios/${userId}/tomos-accesibles`, {
                     headers: {
@@ -983,7 +983,7 @@
 
                 if (response.ok) {
                     const data = await response.json();
-                    console.log('Respuesta tomos:', data);
+                    (() => {})('Respuesta tomos:', data);
                     
                     // Manejar diferentes formatos de respuesta
                     tomos = data.tomos || data; 
@@ -1028,16 +1028,16 @@
                             if (btnEstadisticasOcr) btnEstadisticasOcr.disabled = !hasSelection;
                             
                             // Debug temporal para ver qué está pasando
-                            console.log('🔍 DEBUG: Tomo seleccionado:', hasSelection);
-                            console.log('🔍 DEBUG: btnOcrCompleto encontrado:', !!btnOcrCompleto);
-                            console.log('🔍 DEBUG: btnEstadisticasOcr encontrado:', !!btnEstadisticasOcr);
+                            (() => {})('🔍 DEBUG: Tomo seleccionado:', hasSelection);
+                            (() => {})('🔍 DEBUG: btnOcrCompleto encontrado:', !!btnOcrCompleto);
+                            (() => {})('🔍 DEBUG: btnEstadisticasOcr encontrado:', !!btnEstadisticasOcr);
                             
                             // Obtener estadísticas automáticamente cuando se selecciona un tomo
                             if (hasSelection) {
-                                console.log('🔍 DEBUG: Intentando obtener estadísticas OCR...');
+                                (() => {})('🔍 DEBUG: Intentando obtener estadísticas OCR...');
                                 setTimeout(() => {
                                     if (typeof obtenerEstadisticasOcr === 'function') {
-                                        console.log('✅ DEBUG: Función obtenerEstadisticasOcr existe, llamándola...');
+                                        (() => {})('✅ DEBUG: Función obtenerEstadisticasOcr existe, llamándola...');
                                         obtenerEstadisticasOcr();
                                     } else {
                                         console.error('❌ DEBUG: Función obtenerEstadisticasOcr NO existe');
@@ -1046,11 +1046,11 @@
                             }
                         });
                         
-                        console.log(`${tomos.length} tomos cargados exitosamente`);
+                        (() => {})(`${tomos.length} tomos cargados exitosamente`);
                         
                         // Mostrar información adicional si está disponible
                         if (data.total !== undefined) {
-                            console.log(`Total de documentos accesibles: ${data.total}`);
+                            (() => {})(`Total de documentos accesibles: ${data.total}`);
                         }
                     } else {
                         console.warn('No se encontraron tomos para el usuario');
@@ -1554,11 +1554,11 @@
         // ============================================================================
 
         async function iniciarOcrCompleto() {
-            console.log('🚀 DEBUG: iniciarOcrCompleto() llamada');
+            (() => {})('🚀 DEBUG: iniciarOcrCompleto() llamada');
             const tomoId = document.getElementById('tomoSelect').value;
-            console.log('🔍 DEBUG: tomoId para OCR:', tomoId);
+            (() => {})('🔍 DEBUG: tomoId para OCR:', tomoId);
             if (!tomoId) {
-                console.log('❌ DEBUG: No hay tomoId para OCR');
+                (() => {})('❌ DEBUG: No hay tomoId para OCR');
                 showMessage('Selecciona un documento primero', 'error');
                 return;
             }
@@ -1575,7 +1575,7 @@
             progressContainer.style.display = 'block';
 
             try {
-                console.log('🚀 Iniciando OCR completo para tomo:', tomoId);
+                (() => {})('🚀 Iniciando OCR completo para tomo:', tomoId);
                 
                 // Llamada al nuevo endpoint OCR completo
                 const response = await fetch(`/api/tomos/${tomoId}/procesar-ocr-completo`, {
@@ -1588,7 +1588,7 @@
 
                 if (response.ok) {
                     const resultado = await response.json();
-                    console.log('✅ OCR completo exitoso:', resultado);
+                    (() => {})('✅ OCR completo exitoso:', resultado);
                     
                     // Actualizar UI con resultados
                     actualizarEstadoOCR(resultado);
@@ -1618,11 +1618,11 @@
         }
 
         async function obtenerEstadisticasOcr() {
-            console.log('🔍 DEBUG: obtenerEstadisticasOcr() llamada');
+            (() => {})('🔍 DEBUG: obtenerEstadisticasOcr() llamada');
             const tomoId = document.getElementById('tomoSelect').value;
-            console.log('🔍 DEBUG: tomoId obtenido:', tomoId);
+            (() => {})('🔍 DEBUG: tomoId obtenido:', tomoId);
             if (!tomoId) {
-                console.log('❌ DEBUG: No hay tomoId seleccionado');
+                (() => {})('❌ DEBUG: No hay tomoId seleccionado');
                 showMessage('Selecciona un documento primero', 'error');
                 return;
             }

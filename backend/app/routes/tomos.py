@@ -8,6 +8,7 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime
 import os
 import shutil
+import hashlib
 
 from app.database import get_db
 from app.models.tomo import Tomo, ContenidoOCR
@@ -239,6 +240,18 @@ async def subir_tomo(
         file_path = os.path.join(upload_dir, filename)
         full_path = os.path.abspath(file_path)
 
+        # Calcular hash SHA256 del archivo
+        sha256_hash = hashlib.sha256(content).hexdigest()
+        logger.info(f"Hash SHA256 calculado: {sha256_hash[:16]}...")
+
+        # Verificar si ya existe un tomo con este hash
+        tomo_duplicado = db.query(Tomo).filter(Tomo.hash_sha256 == sha256_hash).first()
+        if tomo_duplicado:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Este archivo ya fue subido anteriormente (Tomo {tomo_duplicado.numero_tomo} en carpeta {tomo_duplicado.carpeta.nombre})"
+            )
+
         # Guardar archivo
         with open(full_path, "wb") as buffer:
             buffer.write(content)
@@ -269,6 +282,7 @@ async def subir_tomo(
             ruta_archivo=full_path,
             tamanio_bytes=file_size,
             numero_paginas=pdf_info["numero_paginas"],
+            hash_sha256=sha256_hash,
             estado=estado_inicial,
             usuario_subida_id=current_user.id
         )

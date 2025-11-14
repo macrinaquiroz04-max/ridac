@@ -253,8 +253,8 @@
             ? `${window.location.protocol}//${window.location.hostname}`
             : `${window.location.protocol}//${window.location.hostname}:8000`;
         
-        console.log('🌐 Modo:', isNginx ? 'Nginx Proxy' : 'Backend Directo');
-        console.log('🌐 API Base URL:', API_BASE_URL);
+        (() => {})('🌐 Modo:', isNginx ? 'Nginx Proxy' : 'Backend Directo');
+        (() => {})('🌐 API Base URL:', API_BASE_URL);
 
         let eventSource = null;
         let startTime = null;
@@ -272,7 +272,7 @@
                 }
 
                 addLog('📡 Cargando carpetas...', 'info');
-                console.log('🔗 Solicitando carpetas desde:', `${API_BASE_URL}/api/carpetas`);
+                (() => {})('🔗 Solicitando carpetas desde:', `${API_BASE_URL}/api/carpetas`);
                 
                 // Primero cargar las carpetas
                 const carpetasResponse = await fetch(`${API_BASE_URL}/api/carpetas`, {
@@ -292,7 +292,7 @@
                 }
                 
                 const carpetas = await carpetasResponse.json();
-                console.log('📂 Carpetas obtenidas:', carpetas.length);
+                (() => {})('📂 Carpetas obtenidas:', carpetas.length);
                 
                 if (carpetas.length === 0) {
                     addLog('⚠️ No hay carpetas disponibles', 'warning');
@@ -311,7 +311,7 @@
                 }
                 
                 for (const carpeta of carpetas) {
-                    console.log(`📡 Cargando tomos de carpeta ${carpeta.id}...`);
+                    (() => {})(`📡 Cargando tomos de carpeta ${carpeta.id}...`);
                     const numeroCarpeta = carpeta.numero || carpeta.numero_carpeta || carpeta.id;
                     addLog(`📁 Cargando tomos de carpeta ${numeroCarpeta}...`, 'info');
                     
@@ -324,7 +324,7 @@
                     
                     if (tomosResponse.ok) {
                         const tomosCarpeta = await tomosResponse.json();
-                        console.log(`   ✅ ${tomosCarpeta.length} tomos en carpeta ${carpeta.id}`);
+                        (() => {})(`   ✅ ${tomosCarpeta.length} tomos en carpeta ${carpeta.id}`);
                         tomos.push(...tomosCarpeta);
                         
                         // Agregar tomos al select
@@ -346,7 +346,7 @@
                     addLog('⚠️ No hay tomos disponibles en ninguna carpeta', 'warning');
                 } else {
                     addLog(`✅ Total: ${tomos.length} tomo(s) cargado(s) correctamente`, 'success');
-                    console.log('📊 Tomos totales cargados:', tomos.length);
+                    (() => {})('📊 Tomos totales cargados:', tomos.length);
                 }
                 
             } catch (error) {
@@ -382,7 +382,7 @@
             const url = `${API_BASE_URL}/api/progress/${tipoProceso}/${tomoId}?token=${encodeURIComponent(token)}`;
             
             addLog(`📡 Conectando a: ${url}`, 'info');
-            console.log('SSE URL:', url);
+            (() => {})('SSE URL:', url);
             
             eventSource = new EventSource(url);
 
@@ -394,7 +394,7 @@
             eventSource.onmessage = function(event) {
                 try {
                     const data = JSON.parse(event.data);
-                    console.log('SSE Data:', data);
+                    (() => {})('SSE Data:', data);
                     updateProgress(data);
                 } catch (error) {
                     console.error('Error al parsear datos SSE:', error);

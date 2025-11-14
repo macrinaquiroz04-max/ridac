@@ -468,6 +468,9 @@
             font-weight: 600;
         }
     </style>
+    <!-- 🔐 Sistema de gestión de autenticación -->
+    <script src="js/auth-manager.js"></script>
+    <script src="js/session-indicator.js"></script>
 </head>
 <body>
 <body>
@@ -628,9 +631,9 @@
             ? `${window.location.protocol}//${window.location.hostname}/api`
             : `${window.location.protocol}//${window.location.hostname}:8000/api`;
         
-        console.log('Modo:', isNginx ? 'Nginx Proxy' : 'Backend Directo');
-        console.log('API URL:', API_URL);
-        console.log('🌐 API URL (Usuarios):', API_URL);
+        (() => {})('Modo:', isNginx ? 'Nginx Proxy' : 'Backend Directo');
+        (() => {})('API URL:', API_URL);
+        (() => {})('🌐 API URL (Usuarios):', API_URL);
         let currentUser = null;
         let usuarios = [];
         let roles = [];
@@ -655,11 +658,11 @@
             
             // Actualizar cada 15 segundos
             autoRefreshInterval = setInterval(async () => {
-                console.log('🔄 Auto-refresh: Actualizando usuarios...');
+                (() => {})('🔄 Auto-refresh: Actualizando usuarios...');
                 await loadUsuarios();
             }, 15000); // 15 segundos
             
-            console.log('✅ Auto-refresh activado (cada 15 segundos)');
+            (() => {})('✅ Auto-refresh activado (cada 15 segundos)');
         }
         
         // Limpiar intervalo cuando se cierra/oculta la página
@@ -667,11 +670,11 @@
             if (document.hidden) {
                 if (autoRefreshInterval) {
                     clearInterval(autoRefreshInterval);
-                    console.log('⏸️  Auto-refresh pausado (página oculta)');
+                    (() => {})('⏸️  Auto-refresh pausado (página oculta)');
                 }
             } else {
                 setupAutoRefresh();
-                console.log('▶️  Auto-refresh reanudado');
+                (() => {})('▶️  Auto-refresh reanudado');
             }
         });
 
@@ -717,7 +720,7 @@
         // Función para debug - verificar endpoint de eliminación
         async function testDeleteEndpoint(userId) {
             const token = localStorage.getItem('token');
-            console.log('🔍 Testing delete endpoint for user:', userId);
+            (() => {})('🔍 Testing delete endpoint for user:', userId);
             
             try {
                 const response = await fetch(`${API_URL}/admin/usuarios/${userId}`, {
@@ -725,11 +728,11 @@
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
                 
-                console.log('Response status:', response.status);
-                console.log('Response headers:', response.headers);
+                (() => {})('Response status:', response.status);
+                (() => {})('Response headers:', response.headers);
                 
                 const responseData = await response.text();
-                console.log('Response data:', responseData);
+                (() => {})('Response data:', responseData);
                 
                 return response.ok;
             } catch (error) {
@@ -1007,9 +1010,9 @@
             // Copiar al portapapeles (con fallback para navegadores antiguos)
             if (navigator.clipboard && window.isSecureContext) {
                 navigator.clipboard.writeText(password).then(() => {
-                    alert('✅ Contraseña generada y copiada al portapapeles:\n\n' + password + '\n\n¡Guárdala en un lugar seguro!');
+                    alert('✅ CONTRASEÑA GENERADA Y COPIADA\n\n' + password + '\n\n⚠️ IMPORTANTE:\n- Esta contraseña ya está lista para usar\n- Se ha copiado al portapapeles\n- El usuario DEBE cambiarla en su primer login\n- Asegúrate de NO agregar espacios al pegarla');
                 }).catch(() => {
-                    alert('✅ Contraseña generada:\n\n' + password + '\n\n¡Guárdala en un lugar seguro!');
+                    alert('✅ CONTRASEÑA GENERADA\n\n' + password + '\n\n⚠️ IMPORTANTE:\n- Esta contraseña ya está lista para usar\n- Cópiala EXACTAMENTE como aparece\n- El usuario DEBE cambiarla en su primer login\n- NO agregues espacios al inicio o final');
                 });
             } else {
                 // Fallback para copiar sin API moderna
@@ -1259,21 +1262,21 @@
 
             try {
                 const token = localStorage.getItem('token');
-                console.log('Eliminando usuario ID:', userId);
+                (() => {})('Eliminando usuario ID:', userId);
                 
                 const response = await fetch(`${API_URL}/admin/usuarios/${userId}`, {
                     method: 'DELETE',
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
 
-                console.log('Respuesta DELETE:', response.status, response.statusText);
+                (() => {})('Respuesta DELETE:', response.status, response.statusText);
 
                 if (!response.ok) {
                     const error = await response.json();
                     throw new Error(error.detail || 'Error al eliminar usuario');
                 }
                 
-                console.log('Usuario eliminado del sistema');
+                (() => {})('Usuario eliminado del sistema');
                 alert('✅ Usuario eliminado correctamente del sistema');
 
                 // Recargar la lista (ahora solo mostrará usuarios activos)

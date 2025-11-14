@@ -109,6 +109,9 @@
             border-left: 4px solid #6c757d;
         }
     </style>
+    <!-- 🔐 Sistema de gestión de autenticación -->
+    <script src="js/auth-manager.js"></script>
+    <script src="js/session-indicator.js"></script>
 </head>
 <body>
     <!-- Loading Overlay -->
@@ -251,7 +254,7 @@
 
                 // DEBUG: Verificar token
                 const token = localStorage.getItem('access_token') || localStorage.getItem('token');
-                console.log('🔑 Token presente:', !!token);
+                (() => {})('🔑 Token presente:', !!token);
                 if (!token) {
                     alert('⚠️ No hay sesión activa. Redirigiendo al login...');
                     window.location.href = 'index';
@@ -529,7 +532,41 @@
         }
 
         // Cargar al inicio
-        document.addEventListener('DOMContentLoaded', () => {
+        document.addEventListener('DOMContentLoaded', async () => {
+            // 🔒 VALIDACIÓN CRÍTICA: Solo administradores pueden acceder
+            const token = localStorage.getItem('token');
+            if (!token) {
+                alert('Debes iniciar sesión primero');
+                window.location.href = '/';
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_URL}/auth/me`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (!response.ok) {
+                    throw new Error('Token inválido');
+                }
+
+                const user = await response.json();
+                
+                const rolesAdmin = ['admin', 'Admin', 'Administrador', 'administrador', 'Director', 'director'];
+                if (!rolesAdmin.includes(user.rol)) {
+                    console.warn('⛔ Acceso denegado a limpieza de personas: Usuario sin permisos de administrador');
+                    alert('⛔ Acceso Denegado\n\nEsta página es solo para administradores.\nSerá redirigido a su dashboard.');
+                    window.location.href = 'dashboard-usuario';
+                    return;
+                }
+
+            } catch (error) {
+                console.error('Error de autenticación:', error);
+                localStorage.clear();
+                window.location.href = '/';
+                return;
+            }
+
             cargarProblemas();
         });
     </script>

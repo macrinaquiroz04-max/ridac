@@ -60,13 +60,14 @@ async def obtener_diligencias(
     fecha_inicio: Optional[str] = None,
     fecha_fin: Optional[str] = None,
     orden: str = "cronologico",  # cronologico, fecha_desc, fecha_asc
-    limite: int = Query(100, le=500),
-    offset: int = 0,
+    limite: int = Query(100, le=200, description="Máximo 200 resultados por página"),
+    offset: int = Query(0, ge=0, description="Desplazamiento para paginación"),
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
     """
     Obtener diligencias de una carpeta de forma ordenada cronológicamente
+    OPTIMIZADO: Paginación eficiente, máximo 200 resultados por consulta
     """
     # Verificar permiso
     if not verificar_permiso_carpeta(db, current_user.id, carpeta_id):
@@ -142,6 +143,10 @@ async def obtener_diligencias(
         "total": total,
         "limite": limite,
         "offset": offset,
+        "pagina_actual": (offset // limite) + 1 if limite > 0 else 1,
+        "total_paginas": (total + limite - 1) // limite if limite > 0 else 1,
+        "tiene_siguiente": (offset + limite) < total,
+        "tiene_anterior": offset > 0,
         "diligencias": resultado
     }
 
@@ -152,13 +157,14 @@ async def obtener_personas(
     rol: Optional[str] = None,
     buscar: Optional[str] = None,
     con_declaraciones: Optional[bool] = None,
-    limite: int = Query(100, le=500),
-    offset: int = 0,
+    limite: int = Query(100, le=200, description="Máximo 200 resultados por página"),
+    offset: int = Query(0, ge=0, description="Desplazamiento para paginación"),
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
     """
     Obtener personas identificadas con sus datos de contacto y estadísticas
+    OPTIMIZADO: Paginación eficiente, máximo 200 resultados por consulta
     """
     # Verificar permiso
     if not verificar_permiso_carpeta(db, current_user.id, carpeta_id):
@@ -231,6 +237,10 @@ async def obtener_personas(
         "total": total,
         "limite": limite,
         "offset": offset,
+        "pagina_actual": (offset // limite) + 1 if limite > 0 else 1,
+        "total_paginas": (total + limite - 1) // limite if limite > 0 else 1,
+        "tiene_siguiente": (offset + limite) < total,
+        "tiene_anterior": offset > 0,
         "personas": resultado
     }
 
@@ -287,13 +297,14 @@ async def obtener_lugares(
     carpeta_id: int,
     tipo: Optional[str] = None,
     buscar: Optional[str] = None,
-    limite: int = Query(100, le=500),
-    offset: int = 0,
+    limite: int = Query(100, le=200, description="Máximo 200 resultados por página"),
+    offset: int = Query(0, ge=0, description="Desplazamiento para paginación"),
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
     """
     Obtener lugares mencionados en documentos (direcciones, calles, colonias, etc.)
+    OPTIMIZADO: Paginación eficiente, máximo 200 resultados por consulta
     """
     # Verificar permiso
     if not verificar_permiso_carpeta(db, current_user.id, carpeta_id):
@@ -364,6 +375,10 @@ async def obtener_lugares(
         "total": total,
         "limite": limite,
         "offset": offset,
+        "pagina_actual": (offset // limite) + 1 if limite > 0 else 1,
+        "total_paginas": (total + limite - 1) // limite if limite > 0 else 1,
+        "tiene_siguiente": (offset + limite) < total,
+        "tiene_anterior": offset > 0,
         "lugares": resultado
     }
 
@@ -374,13 +389,14 @@ async def obtener_fechas_importantes(
     tipo: Optional[str] = None,  # actuacion_mp, fecha_hechos, audiencia, etc.
     fecha_inicio: Optional[str] = None,
     fecha_fin: Optional[str] = None,
-    limite: int = Query(200, le=1000),
-    offset: int = 0,
+    limite: int = Query(200, le=500, description="Máximo 500 resultados para fechas"),
+    offset: int = Query(0, ge=0, description="Desplazamiento para paginación"),
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
     """
     Obtener fechas importantes de narrativas y actuaciones del MP
+    OPTIMIZADO: Paginación eficiente con límite máximo de 500
     """
     # Verificar permiso
     if not verificar_permiso_carpeta(db, current_user.id, carpeta_id):

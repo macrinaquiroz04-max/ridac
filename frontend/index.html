@@ -881,17 +881,17 @@
                 ? `${window.location.protocol}//${window.location.hostname}/api`
                 : `${window.location.protocol}//${window.location.hostname}:8000/api`;
         
-        console.log('🏛️ Sistema OCR FGJCDMX - Login Page');
-        console.log('🌐 Dominio FGJ:', isFGJDomain ? 'SÍ (fgj-ocr.local)' : 'NO');
-        console.log('🔧 Modo:', isNginx ? 'Nginx Proxy' : 'Backend Directo');
-        console.log('🔗 API URL (Login):', API_URL);
-        console.log('📍 Ubicación actual:', window.location.href);
+        (() => {})('🏛️ Sistema OCR FGJCDMX - Login Page');
+        (() => {})('🌐 Dominio FGJ:', isFGJDomain ? 'SÍ (fgj-ocr.local)' : 'NO');
+        (() => {})('🔧 Modo:', isNginx ? 'Nginx Proxy' : 'Backend Directo');
+        (() => {})('🔗 API URL (Login):', API_URL);
+        (() => {})('📍 Ubicación actual:', window.location.href);
         
         async function handleLogin(event) {
             event.preventDefault();
             
-            const username = document.getElementById('username').value;
-            const password = document.getElementById('password').value;
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value.trim();
             const btn = document.getElementById('loginBtn');
             const messageDiv = document.getElementById('message');
 
@@ -901,7 +901,7 @@
             messageDiv.innerHTML = '';
 
             try {
-                console.log('📡 Intentando login en:', `${API_URL}/auth/login`);
+                (() => {})('📡 Intentando login en:', `${API_URL}/auth/login`);
                 
                 const response = await fetch(`${API_URL}/auth/login`, {
                     method: 'POST',
@@ -909,9 +909,9 @@
                     body: JSON.stringify({ username: username, password: password })
                 });
 
-                console.log('📥 Response status:', response.status);
+                (() => {})('📥 Response status:', response.status);
                 const data = await response.json();
-                console.log('📥 Response data:', data);
+                (() => {})('📥 Response data:', data);
 
                 if (response.ok && data.access_token) {
                     // Guardar datos en localStorage
@@ -923,25 +923,25 @@
                     localStorage.setItem('lastLogin', new Date().toISOString());
                     localStorage.setItem('lastLoginUsername', username);
                     
-                    console.log('✅ Login exitoso. Token guardado.');
-                    console.log('📦 User data:', data.user);
+                    (() => {})('✅ Login exitoso. Token guardado.');
+                    (() => {})('📦 User data:', data.user);
                     messageDiv.innerHTML = '<div class="success">✓ Login exitoso! Redirigiendo...</div>';
                     
                     // Redirigir inmediatamente sin setTimeout
                     // Verificar si requiere cambio de contraseña
                     if (data.user.debe_cambiar_password || data.user.requiere_cambio_password) {
-                        console.log('🔄 Usuario debe cambiar contraseña, redirigiendo...');
+                        (() => {})('🔄 Usuario debe cambiar contraseña, redirigiendo...');
                         window.location.href = '/cambiar-password';
                     } else {
                         // Redirigir según rol
                         const rol = data.user.rol?.nombre || data.user.rol || 'Usuario';
-                        console.log('🔄 Rol detectado:', rol);
+                        (() => {})('🔄 Rol detectado:', rol);
                         
                         if (rol.toLowerCase().includes('admin')) {
-                            console.log('🔄 Redirigiendo a dashboard (admin)');
+                            (() => {})('🔄 Redirigiendo a dashboard (admin)');
                             window.location.href = '/dashboard';
                         } else {
-                            console.log('🔄 Redirigiendo a dashboard-usuario');
+                            (() => {})('🔄 Redirigiendo a dashboard-usuario');
                             window.location.href = '/dashboard-usuario';
                         }
                     }
@@ -1070,10 +1070,10 @@
 
             const token = localStorage.getItem('token');
             if (token) {
-                console.log('✅ Token encontrado, redirigiendo a dashboard...');
+                (() => {})('✅ Token encontrado, redirigiendo a dashboard...');
                 window.location.href = '/dashboard';
             } else {
-                console.log('ℹ️ No hay sesión activa');
+                (() => {})('ℹ️ No hay sesión activa');
             }
             
             // Focus automático en el campo de usuario

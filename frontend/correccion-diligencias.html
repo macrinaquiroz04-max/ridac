@@ -101,6 +101,9 @@
             display: flex;
         }
     </style>
+    <!-- 🔐 Sistema de gestión de autenticación -->
+    <script src="js/auth-manager.js"></script>
+    <script src="js/session-indicator.js"></script>
 </head>
 <body>
     <!-- Loading Overlay -->
@@ -270,11 +273,38 @@
         const API_URL = '/api';
         let modalEditar;
 
-        document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('DOMContentLoaded', async function() {
             // Verificar autenticación primero
             const token = localStorage.getItem('token');
             if (!token) {
                 alert('Debes iniciar sesión primero');
+                window.location.href = '/';
+                return;
+            }
+
+            // 🔒 VALIDACIÓN CRÍTICA: Solo administradores pueden acceder
+            try {
+                const response = await fetch(`${API_URL}/auth/me`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (!response.ok) {
+                    throw new Error('Token inválido');
+                }
+
+                const user = await response.json();
+                
+                const rolesAdmin = ['admin', 'Admin', 'Administrador', 'administrador', 'Director', 'director'];
+                if (!rolesAdmin.includes(user.rol)) {
+                    console.warn('⛔ Acceso denegado a corrección de diligencias: Usuario sin permisos de administrador');
+                    alert('⛔ Acceso Denegado\n\nEsta página es solo para administradores.\nSerá redirigido a su dashboard.');
+                    window.location.href = 'dashboard-usuario';
+                    return;
+                }
+
+            } catch (error) {
+                console.error('Error de autenticación:', error);
+                localStorage.clear();
                 window.location.href = '/';
                 return;
             }

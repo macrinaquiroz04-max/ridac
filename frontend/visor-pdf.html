@@ -641,9 +641,9 @@
         // Si se especificó una página, usarla como página inicial
         if (paginaInicial) {
             pageNum = parseInt(paginaInicial);
-            console.log(`📄 PÁGINA INICIAL DESDE URL: ${pageNum}`);
+            (() => {})(`📄 PÁGINA INICIAL DESDE URL: ${pageNum}`);
         } else {
-            console.log(`📄 Sin página especificada, iniciando en página 1`);
+            (() => {})(`📄 Sin página especificada, iniciando en página 1`);
         }
 
         if (!tomoId) {
@@ -772,7 +772,7 @@
                         }
                     }
                 } catch (error) {
-                    console.log('Texto OCR no disponible, intentando extraer de PDF...');
+                    (() => {})('Texto OCR no disponible, intentando extraer de PDF...');
                 }
 
                 // Fallback: intentar extraer texto nativo del PDF (si existe)
@@ -880,7 +880,7 @@
                     
                     document.getElementById('loading').style.display = 'none';
                     document.querySelector('.pdf-page-container').style.display = 'block';
-                    console.log(`🎯 Renderizando página: ${pageNum}`);
+                    (() => {})(`🎯 Renderizando página: ${pageNum}`);
                     renderPage(pageNum);
                     
                     // 🔍 Inicializar Google Lens OCR después de cargar PDF
@@ -1133,7 +1133,7 @@
             contextMenu.style.display = 'none';
             
             // MODO AUTOMÁTICO - Extraer TODO el texto visible sin dibujar
-            console.log('🔍 Modo Lens AUTOMÁTICO activado');
+            (() => {})('🔍 Modo Lens AUTOMÁTICO activado');
             
             // Obtener todo el texto de la página actual
             extraerTextoAutomatico();
@@ -1151,14 +1151,14 @@
             lensSelectionData = null;
             lensStartX = null;
             lensStartY = null;
-            console.log('❌ Modo Lens cerrado');
+            (() => {})('❌ Modo Lens cerrado');
         }
 
         // Eventos de selección con el mouse
         document.getElementById('lens-overlay').addEventListener('mousedown', function(e) {
             if (!lensMode) return;
             
-            console.log('🖱️ Mouse down');
+            (() => {})('🖱️ Mouse down');
             isDrawing = true;
             
             // Ocultar mensaje de instrucción
@@ -1209,7 +1209,7 @@
         document.getElementById('lens-overlay').addEventListener('mouseup', function(e) {
             if (!lensMode || !lensStartX) return;
             
-            console.log('🖱️ Mouse up');
+            (() => {})('🖱️ Mouse up');
             isDrawing = false;
             
             const currentX = e.clientX;
@@ -1222,7 +1222,7 @@
             
             // Si no se movió el mouse (solo clic), crear área automática
             if (width < 5 && height < 5) {
-                console.log('🎯 Clic simple detectado - creando área automática');
+                (() => {})('🎯 Clic simple detectado - creando área automática');
                 finalWidth = 400;
                 finalHeight = 250;
                 finalLeft = Math.max(10, lensStartX - finalWidth / 2);
@@ -1258,7 +1258,7 @@
                 height: finalHeight
             };
             
-            console.log('✅ Área final:', lensSelectionData);
+            (() => {})('✅ Área final:', lensSelectionData);
             
             // Limpiar indicador
             const sizeIndicator = document.getElementById('lens-size-indicator');
@@ -1273,7 +1273,7 @@
             toolbar.style.top = (finalTop - 60) + 'px';
             toolbar.style.transform = 'translateX(-50%)';
             
-            console.log('🎯 Botones mostrados en:', {
+            (() => {})('🎯 Botones mostrados en:', {
                 left: toolbar.style.left,
                 top: toolbar.style.top
             });
@@ -1286,7 +1286,7 @@
          * Extrae TODO el texto de la página actual automáticamente (como Google Lens)
          */
         async function extraerTextoAutomatico() {
-            console.log('🤖 Extrayendo texto automáticamente de la página...');
+            (() => {})('🤖 Extrayendo texto automáticamente de la página...');
             
             // Mostrar mensaje de carga
             mostrarExito('🔍 Analizando página...');
@@ -1335,14 +1335,14 @@
                             lastTop = item.top;
                         });
                         
-                        console.log('✅ Texto extraído de capa PDF:', textoCompleto.length, 'caracteres');
+                        (() => {})('✅ Texto extraído de capa PDF:', textoCompleto.length, 'caracteres');
                         mostrarTextoExtraido(textoCompleto);
                         return;
                     }
                 }
                 
                 // FALLBACK: Usar OCR de toda la página
-                console.log('📄 No hay capa de texto. Usando OCR de página completa...');
+                (() => {})('📄 No hay capa de texto. Usando OCR de página completa...');
                 
                 const response = await fetch(`${API_URL}/tomos/ocr/${tomoId}/pagina/${pageNum}`, {
                     headers: {
@@ -1356,7 +1356,7 @@
                     const textoOCR = data.texto_extraido?.trim();
                     
                     if (textoOCR) {
-                        console.log('✅ Texto extraído de OCR:', textoOCR.length, 'caracteres');
+                        (() => {})('✅ Texto extraído de OCR:', textoOCR.length, 'caracteres');
                         mostrarTextoExtraido(textoOCR);
                         return;
                     }
@@ -1404,10 +1404,10 @@
          * Muestra popup con el texto y opciones
          */
         function mostrarPopupTexto(texto, copiado) {
-            console.log('📋 TEXTO EXTRAÍDO:');
-            console.log('═'.repeat(80));
-            console.log(texto);
-            console.log('═'.repeat(80));
+            (() => {})('📋 TEXTO EXTRAÍDO:');
+            (() => {})('═'.repeat(80));
+            (() => {})(texto);
+            (() => {})('═'.repeat(80));
             
             const numPalabras = texto.trim().split(/\s+/).length;
             const numCaracteres = texto.length;
@@ -1612,7 +1612,7 @@
                 
                 googleLensActive = true;
                 btn.style.background = '#ea4335';
-                btn.innerHTML = '🔴 Desactivar Lens';
+                btn.innerHTML = '❌ Cerrar Selector';
                 status.style.display = 'inline';
                 
                 // Deshabilitar navegación mientras se selecciona
@@ -1641,7 +1641,7 @@
             // Esperar a que el canvas esté listo
             const canvas = document.getElementById('pdf-canvas');
             if (canvas && pdfDoc) {
-                console.log('🔍 PDF listo - Google Lens disponible');
+                (() => {})('🔍 PDF listo - Google Lens disponible');
             }
         }
         

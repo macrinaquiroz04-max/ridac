@@ -19,6 +19,9 @@ if (isFGJDomain || window.location.hostname === '172.22.134.61') {
     API_URL = `${window.location.protocol}//${window.location.hostname}:${window.location.port}/api`;
 }
 
+// Hacer API_URL global para otros scripts (auth-manager, etc.)
+window.API_URL = API_URL;
+
 // Configuración de la aplicación
 const APP_CONFIG = {
     TOKEN_KEY: 'token',
@@ -28,14 +31,14 @@ const APP_CONFIG = {
     SECURE_MODE: true // Modo seguro activado
 };
 
-console.log('╔══════════════════════════════════════════════════════╗');
-console.log('║   �️  SISTEMA OCR FGJCDMX - CONFIG INICIADO          ║');
-console.log('╚══════════════════════════════════════════════════════╝');
-console.log('🌍 Ubicación actual:', window.location.href);
-console.log('🔌 Puerto detectado:', window.location.port || '80/443 (default)');
-console.log('🏛️ Dominio FGJ:', isFGJDomain ? 'SÍ (fgj-ocr.local)' : 'NO');
-console.log('🔧 Modo detectado:', isNginx ? 'NGINX PROXY' : 'BACKEND DIRECTO');
-console.log('🔗 API URL configurada:', API_URL);
-console.log('🔒 Modo seguro:', APP_CONFIG.SECURE_MODE ? 'ACTIVADO' : 'DESACTIVADO');
-console.log('══════════════════════════════════════════════════════');
+(() => {})('╔══════════════════════════════════════════════════════╗');
+(() => {})('║   �️  SISTEMA OCR FGJCDMX - CONFIG INICIADO          ║');
+(() => {})('╚══════════════════════════════════════════════════════╝');
+(() => {})('🌍 Ubicación actual:', window.location.href);
+(() => {})('🔌 Puerto detectado:', window.location.port || '80/443 (default)');
+(() => {})('🏛️ Dominio FGJ:', isFGJDomain ? 'SÍ (fgj-ocr.local)' : 'NO');
+(() => {})('🔧 Modo detectado:', isNginx ? 'NGINX PROXY' : 'BACKEND DIRECTO');
+(() => {})('🔗 API URL configurada:', API_URL);
+(() => {})('🔒 Modo seguro:', APP_CONFIG.SECURE_MODE ? 'ACTIVADO' : 'DESACTIVADO');
+(() => {})('══════════════════════════════════════════════════════');
 

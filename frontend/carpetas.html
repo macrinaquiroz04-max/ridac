@@ -314,6 +314,9 @@
             }
         }
     </style>
+    <!-- 🔐 Sistema de gestión de autenticación -->
+    <script src="js/auth-manager.js"></script>
+    <script src="js/session-indicator.js"></script>
 </head>
 <body>
     <div class="header">
@@ -475,11 +478,11 @@
             
             // Actualizar cada 15 segundos
             autoRefreshInterval = setInterval(async () => {
-                console.log('🔄 Auto-refresh: Actualizando carpetas...');
+                (() => {})('🔄 Auto-refresh: Actualizando carpetas...');
                 await cargarCarpetas();
             }, 15000); // 15 segundos
             
-            console.log('✅ Auto-refresh activado para carpetas (cada 15 segundos)');
+            (() => {})('✅ Auto-refresh activado para carpetas (cada 15 segundos)');
         }
         
         // Limpiar intervalo cuando se cierra/oculta la página
@@ -487,11 +490,11 @@
             if (document.hidden) {
                 if (autoRefreshInterval) {
                     clearInterval(autoRefreshInterval);
-                    console.log('⏸️  Auto-refresh pausado (página oculta)');
+                    (() => {})('⏸️  Auto-refresh pausado (página oculta)');
                 }
             } else {
                 setupAutoRefresh();
-                console.log('▶️  Auto-refresh reanudado');
+                (() => {})('▶️  Auto-refresh reanudado');
             }
         });
 
@@ -512,10 +515,20 @@
                 }
 
                 const user = await response.json();
+                
+                // 🔒 VALIDACIÓN CRÍTICA: Solo administradores pueden acceder
+                const rolesAdmin = ['admin', 'Admin', 'Administrador', 'administrador', 'Director', 'director'];
+                if (!rolesAdmin.includes(user.rol)) {
+                    console.warn('⛔ Acceso denegado: Usuario sin permisos de administrador');
+                    alert('⛔ Acceso Denegado\n\nEsta página es solo para administradores.\nSerá redirigido a su dashboard.');
+                    window.location.href = 'dashboard-usuario';
+                    return;
+                }
+                
                 document.getElementById('userInfo').textContent = `${user.nombre} (${user.rol})`;
                 
-                // Ocultar botón "Nueva Carpeta" si no es Admin
-                const esAdmin = user.rol === 'admin';
+                // Ocultar botón "Nueva Carpeta" si no es Admin (redundante pero por seguridad)
+                const esAdmin = true; // Ya validamos que es admin arriba
                 const btnNuevaCarpeta = document.querySelector('button[onclick="mostrarModalNuevaCarpeta()"]');
                 if (btnNuevaCarpeta && !esAdmin) {
                     btnNuevaCarpeta.style.display = 'none';
@@ -526,6 +539,7 @@
                 // 🔄 AUTO-REFRESH: Actualizar carpetas cada 15 segundos
                 setupAutoRefresh();
             } catch (error) {
+                console.error('Error en verificación:', error);
                 window.location.href = 'index';
             }
         }
@@ -1210,7 +1224,7 @@
                 }
             });
             
-            console.log(`Encontradas ${encontrados} páginas con "${termino}"`);
+            (() => {})(`Encontradas ${encontrados} páginas con "${termino}"`);
         }
         
         async function exportarOCRTexto(tomoId) {
@@ -1310,8 +1324,8 @@
             
             try {
                 const token = localStorage.getItem('token');
-                console.log('🚀 Iniciando OCR para tomo:', tomoId);
-                console.log('🔗 URL:', `${API_URL}/admin/tomos/${tomoId}/procesar-ocr-completo`);
+                (() => {})('🚀 Iniciando OCR para tomo:', tomoId);
+                (() => {})('🔗 URL:', `${API_URL}/admin/tomos/${tomoId}/procesar-ocr-completo`);
                 
                 const response = await fetch(`${API_URL}/admin/tomos/${tomoId}/procesar-ocr-completo`, {
                     method: 'POST',

@@ -306,7 +306,7 @@
     <script>
         // Detectar automáticamente la URL base
         const API_BASE_URL = `${window.location.protocol}//${window.location.hostname}:${window.location.port || 8000}`;
-        console.log('🌐 API BASE URL (Monitor):', API_BASE_URL);
+        (() => {})('🌐 API BASE URL (Monitor):', API_BASE_URL);
         let currentTomoId = null;
 
         // Cargar lista de tomos al cargar la página

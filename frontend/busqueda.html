@@ -112,9 +112,9 @@
             ? `${window.location.protocol}//${window.location.hostname}/api`
             : `${window.location.protocol}//${window.location.hostname}:8000/api`;
         
-        console.log('Modo:', isNginx ? 'Nginx Proxy' : 'Backend Directo');
-        console.log('API URL:', API_URL);
-        console.log('🌐 API URL (Búsqueda):', API_URL);
+        (() => {})('Modo:', isNginx ? 'Nginx Proxy' : 'Backend Directo');
+        (() => {})('API URL:', API_URL);
+        (() => {})('🌐 API URL (Búsqueda):', API_URL);
         let todosLosTomos = [];
 
         async function checkAuth() {

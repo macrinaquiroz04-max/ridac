@@ -779,11 +779,11 @@ const AnalisisJuridico = {
 // Funciones auxiliares globales
 function showLoading(mensaje = 'Cargando...') {
     // Implementar según tu sistema actual
-    console.log('Loading:', mensaje);
+    (() => {})('Loading:', mensaje);
 }
 
 function hideLoading() {
-    console.log('Loading hidden');
+    (() => {})('Loading hidden');
 }
 
 function showError(mensaje) {

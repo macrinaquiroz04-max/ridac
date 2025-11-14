@@ -357,6 +357,9 @@
             flex-wrap: wrap;
         }
     </style>
+    <!-- 🔐 Sistema de gestión de autenticación -->
+    <script src="js/auth-manager.js"></script>
+    <script src="js/session-indicator.js"></script>
 </head>
 <body>
     <!-- Navbar -->
@@ -568,32 +571,31 @@
 
         async function cargarUsuarios() {
             try {
-                console.log('Cargando usuarios...');
+                (() => {})('Cargando usuarios...');
                 const response = await apiGet('/admin/usuarios');
-                console.log('Respuesta de usuarios:', response);
+                (() => {})('Respuesta de usuarios:', response);
                 
                 // Verificar si hay cambios en usuarios
                 const usuariosAnteriores = usuarios.map(u => u.id).sort();
                 const usuariosNuevos = response.map(u => u.id).sort();
                 const hayChangios = JSON.stringify(usuariosAnteriores) !== JSON.stringify(usuariosNuevos);
                 
-                console.log('🔍 Verificando cambios en usuarios:');
-                console.log('Usuarios anteriores:', usuariosAnteriores);
-                console.log('Usuarios nuevos:', usuariosNuevos);
-                console.log('¿Hay cambios?:', hayChangios);
-                console.log('Usuario actual seleccionado:', usuarioActual?.username || 'ninguno');
+                (() => {})('🔍 Verificando cambios en usuarios:');
+                (() => {})('Usuarios anteriores:', usuariosAnteriores);
+                (() => {})('Usuarios nuevos:', usuariosNuevos);
+                (() => {})('¿Hay cambios?:', hayChangios);
+                (() => {})('Usuario actual seleccionado:', usuarioActual?.username || 'ninguno');
                 
-                // Mostrar todos los usuarios (sin filtrar por rol)
+                // Mostrar todos los usuarios EXCEPTO administradores (ellos ya tienen acceso total)
                 usuarios = response.filter(u => {
-                    console.log('Usuario:', u.username, 'Rol:', u.rol);
-                    return u.rol; // Solo verificar que tenga un rol asignado
+                    return u.rol && u.rol.nombre && u.rol.nombre !== 'admin'; // Excluir solo admin
                 });
                 
-                console.log('Usuarios encontrados:', usuarios.length);
+                (() => {})('Usuarios encontrados:', usuarios.length);
                 
                 // Si hay cambios y tenemos un usuario seleccionado que ya no existe
                 if (hayChangios && usuarioActual && !usuarios.find(u => u.id === usuarioActual.id)) {
-                    console.log('🚨 Usuario eliminado detectado:', usuarioActual.username);
+                    (() => {})('🚨 Usuario eliminado detectado:', usuarioActual.username);
                     usuarioActual = null;
                     document.getElementById('usuarioSeleccionado').textContent = '';
                     document.getElementById('permisosContainer').innerHTML = `
@@ -807,15 +809,15 @@
 
         async function cargarPermisosUsuario(usuarioId) {
             try {
-                console.log('🔄 Cargando permisos del usuario:', usuarioId);
+                (() => {})('🔄 Cargando permisos del usuario:', usuarioId);
                 const permisosAnteriores = permisosUsuario.length;
                 
                 // Forzar recarga sin caché agregando timestamp
                 const timestamp = new Date().getTime();
                 permisosUsuario = await apiGet(`/permisos/usuarios/${usuarioId}/tomos/permisos?_t=${timestamp}`);
                 
-                console.log(`✅ Permisos cargados: ${permisosAnteriores} → ${permisosUsuario.length}`);
-                console.log('📊 Permisos:', permisosUsuario);
+                (() => {})(`✅ Permisos cargados: ${permisosAnteriores} → ${permisosUsuario.length}`);
+                (() => {})('📊 Permisos:', permisosUsuario);
                 // NO renderizar aquí, dejar que lo haga la función que llama
             } catch (error) {
                 console.error('Error cargando permisos:', error);
@@ -826,10 +828,10 @@
         function renderizarPermisos(tomosFiltrados = null) {
             const container = document.getElementById('permisosContainer');
             
-            console.log('🎨 RENDERIZANDO PERMISOS');
-            console.log('Usuario actual:', usuarioActual?.username);
-            console.log('Permisos en memoria:', permisosUsuario.length, permisosUsuario);
-            console.log('Tomos totales:', tomos.length);
+            (() => {})('🎨 RENDERIZANDO PERMISOS');
+            (() => {})('Usuario actual:', usuarioActual?.username);
+            (() => {})('Permisos en memoria:', permisosUsuario.length, permisosUsuario);
+            (() => {})('Tomos totales:', tomos.length);
             
             if (!usuarioActual) {
                 container.innerHTML = `
@@ -887,7 +889,7 @@
 
                 grupo.tomos.forEach(tomo => {
                     const permisoExistente = permisosUsuario.find(p => p.tomo_id === tomo.id) || {};
-                    console.log(`📋 Tomo ${tomo.id}:`, permisoExistente);
+                    (() => {})(`📋 Tomo ${tomo.id}:`, permisoExistente);
                     
                     html += `
                         <div class="tomo-item p-3 mb-2 border rounded">
@@ -963,7 +965,7 @@
             const operacionId = `${usuarioActual.id}-${tomoId}-${tipoPermiso}`;
             
             if (operacionesEnProgreso.has(operacionId)) {
-                console.log('⏳ Operación ya en progreso, ignorando...', operacionId);
+                (() => {})('⏳ Operación ya en progreso, ignorando...', operacionId);
                 return;
             }
             
@@ -982,18 +984,18 @@
 
                 datosPermiso[tipoPermiso] = valor;
 
-                console.log(`🔄 Cambiando permiso ${tipoPermiso} a ${valor} para tomo ${tomoId}`);
+                (() => {})(`🔄 Cambiando permiso ${tipoPermiso} a ${valor} para tomo ${tomoId}`);
                 
                 const response = await apiPost('/permisos/tomos/permisos', datosPermiso);
                 
                 // Manejar respuesta y actualizar permisos locales inmediatamente
                 if (response && response.message) {
                     // Es un mensaje de eliminación - quitar permiso del array local
-                    console.log('🗑️ Permiso eliminado:', response.message);
+                    (() => {})('🗑️ Permiso eliminado:', response.message);
                     permisosUsuario = permisosUsuario.filter(p => p.tomo_id !== tomoId);
                 } else {
                     // Es un permiso actualizado - actualizar en el array local
-                    console.log('✅ Permiso actualizado:', response);
+                    (() => {})('✅ Permiso actualizado:', response);
                     const index = permisosUsuario.findIndex(p => p.tomo_id === tomoId);
                     if (index >= 0) {
                         permisosUsuario[index] = response;
@@ -1129,8 +1131,8 @@
         async function filtrarPorEstadoPermisos(usuariosFiltrados, estado) {
             const usuariosConEstado = [];
             
-            console.log('🔍 Filtrando por estado:', estado);
-            console.log('👥 Usuarios a evaluar:', usuariosFiltrados.length);
+            (() => {})('🔍 Filtrando por estado:', estado);
+            (() => {})('👥 Usuarios a evaluar:', usuariosFiltrados.length);
             
             for (const usuario of usuariosFiltrados) {
                 try {
@@ -1139,14 +1141,14 @@
                     // Verificar si tiene al menos UN permiso activo (puede_ver, puede_buscar o puede_exportar = true)
                     const tienePermisosActivos = permisos.some(p => p.puede_ver || p.puede_buscar || p.puede_exportar);
                     
-                    console.log(`Usuario ${usuario.username} - Permisos totales: ${permisos.length}, Tiene activos: ${tienePermisosActivos}`);
+                    (() => {})(`Usuario ${usuario.username} - Permisos totales: ${permisos.length}, Tiene activos: ${tienePermisosActivos}`);
                     
                     if (estado === 'con-permisos' && tienePermisosActivos) {
                         usuariosConEstado.push(usuario);
-                        console.log(`✅ ${usuario.username} agregado (CON permisos)`);
+                        (() => {})(`✅ ${usuario.username} agregado (CON permisos)`);
                     } else if (estado === 'sin-permisos' && !tienePermisosActivos) {
                         usuariosConEstado.push(usuario);
-                        console.log(`❌ ${usuario.username} agregado (SIN permisos)`);
+                        (() => {})(`❌ ${usuario.username} agregado (SIN permisos)`);
                     }
                 } catch (error) {
                     console.error(`Error verificando permisos de usuario ${usuario.id}:`, error);
@@ -1157,8 +1159,8 @@
                 }
             }
             
-            console.log('📊 Usuarios filtrados final:', usuariosConEstado.length);
-            console.log('👤 Usuarios que pasaron el filtro:', usuariosConEstado.map(u => u.username));
+            (() => {})('📊 Usuarios filtrados final:', usuariosConEstado.length);
+            (() => {})('👤 Usuarios que pasaron el filtro:', usuariosConEstado.map(u => u.username));
             
             renderizarUsuarios(usuariosConEstado);
             actualizarContador(usuariosConEstado.length, usuarios.length);
@@ -1281,15 +1283,15 @@
                     ...permisos
                 };
 
-                console.log(`🔄 Aplicando permiso rápido: ${tipo} al tomo ${tomoId}`);
+                (() => {})(`🔄 Aplicando permiso rápido: ${tipo} al tomo ${tomoId}`);
                 const response = await apiPost('/permisos/tomos/permisos', datosPermiso);
                 
                 // Actualizar array local inmediatamente
                 if (response && response.message) {
-                    console.log('🗑️ Permiso eliminado:', response.message);
+                    (() => {})('🗑️ Permiso eliminado:', response.message);
                     permisosUsuario = permisosUsuario.filter(p => p.tomo_id !== tomoId);
                 } else {
-                    console.log('✅ Permiso aplicado:', response);
+                    (() => {})('✅ Permiso aplicado:', response);
                     const index = permisosUsuario.findIndex(p => p.tomo_id === tomoId);
                     if (index >= 0) {
                         permisosUsuario[index] = response;
@@ -1329,8 +1331,8 @@
         }
 
         async function aplicarPermisoTodosEnCarpeta(carpetaId, tipo) {
-            console.log('🚀 FUNCIÓN LLAMADA: aplicarPermisoTodosEnCarpeta');
-            console.log('📦 Parámetros:', { carpetaId, tipo, usuarioActual: usuarioActual?.username });
+            (() => {})('🚀 FUNCIÓN LLAMADA: aplicarPermisoTodosEnCarpeta');
+            (() => {})('📦 Parámetros:', { carpetaId, tipo, usuarioActual: usuarioActual?.username });
             
             if (!usuarioActual) {
                 console.error('❌ No hay usuario seleccionado');
@@ -1339,7 +1341,7 @@
             }
 
             const tomosEnCarpeta = tomos.filter(t => t.carpeta_id === carpetaId);
-            console.log(`📚 Tomos encontrados en carpeta ${carpetaId}:`, tomosEnCarpeta.length);
+            (() => {})(`📚 Tomos encontrados en carpeta ${carpetaId}:`, tomosEnCarpeta.length);
             
             if (tomosEnCarpeta.length === 0) {
                 mostrarAlerta('No hay tomos en esta carpeta', 'warning');
@@ -1367,13 +1369,13 @@
 
 ¿Desea continuar con esta operación?`;
             
-            console.log('🔔 Mostrando confirmación:', confirmMsg);
+            (() => {})('🔔 Mostrando confirmación:', confirmMsg);
             if (!confirm(confirmMsg)) {
-                console.log('❌ Usuario canceló la operación');
+                (() => {})('❌ Usuario canceló la operación');
                 return;
             }
             
-            console.log('✅ Usuario confirmó, procediendo...');
+            (() => {})('✅ Usuario confirmó, procediendo...');
             
             // Mostrar overlay de carga
             mostrarCargaGlobal(`Aplicando permisos a ${tomosEnCarpeta.length} tomos...`);
@@ -1398,9 +1400,9 @@
                 
                 const tomosIds = tomosEnCarpeta.map(t => t.id);
                 
-                console.log(`🔄 Aplicando permisos masivos: ${tipo} a ${tomosIds.length} tomos`);
-                console.log('📋 IDs de tomos:', tomosIds);
-                console.log('🔐 Permisos a aplicar:', permisos);
+                (() => {})(`🔄 Aplicando permisos masivos: ${tipo} a ${tomosIds.length} tomos`);
+                (() => {})('📋 IDs de tomos:', tomosIds);
+                (() => {})('🔐 Permisos a aplicar:', permisos);
                 
                 const payload = {
                     usuario_id: usuarioActual.id,
@@ -1408,37 +1410,37 @@
                     permisos: permisos
                 };
                 
-                console.log('📤 Enviando al servidor:', payload);
+                (() => {})('📤 Enviando al servidor:', payload);
                 
                 // Esperar a que el servidor procese todo
                 const response = await apiPost('/permisos/tomos/permisos/masivos', payload);
                 
-                console.log('✅ Respuesta del servidor:', response);
-                console.log('📊 Permisos creados/actualizados:', response.length);
+                (() => {})('✅ Respuesta del servidor:', response);
+                (() => {})('📊 Permisos creados/actualizados:', response.length);
                 
                 // Esperar 1 segundo para que la BD termine de procesar
                 await new Promise(resolve => setTimeout(resolve, 1000));
                 
                 // Actualizar permisos locales - ESPERAR a que termine
-                console.log('🔄 Recargando permisos del usuario (intento 1)...');
+                (() => {})('🔄 Recargando permisos del usuario (intento 1)...');
                 await cargarPermisosUsuario(usuarioActual.id);
                 
                 // Segundo intento para asegurar
-                console.log('🔄 Recargando permisos del usuario (intento 2)...');
+                (() => {})('🔄 Recargando permisos del usuario (intento 2)...');
                 await new Promise(resolve => setTimeout(resolve, 300));
                 await cargarPermisosUsuario(usuarioActual.id);
                 
                 // Invalidar caché del usuario para forzar recarga
                 cacheConteoPermisos.delete(usuarioActual.id);
                 
-                console.log('🔄 Recargando conteo de permisos...');
+                (() => {})('🔄 Recargando conteo de permisos...');
                 await cargarConteoPermisos(usuarioActual.id, true); // Forzar recarga
                 
-                console.log('🔄 Recargando lista de usuarios...');
+                (() => {})('🔄 Recargando lista de usuarios...');
                 await cargarUsuarios();
                 
                 // Forzar re-renderizado inmediato de la UI
-                console.log('🎨 Renderizando UI...');
+                (() => {})('🎨 Renderizando UI...');
                 renderizarPermisos();
                 renderizarUsuarios();
                 
@@ -1526,10 +1528,37 @@
             window.location.href = 'index';
         }
 
-        function verificarAuth() {
-            if (!localStorage.getItem('token')) {
+        async function verificarAuth() {
+            const token = localStorage.getItem('token');
+            if (!token) {
                 window.location.href = 'index';
                 return;
+            }
+
+            try {
+                const response = await fetch(`${API_URL}/auth/me`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (!response.ok) {
+                    throw new Error('Token inválido');
+                }
+
+                const user = await response.json();
+                
+                // 🔒 VALIDACIÓN CRÍTICA: Solo administradores pueden acceder
+                const rolesAdmin = ['admin', 'Admin', 'Administrador', 'administrador', 'Director', 'director'];
+                if (!rolesAdmin.includes(user.rol)) {
+                    console.warn('⛔ Acceso denegado a permisos.html: Usuario sin permisos de administrador');
+                    alert('⛔ Acceso Denegado\n\nEsta página es solo para administradores.\nSerá redirigido a su dashboard.');
+                    window.location.href = 'dashboard-usuario';
+                    return;
+                }
+
+            } catch (error) {
+                console.error('Error de autenticación:', error);
+                localStorage.clear();
+                window.location.href = 'index';
             }
         }
 
@@ -1567,7 +1596,7 @@
                 btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Limpiando...';
                 btn.disabled = true;
                 
-                console.log('🧹 Iniciando limpieza del sistema...');
+                (() => {})('🧹 Iniciando limpieza del sistema...');
                 
                 const response = await fetch('/api/dev/limpiar-permisos', {
                     method: 'POST',
@@ -1592,7 +1621,7 @@
                         5000
                     );
                     
-                    console.log('✅ Limpieza completada:', resultado);
+                    (() => {})('✅ Limpieza completada:', resultado);
                 } else {
                     throw new Error(resultado.detail || 'Error en la limpieza');
                 }
@@ -1610,7 +1639,7 @@
             // Polling cada 5 segundos para detectar cambios (más frecuente)
             intervaloPoll = setInterval(async () => {
                 try {
-                    console.log('⏰ Polling automático - Verificando usuarios...');
+                    (() => {})('⏰ Polling automático - Verificando usuarios...');
                     const ahora = Date.now();
                     // Solo actualizar si han pasado más de 4 segundos desde la última actualización
                     if (ahora - ultimaActualizacion > 4000) {
@@ -1628,14 +1657,14 @@
                         const filtroUsuarioId = document.getElementById('filtroUsuario').value;
                         
                         if (filtroEstado || busquedaTexto || filtroUsuarioId) {
-                            console.log('🔒 Hay filtros activos, reaplicando filtros...');
+                            (() => {})('🔒 Hay filtros activos, reaplicando filtros...');
                             await aplicarFiltros();
                         } else {
                             renderizarUsuarios();
                         }
                         
                         ultimaActualizacion = ahora;
-                        console.log('✅ Usuarios y permisos verificados por polling');
+                        (() => {})('✅ Usuarios y permisos verificados por polling');
                     }
                 } catch (error) {
                     console.error('❌ Error en polling:', error);
@@ -1652,7 +1681,7 @@
 
         // Actualizar cuando se enfoque la ventana
         window.addEventListener('focus', async () => {
-            console.log('🔄 Ventana enfocada - Actualizando usuarios...');
+            (() => {})('🔄 Ventana enfocada - Actualizando usuarios...');
             try {
                 await cargarUsuarios();
                 
@@ -1666,7 +1695,7 @@
                 }
                 
                 ultimaActualizacion = Date.now();
-                console.log('✅ Usuarios actualizados por enfoque de ventana');
+                (() => {})('✅ Usuarios actualizados por enfoque de ventana');
             } catch (error) {
                 console.error('❌ Error actualizando en focus:', error);
             }
@@ -1675,7 +1704,7 @@
         // Actualizar cuando la página se hace visible
         document.addEventListener('visibilitychange', async () => {
             if (!document.hidden) {
-                console.log('👁️ Página visible - Actualizando usuarios...');
+                (() => {})('👁️ Página visible - Actualizando usuarios...');
                 try {
                     await cargarUsuarios();
                     
@@ -1689,7 +1718,7 @@
                     }
                     
                     ultimaActualizacion = Date.now();
-                    console.log('✅ Usuarios actualizados por visibilidad');
+                    (() => {})('✅ Usuarios actualizados por visibilidad');
                 } catch (error) {
                     console.error('❌ Error actualizando en visibilitychange:', error);
                 }

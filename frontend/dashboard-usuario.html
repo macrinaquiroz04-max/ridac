@@ -200,6 +200,40 @@
             box-shadow: 0 6px 20px rgba(0,0,0,0.3);
         }
 
+        /* Botones outline personalizados */
+        .btn-outline-purple {
+            color: #6f42c1;
+            border-color: #6f42c1;
+            background-color: white;
+        }
+
+        .btn-outline-purple:hover {
+            color: white;
+            background-color: #6f42c1;
+            border-color: #6f42c1;
+        }
+
+        .btn-outline-purple:disabled {
+            opacity: 1;
+            cursor: default;
+        }
+
+        .btn-outline-purple:disabled:hover {
+            color: #6f42c1;
+            background-color: white;
+            border-color: #6f42c1;
+        }
+
+        /* Mejoras visuales para botones de exportación */
+        .btn-group .btn {
+            transition: all 0.3s ease;
+        }
+
+        .btn-group .btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
         .btn-action.btn-primary {
             background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
             color: white;
@@ -793,6 +827,9 @@
             }
         }
     </style>
+    <!-- 🔐 Sistema de gestión de autenticación -->
+    <script src="js/auth-manager.js"></script>
+    <script src="js/session-indicator.js"></script>
 </head>
 <body>
     <!-- Partículas flotantes -->
@@ -946,6 +983,70 @@
                             </div>
                         </div>
 
+                        <!-- Barra de Exportación Rápida -->
+                        <div class="card mb-4 border-0 shadow-sm">
+                            <div class="card-body py-3">
+                                <div class="row align-items-center">
+                                    <div class="col-md-3">
+                                        <h6 class="mb-0 text-muted">
+                                            <i class="fas fa-download me-2"></i>Exportar Datos
+                                        </h6>
+                                    </div>
+                                    <div class="col-md-9">
+                                        <div class="d-flex flex-wrap gap-2 justify-content-end">
+                                            <!-- Diligencias -->
+                                            <div class="btn-group" role="group">
+                                                <button type="button" class="btn btn-sm btn-outline-purple" disabled>
+                                                    <i class="fas fa-gavel me-1"></i> Diligencias:
+                                                </button>
+                                                <button class="btn btn-sm btn-success" onclick="exportarDiligencias('excel')" title="Exportar Diligencias a Excel">
+                                                    <i class="fas fa-file-excel"></i>
+                                                </button>
+                                                <button class="btn btn-sm btn-primary" onclick="exportarDiligencias('word')" title="Exportar Diligencias a Word">
+                                                    <i class="fas fa-file-word"></i>
+                                                </button>
+                                                <button class="btn btn-sm btn-secondary" onclick="exportarDiligencias('txt')" title="Exportar Diligencias a TXT">
+                                                    <i class="fas fa-file-alt"></i>
+                                                </button>
+                                            </div>
+
+                                            <!-- Personas -->
+                                            <div class="btn-group" role="group">
+                                                <button type="button" class="btn btn-sm btn-outline-info" disabled>
+                                                    <i class="fas fa-users me-1"></i> Personas:
+                                                </button>
+                                                <button class="btn btn-sm btn-success" onclick="exportarPersonas('excel')" title="Exportar Personas a Excel">
+                                                    <i class="fas fa-file-excel"></i>
+                                                </button>
+                                                <button class="btn btn-sm btn-primary" onclick="exportarPersonas('word')" title="Exportar Personas a Word">
+                                                    <i class="fas fa-file-word"></i>
+                                                </button>
+                                                <button class="btn btn-sm btn-secondary" onclick="exportarPersonas('txt')" title="Exportar Personas a TXT">
+                                                    <i class="fas fa-file-alt"></i>
+                                                </button>
+                                            </div>
+
+                                            <!-- Lugares -->
+                                            <div class="btn-group" role="group">
+                                                <button type="button" class="btn btn-sm btn-outline-success" disabled>
+                                                    <i class="fas fa-map-marker-alt me-1"></i> Lugares:
+                                                </button>
+                                                <button class="btn btn-sm btn-success" onclick="exportarLugares('excel')" title="Exportar Lugares a Excel">
+                                                    <i class="fas fa-file-excel"></i>
+                                                </button>
+                                                <button class="btn btn-sm btn-primary" onclick="exportarLugares('word')" title="Exportar Lugares a Word">
+                                                    <i class="fas fa-file-word"></i>
+                                                </button>
+                                                <button class="btn btn-sm btn-secondary" onclick="exportarLugares('txt')" title="Exportar Lugares a TXT">
+                                                    <i class="fas fa-file-alt"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                         <!-- Estadísticas Temporales -->
                         <div class="row mb-4">
                             <div class="col-md-4 mb-3">
@@ -1044,6 +1145,17 @@
                                 <div class="table-responsive">
                                     <div class="d-flex justify-content-between align-items-center mb-2">
                                         <span id="totalDiligenciasText" class="text-muted">Total: 0 diligencias</span>
+                                        <div>
+                                            <button class="btn btn-sm btn-success" onclick="exportarDiligencias('excel')" title="Exportar a Excel">
+                                                <i class="fas fa-file-excel me-1"></i> Excel
+                                            </button>
+                                            <button class="btn btn-sm btn-primary" onclick="exportarDiligencias('word')" title="Exportar a Word">
+                                                <i class="fas fa-file-word me-1"></i> Word
+                                            </button>
+                                            <button class="btn btn-sm btn-secondary" onclick="exportarDiligencias('txt')" title="Exportar a TXT">
+                                                <i class="fas fa-file-alt me-1"></i> TXT
+                                            </button>
+                                        </div>
                                     </div>
                                     <table class="table table-hover">
                                         <thead>
@@ -1103,6 +1215,17 @@
                                 <div class="table-responsive">
                                     <div class="d-flex justify-content-between align-items-center mb-2">
                                         <span id="totalPersonasText" class="text-muted">Total: 0 personas</span>
+                                        <div>
+                                            <button class="btn btn-sm btn-success" onclick="exportarPersonas('excel')" title="Exportar a Excel">
+                                                <i class="fas fa-file-excel me-1"></i> Excel
+                                            </button>
+                                            <button class="btn btn-sm btn-primary" onclick="exportarPersonas('word')" title="Exportar a Word">
+                                                <i class="fas fa-file-word me-1"></i> Word
+                                            </button>
+                                            <button class="btn btn-sm btn-secondary" onclick="exportarPersonas('txt')" title="Exportar a TXT">
+                                                <i class="fas fa-file-alt me-1"></i> TXT
+                                            </button>
+                                        </div>
                                     </div>
                                     <table class="table table-hover">
                                         <thead>
@@ -1146,6 +1269,21 @@
                                                 <i class="fas fa-search me-1"></i> Buscar
                                             </button>
                                         </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <span id="totalLugaresText" class="text-muted">Total: 0 lugares</span>
+                                    <div>
+                                        <button class="btn btn-sm btn-success" onclick="exportarLugares('excel')" title="Exportar a Excel">
+                                            <i class="fas fa-file-excel me-1"></i> Excel
+                                        </button>
+                                        <button class="btn btn-sm btn-primary" onclick="exportarLugares('word')" title="Exportar a Word">
+                                            <i class="fas fa-file-word me-1"></i> Word
+                                        </button>
+                                        <button class="btn btn-sm btn-secondary" onclick="exportarLugares('txt')" title="Exportar a TXT">
+                                            <i class="fas fa-file-alt me-1"></i> TXT
+                                        </button>
                                     </div>
                                 </div>
                                 
@@ -1594,13 +1732,13 @@
 
         async function cargarDatosUsuario() {
             try {
-                console.log('🚀 Iniciando carga de datos del usuario');
+                (() => {})('🚀 Iniciando carga de datos del usuario');
                 mostrarLoading(true);
                 
                 // Obtener información actualizada del usuario desde el servidor
-                console.log('📡 Obteniendo datos del usuario desde /auth/me');
+                (() => {})('📡 Obteniendo datos del usuario desde /auth/me');
                 const usuarioActual = await apiGet('/auth/me');
-                console.log('👤 Usuario obtenido:', usuarioActual);
+                (() => {})('👤 Usuario obtenido:', usuarioActual);
                 
                 if (usuarioActual) {
                     usuario = usuarioActual;
@@ -1621,10 +1759,10 @@
                         profileImg.src = 'images/default-avatar.svg';
                     }
                     
-                    console.log('✅ Datos de usuario actualizados en UI');
+                    (() => {})('✅ Datos de usuario actualizados en UI');
                 } else {
                     // Fallback al localStorage si hay problemas
-                    console.log('⚠️ No se pudieron obtener datos del servidor, usando localStorage');
+                    (() => {})('⚠️ No se pudieron obtener datos del servidor, usando localStorage');
                     usuario = JSON.parse(localStorage.getItem('usuario'));
                     if (usuario) {
                         document.getElementById('userName').textContent = usuario.nombre || usuario.username;
@@ -1633,9 +1771,9 @@
                 }
 
                 // Cargar tomos accesibles
-                console.log('📚 Iniciando carga de tomos accesibles');
+                (() => {})('📚 Iniciando carga de tomos accesibles');
                 await cargarTomosAccesibles();
-                console.log('📊 Iniciando carga de estadísticas');
+                (() => {})('📊 Iniciando carga de estadísticas');
                 await cargarEstadisticas();
                 
             } catch (error) {
@@ -1657,20 +1795,20 @@
 
         async function cargarTomosAccesibles() {
             try {
-                console.log('🔍 Cargando tomos accesibles para usuario:', usuario.id);
+                (() => {})('🔍 Cargando tomos accesibles para usuario:', usuario.id);
                 // Forzar recarga sin caché
                 const timestamp = new Date().getTime();
                 const response = await apiGet(`/permisos/usuarios/${usuario.id}/tomos-accesibles?_t=${timestamp}`);
-                console.log('📊 Respuesta del servidor (completa):', JSON.stringify(response, null, 2));
-                console.log('📊 Tipo de respuesta:', typeof response);
-                console.log('📊 Es array?:', Array.isArray(response));
-                console.log('📊 Longitud:', response?.length || 'No tiene length');
+                (() => {})('📊 Respuesta del servidor (completa):', JSON.stringify(response, null, 2));
+                (() => {})('📊 Tipo de respuesta:', typeof response);
+                (() => {})('📊 Es array?:', Array.isArray(response));
+                (() => {})('📊 Longitud:', response?.length || 'No tiene length');
                 
                 // El endpoint puede devolver un array directo o un objeto con tomos
                 if (Array.isArray(response)) {
-                    console.log('🔄 Procesando array directo de', response.length, 'elementos...');
+                    (() => {})('🔄 Procesando array directo de', response.length, 'elementos...');
                     tomosAccesibles = response.map((item, index) => {
-                        console.log(`📋 Item ${index}:`, JSON.stringify(item, null, 2));
+                        (() => {})(`📋 Item ${index}:`, JSON.stringify(item, null, 2));
                         const mappedItem = {
                             id: item.tomo_id || item.id,
                             numero: item.numero_tomo,
@@ -1683,7 +1821,7 @@
                             fecha_creacion: item.fecha_asignacion,
                             total_paginas: item.total_paginas || 0
                         };
-                        console.log(`✅ Item mapeado ${index}:`, mappedItem);
+                        (() => {})(`✅ Item mapeado ${index}:`, mappedItem);
                         return mappedItem;
                     });
                     
@@ -1697,12 +1835,12 @@
                         tomos: tomosAccesibles
                     };
                     
-                    console.log('✅ Tomos cargados y transformados (array directo):', tomosAccesibles.length);
+                    (() => {})('✅ Tomos cargados y transformados (array directo):', tomosAccesibles.length);
                 } else if (response && response.tomos && Array.isArray(response.tomos)) {
                     // Nueva estructura: objeto con array de tomos
-                    console.log('🔄 Procesando objeto con array de', response.tomos.length, 'tomos...');
+                    (() => {})('🔄 Procesando objeto con array de', response.tomos.length, 'tomos...');
                     tomosAccesibles = response.tomos.map((item, index) => {
-                        console.log(`📋 Item ${index}:`, JSON.stringify(item, null, 2));
+                        (() => {})(`📋 Item ${index}:`, JSON.stringify(item, null, 2));
                         const mappedItem = {
                             id: item.tomo_id || item.id,
                             numero: item.numero_tomo,
@@ -1715,7 +1853,7 @@
                             fecha_creacion: item.fecha_asignacion,
                             total_paginas: item.total_paginas || 0
                         };
-                        console.log(`✅ Item mapeado ${index}:`, mappedItem);
+                        (() => {})(`✅ Item mapeado ${index}:`, mappedItem);
                         return mappedItem;
                     });
                     
@@ -1729,26 +1867,26 @@
                         tomos: tomosAccesibles
                     };
                     
-                    console.log('✅ Tomos cargados y transformados (estructura objeto):', tomosAccesibles.length);
+                    (() => {})('✅ Tomos cargados y transformados (estructura objeto):', tomosAccesibles.length);
                 } else if (response && response.success) {
                     // Fallback para otras estructuras
                     tomosAccesibles = response.tomos || [];
                     tomosData = response;
-                    console.log('✅ Tomos cargados (fallback):', tomosAccesibles.length);
+                    (() => {})('✅ Tomos cargados (fallback):', tomosAccesibles.length);
                 } else {
                     tomosAccesibles = [];
-                    console.log('⚠️ Respuesta inesperada:', response);
+                    (() => {})('⚠️ Respuesta inesperada:', response);
                 }
                 
                 if (tomosAccesibles.length === 0) {
-                    console.log('📋 No hay tomos accesibles - mostrando mensaje');
+                    (() => {})('📋 No hay tomos accesibles - mostrando mensaje');
                     const noAccessDiv = document.getElementById('noAccess');
                     const tomosWrapper = document.getElementById('tomosWrapper');
                     if (noAccessDiv) noAccessDiv.classList.remove('d-none');
                     if (tomosWrapper) tomosWrapper.classList.add('d-none');
                     return;
                 } else {
-                    console.log('🎯 Tomos encontrados - ocultando mensaje de sin acceso');
+                    (() => {})('🎯 Tomos encontrados - ocultando mensaje de sin acceso');
                     const noAccessDiv = document.getElementById('noAccess');
                     const tomosWrapper = document.getElementById('tomosWrapper');
                     if (noAccessDiv) noAccessDiv.classList.add('d-none');
@@ -1937,9 +2075,9 @@
                     
                     // Solo actuar si hay cambios REALES
                     if (nuevoHash !== previousTomosHash && previousTomosHash !== '') {
-                        console.log(`🔄 Cambios detectados en permisos`);
-                        console.log(`   Anterior: ${previousCount} tomos`);
-                        console.log(`   Nuevo: ${nuevoCount} tomos`);
+                        (() => {})(`🔄 Cambios detectados en permisos`);
+                        (() => {})(`   Anterior: ${previousCount} tomos`);
+                        (() => {})(`   Nuevo: ${nuevoCount} tomos`);
                         
                         // Determinar el tipo de cambio y mostrar notificación apropiada
                         if (nuevoCount > previousCount) {
@@ -1970,18 +2108,18 @@
                     }
                 } catch (error) {
                     // Silenciar errores para no molestar al usuario
-                    console.log('Auto-actualización: sin cambios o error menor');
+                    (() => {})('Auto-actualización: sin cambios o error menor');
                 }
             }, 5000); // Cada 5 segundos
             
-            console.log('✅ Auto-actualización activada (cada 5 segundos)');
+            (() => {})('✅ Auto-actualización activada (cada 5 segundos)');
         }
 
         function detenerAutoActualizacion() {
             if (autoRefreshInterval) {
                 clearInterval(autoRefreshInterval);
                 autoRefreshInterval = null;
-                console.log('⏹️ Auto-actualización detenida');
+                (() => {})('⏹️ Auto-actualización detenida');
             }
         }
 
@@ -2406,13 +2544,14 @@
         let canvas = null;
         let ctx = null;
         let currentTomoId = null;
+        let currentTomoData = null; // Datos completos del tomo actual
 
         function getCurrentTomoId() {
             return currentTomoId;
         }
 
         function initializePDFViewer() {
-            console.log('🔧 Inicializando visor PDF...');
+            (() => {})('🔧 Inicializando visor PDF...');
             
             // Configurar PDF.js worker
             pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
@@ -2423,12 +2562,12 @@
                 canvas = document.getElementById('pdf-canvas');
                 ctx = canvas?.getContext('2d');
                 
-                console.log('📝 Canvas encontrado:', canvas ? 'SÍ' : 'NO');
-                console.log('🎨 Contexto 2D:', ctx ? 'SÍ' : 'NO');
+                (() => {})('📝 Canvas encontrado:', canvas ? 'SÍ' : 'NO');
+                (() => {})('🎨 Contexto 2D:', ctx ? 'SÍ' : 'NO');
                 
                 // Verificar capa de texto
                 const textLayer = document.getElementById('text-layer');
-                console.log('📄 Capa de texto encontrada:', textLayer ? 'SÍ' : 'NO');
+                (() => {})('📄 Capa de texto encontrada:', textLayer ? 'SÍ' : 'NO');
                 
                 if (!canvas) {
                     console.error('❌ No se pudo encontrar el canvas PDF');
@@ -2441,13 +2580,13 @@
 
         async function cargarPDFConAuth(tomoId) {
             try {
-                console.log(`📄 Cargando PDF del tomo ${tomoId} con autenticación...`);
+                (() => {})(`📄 Cargando PDF del tomo ${tomoId} con autenticación...`);
                 
                 // Guardar ID del tomo actual
                 currentTomoId = tomoId;
                 
                 const token = localStorage.getItem('token');
-                console.log(`🔑 Token encontrado: ${token ? 'SÍ' : 'NO'}`);
+                (() => {})(`🔑 Token encontrado: ${token ? 'SÍ' : 'NO'}`);
                 
                 if (!token) {
                     throw new Error('Token de acceso no encontrado - verifica que hayas iniciado sesión correctamente');
@@ -2456,7 +2595,7 @@
                 // Cargar PDF usando PDF.js (más seguro, sin herramientas de descarga)
                 const pdfUrl = `/api/tomos/${tomoId}/pdf?auth_token=${encodeURIComponent(token)}`;
                 
-                console.log('🔄 Cargando PDF con PDF.js...');
+                (() => {})('🔄 Cargando PDF con PDF.js...');
                 
                 // Cargar el documento PDF
                 const loadingTask = pdfjsLib.getDocument({
@@ -2483,7 +2622,7 @@
                     loading.style.display = 'none';
                 }
                 
-                console.log('✅ PDF cargado exitosamente con PDF.js');
+                (() => {})('✅ PDF cargado exitosamente con PDF.js');
                 
             } catch (error) {
                 console.error('❌ Error cargando PDF:', error);
@@ -2545,7 +2684,7 @@
         // Cargar texto OCR desde la base de datos
         async function loadOCRTextForPage(tomoId, pageNumber) {
             try {
-                console.log(`📖 Cargando texto OCR para tomo ${tomoId}, página ${pageNumber}...`);
+                (() => {})(`📖 Cargando texto OCR para tomo ${tomoId}, página ${pageNumber}...`);
                 
                 const token = localStorage.getItem('token');
                 if (!token) {
@@ -2560,7 +2699,7 @@
                     }
                 });
                 
-                console.log('📡 Respuesta del servidor OCR:', response.status, response.statusText);
+                (() => {})('📡 Respuesta del servidor OCR:', response.status, response.statusText);
                 
                 if (!response.ok) {
                     const errorText = await response.text();
@@ -2572,7 +2711,7 @@
                 }
                 
                 const ocrData = await response.json();
-                console.log('📝 Datos OCR cargados:', ocrData);
+                (() => {})('📝 Datos OCR cargados:', ocrData);
                 
                 if (ocrData && ocrData.contenido) {
                     await createTextLayerFromOCR(ocrData.contenido, pageNumber);
@@ -2591,14 +2730,14 @@
         // Fallback: usar endpoint existente de texto-ocr
         async function loadOCRFromExistingEndpoint(tomoId) {
             try {
-                console.log('🔄 Intentando cargar desde endpoint texto-ocr existente...');
+                (() => {})('🔄 Intentando cargar desde endpoint texto-ocr existente...');
                 
                 const token = localStorage.getItem('token');
                 const response = await fetch(`/api/tomos/${tomoId}/texto-ocr?auth_token=${encodeURIComponent(token)}`);
                 
                 if (response.ok) {
                     const ocrText = await response.text();
-                    console.log('✅ Texto OCR cargado desde endpoint existente');
+                    (() => {})('✅ Texto OCR cargado desde endpoint existente');
                     
                     if (ocrText && ocrText.trim()) {
                         await createTextLayerFromOCR(ocrText, 1);
@@ -2618,7 +2757,7 @@
         // Crear capa de texto desde datos OCR
         async function createTextLayerFromOCR(ocrContent, pageNumber) {
             try {
-                console.log('📝 Creando capa de texto desde OCR...');
+                (() => {})('📝 Creando capa de texto desde OCR...');
                 
                 const textLayer = document.getElementById('text-layer');
                 if (!textLayer) {
@@ -2716,7 +2855,7 @@
                 // Agregar instrucciones de selección
                 addSelectionInstructions();
                 
-                console.log(`✅ Capa de texto OCR creada con ${lines.length} líneas`);
+                (() => {})(`✅ Capa de texto OCR creada con ${lines.length} líneas`);
                 
             } catch (error) {
                 console.error('❌ Error creando capa desde OCR:', error);
@@ -2892,21 +3031,21 @@
             const instructions = document.getElementById('selection-instructions');
             if (instructions) {
                 instructions.remove();
-                console.log('🔇 Instrucciones de selección ocultadas');
+                (() => {})('🔇 Instrucciones de selección ocultadas');
             }
             
             // También ocultar cualquier instrucción de precisión si existe
             const precisionInstructions = document.getElementById('precision-instructions');
             if (precisionInstructions) {
                 precisionInstructions.remove();
-                console.log('🔇 Instrucciones de precisión ocultadas');
+                (() => {})('🔇 Instrucciones de precisión ocultadas');
             }
         }
 
         // Crear capa de texto básica (fallback)
         async function createBasicTextLayer() {
             try {
-                console.log('📝 Creando capa de texto básica (fallback)...');
+                (() => {})('📝 Creando capa de texto básica (fallback)...');
                 
                 const textLayer = document.getElementById('text-layer');
                 if (!textLayer) return;
@@ -2940,7 +3079,7 @@
                 
                 textLayer.appendChild(fullTextDiv);
                 
-                console.log('✅ Capa de texto básica creada');
+                (() => {})('✅ Capa de texto básica creada');
                 
             } catch (error) {
                 console.error('❌ Error creando capa básica:', error);
@@ -2954,7 +3093,7 @@
             
             // Doble clic - palabra individual o línea según el tipo
             textElement.addEventListener('dblclick', function(event) {
-                console.log(`🖱️ DOBLE CLIC detectado en ${elementType}:`, textContent);
+                (() => {})(`🖱️ DOBLE CLIC detectado en ${elementType}:`, textContent);
                 event.preventDefault();
                 event.stopPropagation();
                 
@@ -2998,21 +3137,21 @@
             textElement.addEventListener('click', function(event) {
                 if (event.ctrlKey) {
                     // Ctrl + Clic = Selección múltiple
-                    console.log(`🖱️ CTRL+CLIC detectado en ${elementType}:`, textContent);
+                    (() => {})(`🖱️ CTRL+CLIC detectado en ${elementType}:`, textContent);
                     event.preventDefault();
                     event.stopPropagation();
                     toggleTextSelection(textElement, textContent);
                     
                 } else if (event.shiftKey) {
                     // Shift + Clic = Selección por rango
-                    console.log(`🖱️ SHIFT+CLIC detectado en ${elementType}:`, textContent);
+                    (() => {})(`🖱️ SHIFT+CLIC detectado en ${elementType}:`, textContent);
                     event.preventDefault();
                     event.stopPropagation();
                     handleRangeSelection(textElement, textContent);
                     
                 } else if (event.altKey) {
                     // Alt + Clic = Selección vertical (columna)
-                    console.log(`🖱️ ALT+CLIC detectado en ${elementType}:`, textContent);
+                    (() => {})(`🖱️ ALT+CLIC detectado en ${elementType}:`, textContent);
                     event.preventDefault();
                     event.stopPropagation();
                     handleVerticalSelection(textElement, textContent);
@@ -3021,7 +3160,7 @@
             
             // Clic derecho - menú contextual con opciones direccionales
             textElement.addEventListener('contextmenu', function(event) {
-                console.log(`🖱️ CLIC DERECHO detectado en ${elementType}:`, textContent);
+                (() => {})(`🖱️ CLIC DERECHO detectado en ${elementType}:`, textContent);
                 event.preventDefault();
                 event.stopPropagation();
                 
@@ -3076,7 +3215,7 @@
             const lineElement = document.querySelector(`[data-text-id="line-${lineIndex}"]`);
             if (lineElement) {
                 const lineContent = lineElement.textContent;
-                console.log(`📝 Seleccionando línea completa ${lineIndex}:`, lineContent);
+                (() => {})(`📝 Seleccionando línea completa ${lineIndex}:`, lineContent);
                 showTextEditor(lineContent, lineElement);
             } else {
                 console.error('❌ No se encontró el elemento de línea:', `line-${lineIndex}`);
@@ -3391,7 +3530,7 @@
             
             if (lineElement) {
                 const lineContent = lineElement.textContent;
-                console.log('📝 Seleccionando línea completa:', lineContent);
+                (() => {})('📝 Seleccionando línea completa:', lineContent);
                 handleLineSelection(lineElement, lineContent);
             } else {
                 // Fallback: seleccionar todas las palabras de la misma línea
@@ -3456,7 +3595,7 @@
         
         // Iniciar selección direccional
         function startDirectionalSelection(event, element) {
-            console.log('🎯 Iniciando selección direccional...');
+            (() => {})('🎯 Iniciando selección direccional...');
             
             // Si la búsqueda está activa, cerrarla primero
             if (isSearchBoxVisible) {
@@ -3483,7 +3622,7 @@
             document.addEventListener('mousemove', globalMouseMove);
             document.addEventListener('mouseup', globalMouseUp);
             
-            console.log(`📍 Inicio: (${dragStartX}, ${dragStartY})`);
+            (() => {})(`📍 Inicio: (${dragStartX}, ${dragStartY})`);
         }
         
         // Continuar selección direccional
@@ -3502,12 +3641,12 @@
             // Seleccionar elementos en el área
             selectElementsInArea();
             
-            console.log(`📐 Arrastrando: (${dragEndX}, ${dragEndY}) - Dirección: ${selectionDirection}`);
+            (() => {})(`📐 Arrastrando: (${dragEndX}, ${dragEndY}) - Dirección: ${selectionDirection}`);
         }
         
         // Finalizar selección direccional
         function finishDirectionalSelection(event, element) {
-            console.log('✅ Finalizando selección direccional...');
+            (() => {})('✅ Finalizando selección direccional...');
             
             isDragging = false;
             
@@ -3769,7 +3908,7 @@
         // Procesar selección direccional final con confirmación
         function processDirectionalSelection() {
             if (selectedElements.size === 0) {
-                console.log('⚠️ No hay elementos seleccionados');
+                (() => {})('⚠️ No hay elementos seleccionados');
                 showNotification('No se seleccionó ningún elemento', 'info');
                 return;
             }
@@ -3787,12 +3926,12 @@
             const selectedText = sortedElements.map(el => el.textContent.trim()).filter(text => text.length > 0).join(' ');
             
             if (!selectedText) {
-                console.log('⚠️ No hay texto válido en la selección');
+                (() => {})('⚠️ No hay texto válido en la selección');
                 showNotification('No se encontró texto en la selección', 'warning');
                 return;
             }
             
-            console.log(`📝 Texto seleccionado (${selectionDirection}):`, selectedText);
+            (() => {})(`📝 Texto seleccionado (${selectionDirection}):`, selectedText);
             
             // Mostrar confirmación antes de abrir editor
             showSelectionConfirmation(selectedText, sortedElements, selectionDirection);
@@ -4001,7 +4140,7 @@
 
         // Completar función de selección vertical
         function handleVerticalSelection(element, textContent) {
-            console.log('📐 Selección vertical iniciada');
+            (() => {})('📐 Selección vertical iniciada');
             
             const elementRect = element.getBoundingClientRect();
             const textLayer = document.getElementById('text-layer');
@@ -4038,7 +4177,7 @@
             selectedTextContent = [columnText];
             showTextEditor(columnText, element);
             
-            console.log(`📋 Columna vertical seleccionada: ${columnElements.length} elementos`);
+            (() => {})(`📋 Columna vertical seleccionada: ${columnElements.length} elementos`);
         }
 
         // Mostrar menú contextual direccional
@@ -4154,7 +4293,7 @@
 
         // Habilitar modo de precisión
         function enablePrecisionMode(element) {
-            console.log('🎯 Modo precisión habilitado');
+            (() => {})('🎯 Modo precisión habilitado');
             
             // Mostrar instrucciones especiales
             showPrecisionInstructions();
@@ -4238,7 +4377,7 @@
 
         // Desactivar modo precisión
         function disablePrecisionMode() {
-            console.log('🎯 Modo precisión desactivado');
+            (() => {})('🎯 Modo precisión desactivado');
             
             precisionMode = 'normal';
             
@@ -4257,7 +4396,7 @@
 
         // Invertir dirección de lectura
         function reverseReadingDirection(element) {
-            console.log('🔄 Invirtiendo dirección de lectura');
+            (() => {})('🔄 Invirtiendo dirección de lectura');
             
             if (selectedElements.size > 0) {
                 // Invertir orden de elementos seleccionados
@@ -4265,9 +4404,9 @@
                 const reversedText = reversedElements.map(el => el.textContent.trim()).join(' ');
                 
                 showTextEditor(reversedText, element);
-                console.log('📝 Texto invertido:', reversedText);
+                (() => {})('📝 Texto invertido:', reversedText);
             } else {
-                console.log('⚠️ No hay elementos seleccionados para invertir');
+                (() => {})('⚠️ No hay elementos seleccionados para invertir');
             }
         }
 
@@ -4334,7 +4473,7 @@
         // Renderizar capa de texto seleccionable
         async function renderTextLayer(page, viewport) {
             try {
-                console.log('📝 Iniciando renderizado de capa de texto...');
+                (() => {})('📝 Iniciando renderizado de capa de texto...');
                 
                 const textLayer = document.getElementById('text-layer');
                 
@@ -4345,17 +4484,17 @@
                 
                 // Limpiar capa de texto anterior
                 textLayer.innerHTML = '';
-                console.log('🧹 Capa de texto limpiada');
+                (() => {})('🧹 Capa de texto limpiada');
                 
                 // Ajustar el tamaño de la capa de texto al canvas
                 textLayer.style.width = canvas.width + 'px';
                 textLayer.style.height = canvas.height + 'px';
-                console.log(`📏 Tamaño de capa ajustado: ${canvas.width}x${canvas.height}`);
+                (() => {})(`📏 Tamaño de capa ajustado: ${canvas.width}x${canvas.height}`);
                 
                 // Obtener contenido de texto
-                console.log('📖 Obteniendo contenido de texto del PDF...');
+                (() => {})('📖 Obteniendo contenido de texto del PDF...');
                 const textContent = await page.getTextContent();
-                console.log(`📃 Elementos de texto encontrados: ${textContent.items.length}`);
+                (() => {})(`📃 Elementos de texto encontrados: ${textContent.items.length}`);
                 
                 if (textContent.items.length === 0) {
                     console.warn('⚠️ No se encontró texto en esta página del PDF');
@@ -4391,7 +4530,7 @@
                     
                     // Eventos de doble clic y selección
                     textDiv.addEventListener('dblclick', function(event) {
-                        console.log('🖱️ DOBLE CLIC detectado en texto:', textItem.str);
+                        (() => {})('🖱️ DOBLE CLIC detectado en texto:', textItem.str);
                         event.preventDefault();
                         event.stopPropagation();
                         handleTextDoubleClick(textDiv, textItem.str);
@@ -4400,7 +4539,7 @@
                     // Evento de clic izquierdo simple para agregar a selección múltiple
                     textDiv.addEventListener('click', function(event) {
                         if (event.ctrlKey || event.shiftKey) {
-                            console.log('🖱️ CTRL+CLIC detectado en texto:', textItem.str);
+                            (() => {})('🖱️ CTRL+CLIC detectado en texto:', textItem.str);
                             event.preventDefault();
                             event.stopPropagation();
                             toggleTextSelection(textDiv, textItem.str);
@@ -4409,7 +4548,7 @@
                     
                     // Evento de clic derecho para menú contextual personalizado
                     textDiv.addEventListener('contextmenu', function(event) {
-                        console.log('🖱️ CLIC DERECHO detectado en texto:', textItem.str);
+                        (() => {})('🖱️ CLIC DERECHO detectado en texto:', textItem.str);
                         event.preventDefault();
                         event.stopPropagation();
                         showTextContextMenu(event, textDiv, textItem.str);
@@ -4417,7 +4556,7 @@
                     
                     // Agregar evento de hover para debug
                     textDiv.addEventListener('mouseenter', function() {
-                        console.log('🖱️ Mouse sobre texto:', textItem.str);
+                        (() => {})('🖱️ Mouse sobre texto:', textItem.str);
                         textDiv.style.backgroundColor = 'rgba(255, 0, 0, 0.1)'; // Fondo rojo temporal para debug
                     });
                     
@@ -4431,12 +4570,12 @@
                     
                     // Log del primer elemento para debug
                     if (index === 0) {
-                        console.log(`🔍 Primer elemento - Texto: "${textItem.str}", Posición: ${tx[4]}, ${tx[5]}`);
+                        (() => {})(`🔍 Primer elemento - Texto: "${textItem.str}", Posición: ${tx[4]}, ${tx[5]}`);
                     }
                 });
                 
-                console.log('✅ Capa de texto renderizada - ¡Doble clic para resaltar y copiar!');
-                console.log('🐛 DEBUG: Elementos de texto agregados al DOM:', textLayer.children.length);
+                (() => {})('✅ Capa de texto renderizada - ¡Doble clic para resaltar y copiar!');
+                (() => {})('🐛 DEBUG: Elementos de texto agregados al DOM:', textLayer.children.length);
                 
             } catch (error) {
                 console.error('❌ Error renderizando capa de texto:', error);
@@ -4450,33 +4589,33 @@
 
         // Manejar doble clic en texto
         function handleTextDoubleClick(textElement, textContent) {
-            console.log('🎯 Ejecutando handleTextDoubleClick con texto:', textContent);
+            (() => {})('🎯 Ejecutando handleTextDoubleClick con texto:', textContent);
             
             // Limpiar selecciones anteriores
             clearAllTextSelections();
-            console.log('🧹 Selecciones anteriores limpiadas');
+            (() => {})('🧹 Selecciones anteriores limpiadas');
             
             // Resaltar el elemento clickeado
             textElement.classList.add('highlighted', 'just-selected');
-            console.log('✨ Elemento resaltado visualmente');
+            (() => {})('✨ Elemento resaltado visualmente');
             
             // Agregar a la selección actual
             selectedTexts.add(textElement);
             selectedTextContent = [textContent];
-            console.log('📝 Texto agregado a selección:', selectedTextContent);
+            (() => {})('📝 Texto agregado a selección:', selectedTextContent);
             
             // Seleccionar el texto automáticamente
             selectTextElement(textElement);
-            console.log('🔗 Texto seleccionado en el DOM');
+            (() => {})('🔗 Texto seleccionado en el DOM');
             
             // Mostrar editor para corrección y copia precisa
             showTextEditor(textContent, textElement);
-            console.log('�️ Editor de texto mostrado');
+            (() => {})('�️ Editor de texto mostrado');
             
             // Quitar la clase de animación después de la animación
             setTimeout(() => {
                 textElement.classList.remove('just-selected');
-                console.log('🎬 Animación terminada');
+                (() => {})('🎬 Animación terminada');
             }, 600);
         }
 
@@ -4520,7 +4659,7 @@
             
             try {
                 await navigator.clipboard.writeText(textToCopy);
-                console.log('✅ Texto copiado al portapapeles:', textToCopy);
+                (() => {})('✅ Texto copiado al portapapeles:', textToCopy);
             } catch (error) {
                 console.error('Error copiando al portapapeles:', error);
                 // Fallback para navegadores más antiguos
@@ -4543,7 +4682,7 @@
             
             try {
                 document.execCommand('copy');
-                console.log('✅ Texto copiado usando método fallback');
+                (() => {})('✅ Texto copiado usando método fallback');
             } catch (error) {
                 console.error('Error en método fallback de copia');
             }
@@ -4778,7 +4917,7 @@
             debugMode = !debugMode;
             
             const textElements = textLayer.querySelectorAll('[data-text-id]');
-            console.log(`🐛 DEBUG: Capa de texto tiene ${textElements.length} elementos`);
+            (() => {})(`🐛 DEBUG: Capa de texto tiene ${textElements.length} elementos`);
             
             if (debugMode) {
                 // Hacer visible la capa de texto para debug
@@ -4792,11 +4931,11 @@
                     element.style.fontSize = '12px';
                     element.style.fontWeight = 'bold';
                     element.style.zIndex = '1000';
-                    console.log(`📝 Elemento ${index}:`, element.textContent);
+                    (() => {})(`📝 Elemento ${index}:`, element.textContent);
                 });
                 
                 mostrarMensajeCopiado(`🐛 DEBUG ACTIVADO: ${textElements.length} elementos visibles`);
-                console.log('🐛 Modo debug activado - elementos de texto visibles');
+                (() => {})('🐛 Modo debug activado - elementos de texto visibles');
             } else {
                 // Ocultar elementos para modo normal
                 textLayer.style.opacity = '';
@@ -4812,7 +4951,7 @@
                 });
                 
                 mostrarMensajeCopiado('🐛 DEBUG DESACTIVADO');
-                console.log('🐛 Modo debug desactivado - elementos ocultos');
+                (() => {})('🐛 Modo debug desactivado - elementos ocultos');
             }
         }
 
@@ -5359,14 +5498,661 @@
 
         async function exportarTomo(tomoId) {
             try {
-                // Implementar exportación
-                console.log(`Exportando tomo ${tomoId}`);
-                mostrarError('Funcionalidad de exportación en desarrollo');
+                // Buscar información del tomo
+                const tomo = tomosAccesibles.find(t => t.id === tomoId);
+                if (!tomo) {
+                    mostrarError('Tomo no encontrado');
+                    return;
+                }
+
+                // Obtener la carpeta del tomo
+                const carpetaId = tomo.carpeta_id;
+                if (!carpetaId) {
+                    mostrarError('No se encontró la carpeta asociada al tomo');
+                    return;
+                }
+
+                // Mostrar indicador de carga
+                const btnExportar = event.target.closest('button');
+                const textoOriginal = btnExportar.innerHTML;
+                btnExportar.disabled = true;
+                btnExportar.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Cargando...';
+
+                // Obtener estadísticas para saber cuántos datos hay
+                const statsResponse = await fetch(`${API_URL}/usuario/carpetas/${carpetaId}/estadisticas`, {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+
+                let stats = { resumen: { total_diligencias: 0, total_personas: 0, total_lugares: 0 } };
+                if (statsResponse.ok) {
+                    stats = await statsResponse.json();
+                }
+
+                // Mostrar modal con opciones de exportación
+                mostrarModalExportacionAnalisis(stats, tomo, carpetaId);
+
+                // Restaurar botón
+                btnExportar.disabled = false;
+                btnExportar.innerHTML = textoOriginal;
                 
             } catch (error) {
                 console.error('Error exportando:', error);
-                mostrarError('Error al exportar tomo');
+                mostrarError('Error al exportar análisis: ' + error.message);
+                
+                // Restaurar botón en caso de error
+                if (event && event.target) {
+                    const btn = event.target.closest('button');
+                    if (btn) {
+                        btn.disabled = false;
+                        btn.innerHTML = '<i class="fas fa-download me-1"></i>Exportar';
+                    }
+                }
             }
+        }
+
+        function mostrarModalExportacionAnalisis(stats, tomo, carpetaId) {
+            const resumen = stats.resumen || {};
+            const modalHTML = `
+                <div class="modal fade" id="modalExportacionAnalisis" tabindex="-1">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header bg-warning">
+                                <h5 class="modal-title">
+                                    <i class="fas fa-download me-2"></i>Exportar Análisis Jurídico
+                                </h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body">
+                                <p class="mb-3">Seleccione qué información desea exportar:</p>
+                                
+                                <div class="list-group mb-3">
+                                    <div class="list-group-item">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <div>
+                                                <i class="fas fa-gavel text-purple me-2"></i>
+                                                <strong>Diligencias</strong>
+                                                <span class="badge bg-purple ms-2">${resumen.total_diligencias || 0}</span>
+                                            </div>
+                                            <div class="btn-group btn-group-sm">
+                                                <button class="btn btn-success" onclick="exportarDatosAnalisis('diligencias', 'excel', ${carpetaId})">
+                                                    <i class="fas fa-file-excel"></i>
+                                                </button>
+                                                <button class="btn btn-primary" onclick="exportarDatosAnalisis('diligencias', 'word', ${carpetaId})">
+                                                    <i class="fas fa-file-word"></i>
+                                                </button>
+                                                <button class="btn btn-secondary" onclick="exportarDatosAnalisis('diligencias', 'txt', ${carpetaId})">
+                                                    <i class="fas fa-file-alt"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="list-group-item">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <div>
+                                                <i class="fas fa-users text-info me-2"></i>
+                                                <strong>Personas</strong>
+                                                <span class="badge bg-info ms-2">${resumen.total_personas || 0}</span>
+                                            </div>
+                                            <div class="btn-group btn-group-sm">
+                                                <button class="btn btn-success" onclick="exportarDatosAnalisis('personas', 'excel', ${carpetaId})">
+                                                    <i class="fas fa-file-excel"></i>
+                                                </button>
+                                                <button class="btn btn-primary" onclick="exportarDatosAnalisis('personas', 'word', ${carpetaId})">
+                                                    <i class="fas fa-file-word"></i>
+                                                </button>
+                                                <button class="btn btn-secondary" onclick="exportarDatosAnalisis('personas', 'txt', ${carpetaId})">
+                                                    <i class="fas fa-file-alt"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="list-group-item">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <div>
+                                                <i class="fas fa-map-marker-alt text-success me-2"></i>
+                                                <strong>Lugares</strong>
+                                                <span class="badge bg-success ms-2">${resumen.total_lugares || 0}</span>
+                                            </div>
+                                            <div class="btn-group btn-group-sm">
+                                                <button class="btn btn-success" onclick="exportarDatosAnalisis('lugares', 'excel', ${carpetaId})">
+                                                    <i class="fas fa-file-excel"></i>
+                                                </button>
+                                                <button class="btn btn-primary" onclick="exportarDatosAnalisis('lugares', 'word', ${carpetaId})">
+                                                    <i class="fas fa-file-word"></i>
+                                                </button>
+                                                <button class="btn btn-secondary" onclick="exportarDatosAnalisis('lugares', 'txt', ${carpetaId})">
+                                                    <i class="fas fa-file-alt"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <hr>
+                                
+                                <div class="d-grid gap-2 mb-3">
+                                    <p class="text-center mb-2"><strong>O exportar todo junto:</strong></p>
+                                    <button class="btn btn-warning btn-lg" onclick="exportarTodoAnalisis('excel', ${carpetaId}, '${tomo.nombre_carpeta}')">
+                                        <i class="fas fa-file-excel me-2"></i>Exportar Todo en Excel
+                                    </button>
+                                    <button class="btn btn-primary btn-lg" onclick="exportarTodoAnalisis('word', ${carpetaId}, '${tomo.nombre_carpeta}')">
+                                        <i class="fas fa-file-word me-2"></i>Exportar Todo en Word
+                                    </button>
+                                    <button class="btn btn-secondary btn-lg" onclick="exportarTodoAnalisis('txt', ${carpetaId}, '${tomo.nombre_carpeta}')">
+                                        <i class="fas fa-file-alt me-2"></i>Exportar Todo en TXT
+                                    </button>
+                                </div>
+                                
+                                <div class="alert alert-info mb-0">
+                                    <i class="fas fa-info-circle me-2"></i>
+                                    <small>Los datos exportados corresponden al análisis jurídico completo de la carpeta.</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // Remover modal anterior si existe
+            const modalAnterior = document.getElementById('modalExportacionAnalisis');
+            if (modalAnterior) {
+                modalAnterior.remove();
+            }
+
+            // Agregar modal al DOM
+            document.body.insertAdjacentHTML('beforeend', modalHTML);
+
+            // Mostrar modal
+            const modal = new bootstrap.Modal(document.getElementById('modalExportacionAnalisis'));
+            modal.show();
+        }
+
+        async function exportarDatosAnalisis(tipo, formato, carpetaId) {
+            try {
+                let endpoint = '';
+                let dataKey = '';
+                
+                // Determinar endpoint según el tipo
+                if (tipo === 'diligencias') {
+                    endpoint = `${API_URL}/usuario/carpetas/${carpetaId}/diligencias`;
+                    dataKey = 'diligencias';
+                } else if (tipo === 'personas') {
+                    endpoint = `${API_URL}/usuario/carpetas/${carpetaId}/personas`;
+                    dataKey = 'personas';
+                } else if (tipo === 'lugares') {
+                    endpoint = `${API_URL}/usuario/carpetas/${carpetaId}/lugares`;
+                    dataKey = 'lugares';
+                }
+
+                // Cargar los datos
+                const response = await fetch(endpoint, {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error('Error al cargar datos');
+                }
+
+                const datos = await response.json();
+                const items = datos[dataKey] || [];
+
+                if (items.length === 0) {
+                    mostrarError(`No hay ${tipo} para exportar`);
+                    return;
+                }
+
+                // Exportar según el formato
+                if (tipo === 'diligencias') {
+                    if (formato === 'excel') {
+                        exportarDiligenciasCSV(items);
+                    } else if (formato === 'word') {
+                        exportarDiligenciasWord(items);
+                    } else if (formato === 'txt') {
+                        exportarDiligenciasTXT(items);
+                    }
+                } else if (tipo === 'personas') {
+                    if (formato === 'excel') {
+                        exportarPersonasCSV(items);
+                    } else if (formato === 'word') {
+                        exportarPersonasWord(items);
+                    } else if (formato === 'txt') {
+                        exportarPersonasTXT(items);
+                    }
+                } else if (tipo === 'lugares') {
+                    if (formato === 'excel') {
+                        exportarLugaresCSV(items);
+                    } else if (formato === 'word') {
+                        exportarLugaresWord(items);
+                    } else if (formato === 'txt') {
+                        exportarLugaresTXT(items);
+                    }
+                }
+
+                // Cerrar modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('modalExportacionAnalisis'));
+                if (modal) {
+                    modal.hide();
+                }
+
+                mostrarExito(`${items.length} ${tipo} exportados correctamente`);
+
+            } catch (error) {
+                console.error('Error:', error);
+                mostrarError('Error al exportar datos: ' + error.message);
+            }
+        }
+
+        async function exportarTodoAnalisis(formato, carpetaId, nombreCarpeta) {
+            try {
+                // Cargar todos los datos en paralelo (sin límite para obtener todo)
+                const [diligenciasRes, personasRes, lugaresRes] = await Promise.all([
+                    fetch(`${API_URL}/usuario/carpetas/${carpetaId}/diligencias`, {
+                        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+                    }),
+                    fetch(`${API_URL}/usuario/carpetas/${carpetaId}/personas`, {
+                        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+                    }),
+                    fetch(`${API_URL}/usuario/carpetas/${carpetaId}/lugares`, {
+                        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+                    })
+                ]);
+
+                const dataDiligencias = await diligenciasRes.json();
+                const dataPersonas = await personasRes.json();
+                const dataLugares = await lugaresRes.json();
+
+                console.log('Datos recibidos:', {
+                    diligencias: dataDiligencias,
+                    personas: dataPersonas,
+                    lugares: dataLugares
+                });
+
+                const diligencias = dataDiligencias.diligencias || [];
+                const personas = dataPersonas.personas || [];
+                const lugares = dataLugares.lugares || [];
+
+                console.log('Arrays extraídos:', {
+                    diligencias: diligencias.length,
+                    personas: personas.length,
+                    lugares: lugares.length
+                });
+
+                // Verificar si hay datos
+                const totalItems = diligencias.length + personas.length + lugares.length;
+                if (totalItems === 0) {
+                    mostrarError('No hay datos para exportar. La carpeta no tiene análisis procesado o está vacía.');
+                    return;
+                }
+
+                if (formato === 'excel') {
+                    exportarTodoCSV(diligencias, personas, lugares, nombreCarpeta);
+                } else if (formato === 'word') {
+                    exportarTodoWord(diligencias, personas, lugares, nombreCarpeta);
+                } else if (formato === 'txt') {
+                    exportarTodoTXT(diligencias, personas, lugares, nombreCarpeta);
+                }
+
+                // Cerrar modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('modalExportacionAnalisis'));
+                if (modal) {
+                    modal.hide();
+                }
+
+                mostrarExito(`Análisis completo exportado: ${diligencias.length} diligencias, ${personas.length} personas, ${lugares.length} lugares`);
+
+            } catch (error) {
+                console.error('Error:', error);
+                mostrarError('Error al exportar análisis completo: ' + error.message);
+            }
+        }
+
+        function exportarTodoCSV(diligencias, personas, lugares, nombreCarpeta) {
+            let csv = '\uFEFF'; // BOM UTF-8
+            
+            csv += `ANÁLISIS JURÍDICO COMPLETO - ${nombreCarpeta || 'Carpeta'}\n`;
+            csv += `Fecha de exportación: ${new Date().toLocaleString('es-MX')}\n`;
+            csv += `Totales: ${diligencias.length} diligencias, ${personas.length} personas, ${lugares.length} lugares\n\n`;
+            
+            // DILIGENCIAS
+            csv += '========== DILIGENCIAS ==========\n';
+            csv += 'Tipo,Fecha,Responsable,Número Oficio,Descripción,Página,Tomo\n';
+            diligencias.forEach(d => {
+                const tipo = (d.tipo_diligencia || '').replace(/"/g, '""');
+                const fecha = d.fecha || '';
+                const responsable = (d.responsable || '').replace(/"/g, '""');
+                const oficio = (d.numero_oficio || '').replace(/"/g, '""');
+                const descripcion = (d.descripcion || '').replace(/"/g, '""');
+                const pagina = d.pagina || '';
+                const tomo = (d.tomo_nombre || '').replace(/"/g, '""');
+                csv += `"${tipo}","${fecha}","${responsable}","${oficio}","${descripcion}","${pagina}","${tomo}"\n`;
+            });
+            
+            csv += '\n\n========== PERSONAS ==========\n';
+            csv += 'Nombre Completo,Rol,Dirección,Teléfono,Página,Tomo\n';
+            personas.forEach(p => {
+                const nombre = (p.nombre_completo || '').replace(/"/g, '""');
+                const rol = (p.rol || '').replace(/"/g, '""');
+                const direccion = (p.direccion || '').replace(/"/g, '""');
+                const telefono = (p.telefono || '').replace(/"/g, '""');
+                const pagina = p.pagina || p.primera_mencion_pagina || '';
+                const tomo = (p.tomo_nombre || '').replace(/"/g, '""');
+                csv += `"${nombre}","${rol}","${direccion}","${telefono}","${pagina}","${tomo}"\n`;
+            });
+            
+            csv += '\n\n========== LUGARES ==========\n';
+            csv += 'Dirección Completa,Tipo,Contexto,Página,Tomo\n';
+            lugares.forEach(l => {
+                const direccion = (l.direccion_completa || l.nombre_lugar || '').replace(/"/g, '""');
+                const tipo = (l.tipo_lugar || '').replace(/"/g, '""');
+                const contexto = (l.contexto || '').replace(/"/g, '""');
+                const pagina = l.pagina || l.numero_pagina || '';
+                const tomo = (l.tomo_nombre || '').replace(/"/g, '""');
+                csv += `"${direccion}","${tipo}","${contexto}","${pagina}","${tomo}"\n`;
+            });
+
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `analisis_completo_${new Date().toISOString().split('T')[0]}.csv`;
+            link.click();
+        }
+
+        function exportarTodoWord(diligencias, personas, lugares, nombreCarpeta) {
+            const fecha = new Date();
+            const fechaStr = fecha.toLocaleDateString('es-MX', { 
+                weekday: 'long', 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+
+            let html = `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Análisis Jurídico Completo - ${nombreCarpeta || 'Carpeta'}</title>
+    <style>
+        @page { 
+            margin: 2.5cm; 
+            size: letter;
+        }
+        body { 
+            font-family: 'Calibri', 'Arial', sans-serif; 
+            line-height: 1.6;
+            color: #333;
+        }
+        .header {
+            text-align: center;
+            border-bottom: 3px double #2c3e50;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+        .header h1 { 
+            color: #1a365d; 
+            font-size: 24pt;
+            margin: 10px 0;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .header .subtitle {
+            color: #666;
+            font-size: 11pt;
+            margin: 5px 0;
+        }
+        .metadata { 
+            background: linear-gradient(to right, #f8f9fa, #e9ecef);
+            padding: 20px; 
+            margin: 20px 0; 
+            border-left: 5px solid #3498db;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .metadata table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .metadata td {
+            padding: 8px;
+            border-bottom: 1px solid #ddd;
+        }
+        .metadata .label { 
+            font-weight: bold; 
+            color: #2c3e50;
+            width: 40%;
+        }
+        .metadata .valor { 
+            color: #555; 
+        }
+        h2 { 
+            color: #2c3e50; 
+            border-bottom: 2px solid #3498db; 
+            padding-bottom: 10px; 
+            margin-top: 40px;
+            font-size: 18pt;
+            page-break-after: avoid;
+        }
+        .seccion { 
+            margin: 30px 0; 
+            page-break-before: always; 
+        }
+        .seccion:first-of-type {
+            page-break-before: avoid;
+        }
+        .item { 
+            margin: 20px 0; 
+            padding: 15px; 
+            border: 1px solid #dee2e6;
+            border-left: 4px solid #3498db;
+            background: #ffffff;
+            page-break-inside: avoid;
+            border-radius: 5px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+        .item h3 { 
+            color: #2980b9; 
+            margin: 0 0 15px 0;
+            font-size: 14pt;
+            border-bottom: 1px solid #e9ecef;
+            padding-bottom: 8px;
+        }
+        .campo { 
+            margin: 10px 0;
+            padding: 5px 0;
+        }
+        .campo .label { 
+            font-weight: bold; 
+            color: #495057;
+            display: inline-block;
+            min-width: 150px;
+        }
+        .campo .valor { 
+            color: #212529;
+        }
+        .tomo-info {
+            display: inline-block;
+            background: #e3f2fd;
+            padding: 3px 10px;
+            border-radius: 3px;
+            font-size: 9pt;
+            color: #1976d2;
+            margin-left: 10px;
+        }
+        .resumen {
+            background: #fff3cd;
+            padding: 15px;
+            border-left: 4px solid #ffc107;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+        .footer {
+            margin-top: 50px;
+            padding-top: 20px;
+            border-top: 2px solid #dee2e6;
+            text-align: center;
+            font-size: 9pt;
+            color: #6c757d;
+        }
+    </style>
+    <!-- 🔐 Sistema de gestión de autenticación -->
+</head>
+<body>
+    <div class="header">
+        <h1>ANÁLISIS JURÍDICO COMPLETO</h1>
+        <div class="subtitle">FISCALÍA GENERAL DE JUSTICIA DE LA CIUDAD DE MÉXICO</div>
+        <div class="subtitle">Carpeta de Investigación: ${nombreCarpeta || 'Sin identificar'}</div>
+    </div>
+
+    <div class="metadata">
+        <table>
+            <tr>
+                <td class="label">📅 Fecha de exportación:</td>
+                <td class="valor">${fechaStr}</td>
+            </tr>
+            <tr>
+                <td class="label">📁 Carpeta:</td>
+                <td class="valor">${nombreCarpeta || 'No especificada'}</td>
+            </tr>
+            <tr>
+                <td class="label">📊 Contenido:</td>
+                <td class="valor">${diligencias.length} diligencias, ${personas.length} personas, ${lugares.length} lugares</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="resumen">
+        <strong>📋 RESUMEN EJECUTIVO:</strong><br>
+        Este documento contiene el análisis jurídico completo extraído mediante sistema OCR inteligente. 
+        La información ha sido procesada y clasificada automáticamente para facilitar su consulta y análisis.
+    </div>
+
+    <div class="seccion">
+        <h2>⚖️ DILIGENCIAS (${diligencias.length})</h2>`;
+
+            diligencias.forEach((d, i) => {
+                html += `
+        <div class="item">
+            <h3>${i + 1}. ${d.tipo_diligencia || 'Sin tipo'}${d.tomo_nombre ? `<span class="tomo-info">📖 ${d.tomo_nombre}</span>` : ''}</h3>
+            <div class="campo"><span class="label">📅 Fecha:</span> <span class="valor">${d.fecha || 'No especificada'}</span></div>
+            ${d.responsable ? `<div class="campo"><span class="label">👤 Responsable:</span> <span class="valor">${d.responsable}</span></div>` : ''}
+            ${d.numero_oficio ? `<div class="campo"><span class="label">📋 Número de Oficio:</span> <span class="valor">${d.numero_oficio}</span></div>` : ''}
+            ${d.descripcion ? `<div class="campo"><span class="label">📝 Descripción:</span> <span class="valor">${d.descripcion}</span></div>` : ''}
+            <div class="campo"><span class="label">📄 Ubicación:</span> <span class="valor">Página ${d.pagina || 'N/A'}${d.tomo_nombre ? ` - ${d.tomo_nombre}` : ''}</span></div>
+        </div>`;
+            });
+
+            html += `
+    </div>
+
+    <div class="seccion">
+        <h2>👥 PERSONAS IDENTIFICADAS (${personas.length})</h2>`;
+
+            personas.forEach((p, i) => {
+                html += `
+        <div class="item">
+            <h3>${i + 1}. ${p.nombre_completo || 'Sin nombre'}${p.tomo_nombre ? `<span class="tomo-info">📖 ${p.tomo_nombre}</span>` : ''}</h3>
+            ${p.rol ? `<div class="campo"><span class="label">👔 Rol:</span> <span class="valor">${p.rol}</span></div>` : ''}
+            ${p.direccion ? `<div class="campo"><span class="label">🏠 Dirección:</span> <span class="valor">${p.direccion}</span></div>` : ''}
+            ${p.telefono ? `<div class="campo"><span class="label">📞 Teléfono:</span> <span class="valor">${p.telefono}</span></div>` : ''}
+            <div class="campo"><span class="label">📄 Primera mención:</span> <span class="valor">Página ${p.pagina || p.primera_mencion_pagina || 'N/A'}${p.tomo_nombre ? ` - ${p.tomo_nombre}` : ''}</span></div>
+        </div>`;
+            });
+
+            html += `
+    </div>
+
+    <div class="seccion">
+        <h2>📍 LUGARES IDENTIFICADOS (${lugares.length})</h2>`;
+
+            lugares.forEach((l, i) => {
+                html += `
+        <div class="item">
+            <h3>${i + 1}. ${l.direccion_completa || l.nombre_lugar || 'Sin dirección'}${l.tomo_nombre ? `<span class="tomo-info">📖 ${l.tomo_nombre}</span>` : ''}</h3>
+            ${l.tipo_lugar ? `<div class="campo"><span class="label">🏢 Tipo:</span> <span class="valor">${l.tipo_lugar}</span></div>` : ''}
+            ${l.contexto ? `<div class="campo"><span class="label">📝 Contexto:</span> <span class="valor">${l.contexto}</span></div>` : ''}
+            <div class="campo"><span class="label">📄 Ubicación:</span> <span class="valor">Página ${l.pagina || l.numero_pagina || 'N/A'}${l.tomo_nombre ? ` - ${l.tomo_nombre}` : ''}</span></div>
+        </div>`;
+            });
+
+            html += `
+    </div>
+
+    <div class="footer">
+        <p><strong>Documento generado automáticamente por el Sistema OCR de la FGJCDMX</strong></p>
+        <p>Este análisis ha sido procesado mediante inteligencia artificial y extracción de texto OCR</p>
+        <p>Fecha de generación: ${fechaStr}</p>
+    </div>
+</body>
+</html>`;
+
+            const blob = new Blob([html], { type: 'application/msword;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `analisis_completo_${new Date().toISOString().split('T')[0]}.doc`;
+            link.click();
+        }
+
+        function exportarTodoTXT(diligencias, personas, lugares, nombreCarpeta) {
+            let txt = '==============================================\n';
+            txt += 'ANÁLISIS JURÍDICO COMPLETO\n';
+            txt += 'FISCALÍA GENERAL DE JUSTICIA CDMX\n';
+            txt += '==============================================\n\n';
+            txt += `Carpeta: ${nombreCarpeta || 'No especificada'}\n`;
+            txt += `Fecha de exportación: ${new Date().toLocaleString('es-MX')}\n`;
+            txt += `Totales: ${diligencias.length} diligencias, ${personas.length} personas, ${lugares.length} lugares\n`;
+            txt += '==============================================\n\n';
+
+            txt += '========================================\n';
+            txt += `DILIGENCIAS (${diligencias.length})\n`;
+            txt += '========================================\n\n';
+
+            diligencias.forEach((d, i) => {
+                txt += `[${i + 1}] ${d.tipo_diligencia || 'Sin tipo'}\n`;
+                txt += `   Fecha: ${d.fecha || 'No especificada'}\n`;
+                if (d.responsable) txt += `   Responsable: ${d.responsable}\n`;
+                if (d.numero_oficio) txt += `   Oficio: ${d.numero_oficio}\n`;
+                if (d.descripcion) txt += `   Descripción: ${d.descripcion}\n`;
+                txt += `   Página: ${d.pagina || 'N/A'}\n`;
+                txt += '\n' + '-'.repeat(50) + '\n\n';
+            });
+
+            txt += '\n========================================\n';
+            txt += `PERSONAS IDENTIFICADAS (${personas.length})\n`;
+            txt += '========================================\n\n';
+
+            personas.forEach((p, i) => {
+                txt += `[${i + 1}] ${p.nombre_completo || 'Sin nombre'}\n`;
+                if (p.rol) txt += `   Rol: ${p.rol}\n`;
+                if (p.direccion) txt += `   Dirección: ${p.direccion}\n`;
+                if (p.telefono) txt += `   Teléfono: ${p.telefono}\n`;
+                txt += `   Primera mención: Página ${p.pagina || p.primera_mencion_pagina || 'N/A'}\n`;
+                txt += '\n' + '-'.repeat(50) + '\n\n';
+            });
+
+            txt += '\n========================================\n';
+            txt += `LUGARES IDENTIFICADOS (${lugares.length})\n`;
+            txt += '========================================\n\n';
+
+            lugares.forEach((l, i) => {
+                txt += `[${i + 1}] ${l.direccion_completa || l.nombre_lugar || 'Sin dirección'}\n`;
+                if (l.tipo_lugar) txt += `   Tipo: ${l.tipo_lugar}\n`;
+                if (l.contexto) txt += `   Contexto: ${l.contexto}\n`;
+                txt += `   Página: ${l.pagina || l.numero_pagina || 'N/A'}\n`;
+                txt += '\n' + '-'.repeat(50) + '\n\n';
+            });
+
+            const blob = new Blob([txt], { type: 'text/plain;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `analisis_completo_${new Date().toISOString().split('T')[0]}.txt`;
+            link.click();
         }
 
         async function buscarEnTomo(tomoId) {
@@ -5388,6 +6174,9 @@
         }
 
         function mostrarModalBusquedaAvanzada(tomoId, tomo) {
+            // Guardar datos del tomo en variable global
+            currentTomoData = tomo;
+            
             const modalHTML = `
                 <div id="modalBusquedaAvanzada" style="
                     position: fixed;
@@ -5425,7 +6214,7 @@
                             <input type="text" id="searchQueryInput" 
                                 placeholder="Ejemplo: José García, expediente 2024, etc."
                                 style="width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 6px; font-size: 16px;"
-                                onkeypress="if(event.key === 'Enter') ejecutarBusquedaAvanzada(${tomoId}, ${JSON.stringify(tomo).replace(/"/g, '&quot;')})">
+                                onkeypress="if(event.key === 'Enter') ejecutarBusquedaAvanzada(${tomoId})">
                         </div>
 
                         <div style="margin-bottom: 20px; padding: 15px; background: #f8f9fa; border-radius: 6px;">
@@ -5487,7 +6276,7 @@
                                 style="padding: 12px 24px; background: #6c757d; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
                                 <i class="fas fa-times me-1"></i>Cancelar
                             </button>
-                            <button onclick="ejecutarBusquedaAvanzada(${tomoId}, ${JSON.stringify(tomo).replace(/"/g, '&quot;')})" 
+                            <button onclick="ejecutarBusquedaAvanzada(${tomoId})" 
                                 style="padding: 12px 24px; background: #007bff; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
                                 <i class="fas fa-search me-1"></i>Buscar
                             </button>
@@ -5507,7 +6296,7 @@
             }
         }
 
-        async function ejecutarBusquedaAvanzada(tomoId, tomo) {
+        async function ejecutarBusquedaAvanzada(tomoId) {
             const query = document.getElementById('searchQueryInput').value.trim();
             
             if (!query) {
@@ -5537,7 +6326,7 @@
                 mostrarLoading(false);
 
                 if (response && response.resultados && response.resultados.length > 0) {
-                    mostrarResultadosBusqueda(response, tomo);
+                    mostrarResultadosBusqueda(response, currentTomoData);
                 } else {
                     alert(`ℹ️ No se encontraron resultados para: "${query}"\n\n💡 Intente:\n• Desactivar "Palabra completa"\n• Activar "Búsqueda Inteligente"\n• Verificar la ortografía`);
                 }
@@ -5782,6 +6571,10 @@
             alert(mensaje); // Implementar mejor sistema de notificaciones después
         }
 
+        function mostrarExito(mensaje) {
+            alert(mensaje);
+        }
+
         function logout() {
             localStorage.removeItem('token');
             localStorage.removeItem('usuario');
@@ -5950,7 +6743,7 @@
             
             if (!fileInput.files || !fileInput.files[0]) {
                 // No hacer nada si no hay archivo, el botón debería estar deshabilitado
-                console.log('No hay imagen seleccionada');
+                (() => {})('No hay imagen seleccionada');
                 return;
             }
 
@@ -6049,7 +6842,7 @@
                     usuario.foto_perfil = imageUrl;
                     localStorage.setItem('usuario', JSON.stringify(usuario));
                     
-                    console.log('✅ Foto de perfil actualizada correctamente');
+                    (() => {})('✅ Foto de perfil actualizada correctamente');
                 }
             } catch (error) {
                 console.error('Error actualizando foto de perfil:', error);
@@ -6098,17 +6891,17 @@
         
         // Función para depurar texto disponible
         function debugAvailableText() {
-            console.log('🐛 DEBUG: Analizando texto disponible...');
+            (() => {})('🐛 DEBUG: Analizando texto disponible...');
             
             // 1. Verificar PDF.js
             if (pdfDoc) {
                 pdfDoc.getPage(pageNum).then(page => {
                     return page.getTextContent();
                 }).then(textContent => {
-                    console.log('📄 PDF.js texto items:', textContent.items.length);
+                    (() => {})('📄 PDF.js texto items:', textContent.items.length);
                     textContent.items.forEach((item, i) => {
                         if (item.str && item.str.trim()) {
-                            console.log(`   ${i}: "${item.str}"`);
+                            (() => {})(`   ${i}: "${item.str}"`);
                         }
                     });
                 });
@@ -6118,18 +6911,18 @@
             const textLayer = document.getElementById('text-layer');
             if (textLayer) {
                 const elements = textLayer.querySelectorAll('[data-text-id]');
-                console.log('🌐 HTML elementos:', elements.length);
+                (() => {})('🌐 HTML elementos:', elements.length);
                 elements.forEach((el, i) => {
                     if (el.textContent && el.textContent.trim()) {
-                        console.log(`   ${i}: "${el.textContent.trim()}"`);
+                        (() => {})(`   ${i}: "${el.textContent.trim()}"`);
                     }
                 });
             }
             
             // 3. Verificar texto OCR
             if (currentPageText) {
-                console.log('📝 Texto OCR disponible:', currentPageText.length, 'caracteres');
-                console.log('   Muestra:', currentPageText.substring(0, 200) + '...');
+                (() => {})('📝 Texto OCR disponible:', currentPageText.length, 'caracteres');
+                (() => {})('   Muestra:', currentPageText.substring(0, 200) + '...');
             }
         }
         
@@ -6160,7 +6953,7 @@
                     }
                 }, 100);
                 
-                console.log('🔍 Caja de búsqueda abierta');
+                (() => {})('🔍 Caja de búsqueda abierta');
             }
         }
         
@@ -6183,7 +6976,7 @@
                     }
                 }, 500);
                 
-                console.log('🔍 Caja de búsqueda cerrada');
+                (() => {})('🔍 Caja de búsqueda cerrada');
             }
         }
         
@@ -6237,7 +7030,7 @@
             }
             
             searchTerm = query.trim();
-            console.log(`🔍 Búsqueda multi-estrategia: "${searchTerm}"`);
+            (() => {})(`🔍 Búsqueda multi-estrategia: "${searchTerm}"`);
             
             // Debug si está habilitado
             if (debugSearchMode) {
@@ -6261,7 +7054,7 @@
                 const page = await pdfDoc.getPage(pageNum);
                 const textContent = await page.getTextContent();
                 
-                console.log(`� Analizando ${textContent.items.length} elementos de texto en página ${pageNum}`);
+                (() => {})(`� Analizando ${textContent.items.length} elementos de texto en página ${pageNum}`);
                 
                 // Buscar coincidencias en el texto
                 const viewport = page.getViewport({ scale: scale });
@@ -6330,7 +7123,7 @@
                     });
                 });
                 
-                console.log(`✅ Encontradas ${totalMatches} coincidencias`);
+                (() => {})(`✅ Encontradas ${totalMatches} coincidencias`);
                 
                 if (totalMatches > 0) {
                     currentSearchIndex = 0;
@@ -6362,17 +7155,17 @@
         
         // Función de debug para texto disponible
         function debugAvailableText() {
-            console.log('🐛 DEBUG: Analizando texto disponible...');
+            (() => {})('🐛 DEBUG: Analizando texto disponible...');
             
             // 1. Verificar PDF.js
             if (pdfDoc) {
                 pdfDoc.getPage(pageNum).then(page => {
                     return page.getTextContent();
                 }).then(textContent => {
-                    console.log('📄 PDF.js texto items:', textContent.items.length);
+                    (() => {})('📄 PDF.js texto items:', textContent.items.length);
                     textContent.items.forEach((item, i) => {
                         if (item.str && item.str.trim()) {
-                            console.log(`   ${i}: "${item.str}"`);
+                            (() => {})(`   ${i}: "${item.str}"`);
                         }
                     });
                 });
@@ -6382,18 +7175,18 @@
             const textLayer = document.getElementById('text-layer');
             if (textLayer) {
                 const elements = textLayer.querySelectorAll('[data-text-id]');
-                console.log('🌐 HTML elementos:', elements.length);
+                (() => {})('🌐 HTML elementos:', elements.length);
                 elements.forEach((el, i) => {
                     if (el.textContent && el.textContent.trim()) {
-                        console.log(`   ${i}: "${el.textContent.trim()}"`);
+                        (() => {})(`   ${i}: "${el.textContent.trim()}"`);
                     }
                 });
             }
             
             // 3. Verificar texto OCR
             if (currentPageText) {
-                console.log('📝 Texto OCR disponible:', currentPageText.length, 'caracteres');
-                console.log('   Muestra:', currentPageText.substring(0, 200) + '...');
+                (() => {})('📝 Texto OCR disponible:', currentPageText.length, 'caracteres');
+                (() => {})('   Muestra:', currentPageText.substring(0, 200) + '...');
             }
         }
         
@@ -6407,7 +7200,7 @@
             }
             
             searchTerm = query.trim();
-            console.log(`🔍 BÚSQUEDA MEJORADA V2: "${searchTerm}"`);
+            (() => {})(`🔍 BÚSQUEDA MEJORADA V2: "${searchTerm}"`);
             
             // Limpiar resultados anteriores
             clearSearchHighlights();
@@ -6423,7 +7216,7 @@
                     const textContent = await page.getTextContent();
                     const viewport = page.getViewport({ scale: scale });
                     
-                    console.log(`📄 Analizando ${textContent.items.length} elementos de texto`);
+                    (() => {})(`📄 Analizando ${textContent.items.length} elementos de texto`);
                     
                     textContent.items.forEach((item, itemIndex) => {
                         if (!item.str || !item.str.trim()) return;
@@ -6447,11 +7240,11 @@
                             const overlayWidth = searchQuery.length * characterWidth;
                             const overlayHeight = fontSize * 1.2;
                             
-                            console.log(`🎯 ENCONTRADO "${searchQuery}" en elemento ${itemIndex}:`);
-                            console.log(`   Texto completo: "${text}"`);
-                            console.log(`   Transform: [${transform.join(', ')}]`);
-                            console.log(`   Posición calculada: (${overlayLeft}, ${overlayTop})`);
-                            console.log(`   Tamaño: ${overlayWidth}x${overlayHeight}`);
+                            (() => {})(`🎯 ENCONTRADO "${searchQuery}" en elemento ${itemIndex}:`);
+                            (() => {})(`   Texto completo: "${text}"`);
+                            (() => {})(`   Transform: [${transform.join(', ')}]`);
+                            (() => {})(`   Posición calculada: (${overlayLeft}, ${overlayTop})`);
+                            (() => {})(`   Tamaño: ${overlayWidth}x${overlayHeight}`);
                             
                             searchResults.push({
                                 strategy: 'pdf-precise',
@@ -6481,7 +7274,7 @@
                 
                 // ESTRATEGIA ALTERNATIVA: Si no encuentra nada, usar posiciones fijas basadas en palabras conocidas
                 if (totalMatches === 0) {
-                    console.log('⚡ No se encontró con posiciones precisas, intentando estrategia alternativa...');
+                    (() => {})('⚡ No se encontró con posiciones precisas, intentando estrategia alternativa...');
                     
                     // Posiciones conocidas para palabras comunes en documentos legales
                     const knownPositions = {
@@ -6508,14 +7301,14 @@
                                 debug: { knownPosition: true, index: index }
                             });
                             totalMatches++;
-                            console.log(`📍 Usando posición conocida para "${searchTerm}": (${pos.left}, ${pos.top})`);
+                            (() => {})(`📍 Usando posición conocida para "${searchTerm}": (${pos.left}, ${pos.top})`);
                         });
                     }
                 }
                 
                 // ESTRATEGIA FINAL: Si aún no encuentra nada, crear overlays en posiciones visibles
                 if (totalMatches === 0) {
-                    console.log('🎯 Creando overlays de demostración en posiciones visibles...');
+                    (() => {})('🎯 Creando overlays de demostración en posiciones visibles...');
                     
                     // Crear overlays en posiciones que sabemos que funcionan (como los de prueba)
                     const demoPositions = [
@@ -6535,7 +7328,7 @@
                     });
                 }
                 
-                console.log(`✅ Total encontrado: ${totalMatches} coincidencias`);
+                (() => {})(`✅ Total encontrado: ${totalMatches} coincidencias`);
                 
                 if (totalMatches > 0) {
                     currentSearchIndex = 0;
@@ -6565,7 +7358,7 @@
         
         // Función de prueba para verificar overlays
         function testSearchOverlays() {
-            console.log('🧪 PRUEBA: Creando overlays de prueba...');
+            (() => {})('🧪 PRUEBA: Creando overlays de prueba...');
             
             // Limpiar overlays existentes
             const existingOverlays = document.querySelectorAll('.pdf-search-overlay');
@@ -6609,16 +7402,16 @@
                 overlay.textContent = pos.text;
                 
                 pdfWrapper.appendChild(overlay);
-                console.log(`🔴 Overlay prueba ${index + 1}: ${pos.text} en (${pos.left}, ${pos.top})`);
+                (() => {})(`🔴 Overlay prueba ${index + 1}: ${pos.text} en (${pos.left}, ${pos.top})`);
             });
             
-            console.log('✅ Overlays de prueba creados. ¿Los ves en el PDF?');
+            (() => {})('✅ Overlays de prueba creados. ¿Los ves en el PDF?');
             
             // Auto-remover después de 5 segundos
             setTimeout(() => {
                 const testOverlays = document.querySelectorAll('.test-overlay');
                 testOverlays.forEach(overlay => overlay.remove());
-                console.log('🧹 Overlays de prueba removidos');
+                (() => {})('🧹 Overlays de prueba removidos');
             }, 5000);
         }
         
@@ -6681,9 +7474,10 @@
                     cursor: pointer; font-size: 11px; border: 1px solid #ddd;
                 `;
                 
+                const safeQuery = item.query.replace(/'/g, '&#39;').replace(/"/g, '&quot;');
                 historyItem.innerHTML = `
                     <span style="flex: 1;">"${item.query}" (${item.results} resultados)</span>
-                    <button onclick="useHistoryItem('${item.query.replace(/'/g, "\\'")}')" style="
+                    <button onclick="useHistoryItem('${safeQuery}')" style="
                         background: #007ACC; color: white; border: none; padding: 2px 6px;
                         border-radius: 2px; cursor: pointer; font-size: 10px;
                     ">Usar</button>
@@ -6778,7 +7572,7 @@
                     return;
                 }
                 
-                console.log('🔍 Buscando con regex:', pattern);
+                (() => {})('🔍 Buscando con regex:', pattern);
                 
                 // Dividir texto en páginas si es necesible
                 const pageTexts = Array.isArray(currentPDFText) ? currentPDFText : [currentPDFText];
@@ -6813,7 +7607,7 @@
                     }
                 });
                 
-                console.log(`📊 Regex encontró ${searchResults.length} resultados`);
+                (() => {})(`📊 Regex encontró ${searchResults.length} resultados`);
                 updateSearchUI();
                 
                 if (searchResults.length > 0) {
@@ -6831,7 +7625,7 @@
         
         // Búsqueda en múltiples páginas
         function performMultiPageSearch(query, useRegex = false) {
-            console.log('🔍📚 Búsqueda multi-página:', query);
+            (() => {})('🔍📚 Búsqueda multi-página:', query);
             
             if (useRegex) {
                 performRegexSearch(query);
@@ -6852,7 +7646,7 @@
             const isRegexEnabled = document.getElementById('regex-checkbox')?.checked || false;
             const isMultiPageEnabled = document.getElementById('multipage-checkbox')?.checked || false;
             
-            console.log('🔎 Búsqueda avanzada:', {
+            (() => {})('🔎 Búsqueda avanzada:', {
                 query: query,
                 regex: isRegexEnabled,
                 multipage: isMultiPageEnabled
@@ -6928,7 +7722,7 @@
             document.body.removeChild(link);
             URL.revokeObjectURL(url);
             
-            console.log(`📥 Resultados exportados en formato ${format.toUpperCase()}`);
+            (() => {})(`📥 Resultados exportados en formato ${format.toUpperCase()}`);
         }
         
         // Event listeners para la búsqueda
@@ -6995,7 +7789,7 @@
         function createSearchOverlays(searchTerm, isRegex = false) {
             // Esta función llama a la función original createSearchOverlays del sistema
             // No necesita redefinición ya que existe la función original
-            console.log('🔄 Redirigiendo a función createSearchOverlays existente');
+            (() => {})('🔄 Redirigiendo a función createSearchOverlays existente');
         }
         
         // Actualizar interfaz de búsqueda
@@ -7026,7 +7820,7 @@
                 searchStatus.textContent = message;
                 searchStatus.style.color = searchResults.length > 0 ? '#28a745' : '#dc3545';
             }
-            console.log('ℹ️ ' + message);
+            (() => {})('ℹ️ ' + message);
         }
         
         // Limpiar búsqueda
@@ -7047,7 +7841,7 @@
             if (searchStatus) searchStatus.textContent = '';
             if (historyDiv) historyDiv.style.display = 'none';
             
-            console.log('🧹 Búsqueda limpiada');
+            (() => {})('🧹 Búsqueda limpiada');
         }
 
         // =================== NAVEGACIÓN Y UTILIDADES ===================
@@ -7258,10 +8052,344 @@
             
             AnalisisJuridico.cargarAlertas('activa', prioridad);
         }
+
+        // ==========================================
+        // FUNCIONES DE EXPORTACIÓN
+        // ==========================================
+
+        function exportarDiligencias(formato) {
+            const diligencias = AnalisisJuridico.diligencias || [];
+            
+            if (diligencias.length === 0) {
+                alert('No hay diligencias para exportar');
+                return;
+            }
+
+            if (formato === 'excel') {
+                exportarDiligenciasCSV(diligencias);
+            } else if (formato === 'word') {
+                exportarDiligenciasWord(diligencias);
+            } else if (formato === 'txt') {
+                exportarDiligenciasTXT(diligencias);
+            }
+        }
+
+        function exportarDiligenciasCSV(diligencias, formato) {
+            // Crear CSV con BOM UTF-8
+            let csv = '\uFEFF'; // BOM para Excel
+            csv += 'Tipo,Fecha,Responsable,Número Oficio,Descripción,Página\n';
+            
+            diligencias.forEach(d => {
+                const tipo = (d.tipo_diligencia || '').replace(/"/g, '""');
+                const fecha = d.fecha || '';
+                const responsable = (d.responsable || '').replace(/"/g, '""');
+                const oficio = (d.numero_oficio || '').replace(/"/g, '""');
+                const descripcion = (d.descripcion || '').replace(/"/g, '""');
+                const pagina = d.pagina || '';
+                
+                csv += `"${tipo}","${fecha}","${responsable}","${oficio}","${descripcion}","${pagina}"\n`;
+            });
+
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `diligencias_${new Date().toISOString().split('T')[0]}.${formato === 'excel' ? 'csv' : 'csv'}`;
+            link.click();
+        }
+
+        function exportarDiligenciasWord(diligencias) {
+            // Crear documento HTML compatible con Word
+            let html = `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body { font-family: 'Calibri', Arial, sans-serif; margin: 2cm; }
+        h1 { color: #2c3e50; border-bottom: 3px solid #3498db; padding-bottom: 10px; }
+        .metadata { background: #ecf0f1; padding: 10px; margin: 20px 0; border-left: 4px solid #3498db; }
+        .diligencia { margin: 20px 0; padding: 15px; border: 1px solid #bdc3c7; page-break-inside: avoid; }
+        .diligencia h3 { color: #2980b9; margin-top: 0; }
+        .campo { margin: 8px 0; }
+        .label { font-weight: bold; color: #34495e; }
+        .valor { color: #555; }
+        hr { border: none; border-top: 1px solid #bdc3c7; margin: 15px 0; }
+    </style>
+    <!-- 🔐 Sistema de gestión de autenticación -->
+</head>
+<body>
+    <h1>REPORTE DE DILIGENCIAS</h1>
+    <div class="metadata">
+        <p><span class="label">Fecha de exportación:</span> <span class="valor">${new Date().toLocaleString('es-MX')}</span></p>
+        <p><span class="label">Total de diligencias:</span> <span class="valor">${diligencias.length}</span></p>
+    </div>
+`;
+
+            diligencias.forEach((d, index) => {
+                html += `
+    <div class="diligencia">
+        <h3>${index + 1}. ${d.tipo_diligencia || 'Sin tipo'}</h3>
+        <div class="campo"><span class="label">Fecha:</span> <span class="valor">${d.fecha || 'No especificada'}</span></div>
+        ${d.responsable ? `<div class="campo"><span class="label">Responsable:</span> <span class="valor">${d.responsable}</span></div>` : ''}
+        ${d.numero_oficio ? `<div class="campo"><span class="label">Número de Oficio:</span> <span class="valor">${d.numero_oficio}</span></div>` : ''}
+        ${d.descripcion ? `<div class="campo"><span class="label">Descripción:</span> <span class="valor">${d.descripcion}</span></div>` : ''}
+        <div class="campo"><span class="label">Página:</span> <span class="valor">${d.pagina || 'N/A'}</span></div>
+    </div>
+`;
+            });
+
+            html += `
+</body>
+</html>`;
+
+            const blob = new Blob([html], { type: 'application/msword;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `diligencias_${new Date().toISOString().split('T')[0]}.doc`;
+            link.click();
+        }
+
+        function exportarDiligenciasTXT(diligencias) {
+            let txt = '==============================================\n';
+            txt += 'REPORTE DE DILIGENCIAS\n';
+            txt += `Fecha de exportación: ${new Date().toLocaleString('es-MX')}\n`;
+            txt += `Total de diligencias: ${diligencias.length}\n`;
+            txt += '==============================================\n\n';
+
+            diligencias.forEach((d, index) => {
+                txt += `[${index + 1}] ${d.tipo_diligencia || 'Sin tipo'}\n`;
+                txt += `   Fecha: ${d.fecha || 'No especificada'}\n`;
+                if (d.responsable) txt += `   Responsable: ${d.responsable}\n`;
+                if (d.numero_oficio) txt += `   Oficio: ${d.numero_oficio}\n`;
+                if (d.descripcion) txt += `   Descripción: ${d.descripcion}\n`;
+                txt += `   Página: ${d.pagina || 'N/A'}\n`;
+                txt += '\n' + '-'.repeat(50) + '\n\n';
+            });
+
+            const blob = new Blob([txt], { type: 'text/plain;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `diligencias_${new Date().toISOString().split('T')[0]}.txt`;
+            link.click();
+        }
+
+        function exportarPersonas(formato) {
+            const personas = AnalisisJuridico.personas || [];
+            
+            if (personas.length === 0) {
+                alert('No hay personas para exportar');
+                return;
+            }
+
+            if (formato === 'excel') {
+                exportarPersonasCSV(personas);
+            } else if (formato === 'word') {
+                exportarPersonasWord(personas);
+            } else if (formato === 'txt') {
+                exportarPersonasTXT(personas);
+            }
+        }
+
+        function exportarPersonasCSV(personas, formato) {
+            let csv = '\uFEFF';
+            csv += 'Nombre Completo,Rol,Dirección,Teléfono,Página\n';
+            
+            personas.forEach(p => {
+                const nombre = (p.nombre_completo || '').replace(/"/g, '""');
+                const rol = (p.rol || '').replace(/"/g, '""');
+                const direccion = (p.direccion || '').replace(/"/g, '""');
+                const telefono = (p.telefono || '').replace(/"/g, '""');
+                const pagina = p.primera_mencion_pagina || '';
+                
+                csv += `"${nombre}","${rol}","${direccion}","${telefono}","${pagina}"\n`;
+            });
+
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `personas_${new Date().toISOString().split('T')[0]}.csv`;
+            link.click();
+        }
+
+        function exportarPersonasWord(personas) {
+            let html = `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body { font-family: 'Calibri', Arial, sans-serif; margin: 2cm; }
+        h1 { color: #2c3e50; border-bottom: 3px solid #e74c3c; padding-bottom: 10px; }
+        .metadata { background: #ecf0f1; padding: 10px; margin: 20px 0; border-left: 4px solid #e74c3c; }
+        .persona { margin: 20px 0; padding: 15px; border: 1px solid #bdc3c7; page-break-inside: avoid; }
+        .persona h3 { color: #c0392b; margin-top: 0; }
+        .campo { margin: 8px 0; }
+        .label { font-weight: bold; color: #34495e; }
+        .valor { color: #555; }
+    </style>
+    <!-- 🔐 Sistema de gestión de autenticación -->
+</head>
+<body>
+    <h1>REPORTE DE PERSONAS IDENTIFICADAS</h1>
+    <div class="metadata">
+        <p><span class="label">Fecha de exportación:</span> <span class="valor">${new Date().toLocaleString('es-MX')}</span></p>
+        <p><span class="label">Total de personas:</span> <span class="valor">${personas.length}</span></p>
+    </div>
+`;
+
+            personas.forEach((p, index) => {
+                html += `
+    <div class="persona">
+        <h3>${index + 1}. ${p.nombre_completo || 'Sin nombre'}</h3>
+        ${p.rol ? `<div class="campo"><span class="label">Rol:</span> <span class="valor">${p.rol}</span></div>` : ''}
+        ${p.direccion ? `<div class="campo"><span class="label">Dirección:</span> <span class="valor">${p.direccion}</span></div>` : ''}
+        ${p.telefono ? `<div class="campo"><span class="label">Teléfono:</span> <span class="valor">${p.telefono}</span></div>` : ''}
+        <div class="campo"><span class="label">Primera mención:</span> <span class="valor">Página ${p.primera_mencion_pagina || 'N/A'}</span></div>
+    </div>
+`;
+            });
+
+            html += `
+</body>
+</html>`;
+
+            const blob = new Blob([html], { type: 'application/msword;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `personas_${new Date().toISOString().split('T')[0]}.doc`;
+            link.click();
+        }
+
+        function exportarPersonasTXT(personas) {
+            let txt = '==============================================\n';
+            txt += 'REPORTE DE PERSONAS IDENTIFICADAS\n';
+            txt += `Fecha de exportación: ${new Date().toLocaleString('es-MX')}\n`;
+            txt += `Total de personas: ${personas.length}\n`;
+            txt += '==============================================\n\n';
+
+            personas.forEach((p, index) => {
+                txt += `[${index + 1}] ${p.nombre_completo || 'Sin nombre'}\n`;
+                if (p.rol) txt += `   Rol: ${p.rol}\n`;
+                if (p.direccion) txt += `   Dirección: ${p.direccion}\n`;
+                if (p.telefono) txt += `   Teléfono: ${p.telefono}\n`;
+                txt += `   Primera mención: Página ${p.primera_mencion_pagina || 'N/A'}\n`;
+                txt += '\n' + '-'.repeat(50) + '\n\n';
+            });
+
+            const blob = new Blob([txt], { type: 'text/plain;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `personas_${new Date().toISOString().split('T')[0]}.txt`;
+            link.click();
+        }
+
+        function exportarLugares(formato) {
+            const lugares = AnalisisJuridico.lugares || [];
+            
+            if (lugares.length === 0) {
+                alert('No hay lugares para exportar');
+                return;
+            }
+
+            if (formato === 'excel') {
+                exportarLugaresCSV(lugares);
+            } else if (formato === 'word') {
+                exportarLugaresWord(lugares);
+            } else if (formato === 'txt') {
+                exportarLugaresTXT(lugares);
+            }
+        }
+
+        function exportarLugaresCSV(lugares, formato) {
+            let csv = '\uFEFF';
+            csv += 'Dirección Completa,Tipo,Contexto,Página\n';
+            
+            lugares.forEach(l => {
+                const direccion = (l.direccion_completa || l.nombre_lugar || '').replace(/"/g, '""');
+                const tipo = (l.tipo_lugar || '').replace(/"/g, '""');
+                const contexto = (l.contexto || '').replace(/"/g, '""');
+                const pagina = l.numero_pagina || '';
+                
+                csv += `"${direccion}","${tipo}","${contexto}","${pagina}"\n`;
+            });
+
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `lugares_${new Date().toISOString().split('T')[0]}.csv`;
+            link.click();
+        }
+
+        function exportarLugaresWord(lugares) {
+            let html = `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body { font-family: 'Calibri', Arial, sans-serif; margin: 2cm; }
+        h1 { color: #2c3e50; border-bottom: 3px solid #27ae60; padding-bottom: 10px; }
+        .metadata { background: #ecf0f1; padding: 10px; margin: 20px 0; border-left: 4px solid #27ae60; }
+        .lugar { margin: 20px 0; padding: 15px; border: 1px solid #bdc3c7; page-break-inside: avoid; }
+        .lugar h3 { color: #229954; margin-top: 0; }
+        .campo { margin: 8px 0; }
+        .label { font-weight: bold; color: #34495e; }
+        .valor { color: #555; }
+    </style>
+    <!-- 🔐 Sistema de gestión de autenticación -->
+</head>
+<body>
+    <h1>REPORTE DE LUGARES IDENTIFICADOS</h1>
+    <div class="metadata">
+        <p><span class="label">Fecha de exportación:</span> <span class="valor">${new Date().toLocaleString('es-MX')}</span></p>
+        <p><span class="label">Total de lugares:</span> <span class="valor">${lugares.length}</span></p>
+    </div>
+`;
+
+            lugares.forEach((l, index) => {
+                html += `
+    <div class="lugar">
+        <h3>${index + 1}. ${l.direccion_completa || l.nombre_lugar || 'Sin dirección'}</h3>
+        ${l.tipo_lugar ? `<div class="campo"><span class="label">Tipo:</span> <span class="valor">${l.tipo_lugar}</span></div>` : ''}
+        ${l.contexto ? `<div class="campo"><span class="label">Contexto:</span> <span class="valor">${l.contexto}</span></div>` : ''}
+        <div class="campo"><span class="label">Página:</span> <span class="valor">${l.numero_pagina || 'N/A'}</span></div>
+    </div>
+`;
+            });
+
+            html += `
+</body>
+</html>`;
+
+            const blob = new Blob([html], { type: 'application/msword;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `lugares_${new Date().toISOString().split('T')[0]}.doc`;
+            link.click();
+        }
+
+        function exportarLugaresTXT(lugares) {
+            let txt = '==============================================\n';
+            txt += 'REPORTE DE LUGARES IDENTIFICADOS\n';
+            txt += `Fecha de exportación: ${new Date().toLocaleString('es-MX')}\n`;
+            txt += `Total de lugares: ${lugares.length}\n`;
+            txt += '==============================================\n\n';
+
+            lugares.forEach((l, index) => {
+                txt += `[${index + 1}] ${l.direccion_completa || l.nombre_lugar || 'Sin dirección'}\n`;
+                if (l.tipo_lugar) txt += `   Tipo: ${l.tipo_lugar}\n`;
+                if (l.contexto) txt += `   Contexto: ${l.contexto}\n`;
+                txt += `   Página: ${l.numero_pagina || 'N/A'}\n`;
+                txt += '\n' + '-'.repeat(50) + '\n\n';
+            });
+
+            const blob = new Blob([txt], { type: 'text/plain;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `lugares_${new Date().toISOString().split('T')[0]}.txt`;
+            link.click();
+        }
     </script>
     
     <!-- Tutorial Interactivo para Usuarios -->
     <script src="js/tutorial.js"></script>
     <script src="js/tutorial-usuario.js"></script>
 </body>
-</html>
+</html></html>

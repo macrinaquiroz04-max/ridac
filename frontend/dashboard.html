@@ -204,6 +204,9 @@
             font-size: 18px;
         }
     </style>
+    <!-- 🔐 Sistema de gestión de autenticación -->
+    <script src="js/auth-manager.js"></script>
+    <script src="js/session-indicator.js"></script>
 </head>
 <body>
     <div class="header">
@@ -268,19 +271,22 @@
             ? `${window.location.protocol}//${window.location.hostname}/api`
             : `${window.location.protocol}//${window.location.hostname}:8000/api`;
         
-        console.log('🌐 Modo:', isNginx ? 'Nginx Proxy' : 'Backend Directo');
-        console.log('🌐 API URL (Dashboard):', API_URL);
+        // Hacer API_URL global para que auth-manager lo use
+        window.API_URL = API_URL;
+        
+        (() => {})('🌐 Modo:', isNginx ? 'Nginx Proxy' : 'Backend Directo');
+        (() => {})('🌐 API URL (Dashboard):', API_URL);
 
         async function checkAuth() {
             const token = localStorage.getItem('token');
             if (!token) {
-                console.log('❌ No hay token, redirigiendo a login...');
+                (() => {})('❌ No hay token, redirigiendo a login...');
                 window.location.href = '/index';
                 return;
             }
 
             try {
-                console.log('🔐 Verificando autenticación...');
+                (() => {})('🔐 Verificando autenticación...');
                 const response = await fetch(`${API_URL}/auth/me`, {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
@@ -292,7 +298,7 @@
                 const data = await response.json();
                 const user = data;
 
-                console.log('✅ Usuario autenticado:', user.username);
+                (() => {})('✅ Usuario autenticado:', user.username);
                 document.getElementById('userName').textContent = `${user.username} (${user.rol})`;
 
                 // Cargar foto de perfil si existe
@@ -326,16 +332,16 @@
         
         async function loadStats() {
             const token = localStorage.getItem('token');
-            console.log('═══════════════════════════════════════════');
-            console.log('📊 CARGANDO ESTADÍSTICAS');
-            console.log('═══════════════════════════════════════════');
-            console.log('🕐 Hora:', new Date().toLocaleTimeString());
-            console.log('🔗 API URL:', API_URL);
-            console.log('🔑 Token:', token ? 'Presente' : 'AUSENTE');
+            (() => {})('═══════════════════════════════════════════');
+            (() => {})('📊 CARGANDO ESTADÍSTICAS');
+            (() => {})('═══════════════════════════════════════════');
+            (() => {})('🕐 Hora:', new Date().toLocaleTimeString());
+            (() => {})('🔗 API URL:', API_URL);
+            (() => {})('🔑 Token:', token ? 'Presente' : 'AUSENTE');
             
             try {
                 // Obtener estadísticas de carpetas
-                console.log('📡 Solicitando carpetas desde:', `${API_URL}/carpetas`);
+                (() => {})('📡 Solicitando carpetas desde:', `${API_URL}/carpetas`);
                 const carpetasResponse = await fetch(`${API_URL}/carpetas`, {
                     headers: { 
                         'Authorization': `Bearer ${token}`,
@@ -343,7 +349,7 @@
                     }
                 });
                 
-                console.log('📥 Response carpetas:', {
+                (() => {})('📥 Response carpetas:', {
                     status: carpetasResponse.status,
                     ok: carpetasResponse.ok,
                     statusText: carpetasResponse.statusText,
@@ -352,8 +358,8 @@
                 
                 if (carpetasResponse.ok) {
                     const carpetas = await carpetasResponse.json();
-                    console.log('✅ Carpetas cargadas:', carpetas.length);
-                    console.log('📋 Detalle carpetas:', carpetas.map(c => ({
+                    (() => {})('✅ Carpetas cargadas:', carpetas.length);
+                    (() => {})('📋 Detalle carpetas:', carpetas.map(c => ({
                         id: c.id,
                         numero: c.numero_carpeta,
                         total_tomos: c.total_tomos
@@ -366,7 +372,7 @@
                     for (const carpeta of carpetas) {
                         totalTomos += carpeta.total_tomos || 0;
                     }
-                    console.log('📚 Total tomos calculados:', totalTomos);
+                    (() => {})('📚 Total tomos calculados:', totalTomos);
                     document.getElementById('totalTomos').textContent = totalTomos;
                     
                     // Obtener estadísticas de OCR desde el endpoint de estadísticas
@@ -374,31 +380,31 @@
                     let ocrPendiente = 0;
                     let hayProcesosActivos = false;
                     
-                    console.log('───────────────────────────────────────────');
-                    console.log('🔍 ANALIZANDO TOMOS POR CARPETA');
-                    console.log('───────────────────────────────────────────');
+                    (() => {})('───────────────────────────────────────────');
+                    (() => {})('🔍 ANALIZANDO TOMOS POR CARPETA');
+                    (() => {})('───────────────────────────────────────────');
                     
                     for (const carpeta of carpetas) {
                         try {
-                            console.log(`📂 Carpeta ${carpeta.id} (${carpeta.numero_carpeta}):`);
+                            (() => {})(`📂 Carpeta ${carpeta.id} (${carpeta.numero_carpeta}):`);
                             const tomosUrl = `${API_URL}/tomos/${carpeta.id}`;
-                            console.log(`   🔗 Solicitando: ${tomosUrl}`);
+                            (() => {})(`   🔗 Solicitando: ${tomosUrl}`);
                             
                             const tomosResponse = await fetch(tomosUrl, {
                                 headers: { 'Authorization': `Bearer ${token}` }
                             });
                             
-                            console.log(`   📥 Response:`, {
+                            (() => {})(`   📥 Response:`, {
                                 status: tomosResponse.status,
                                 ok: tomosResponse.ok
                             });
                             
                             if (tomosResponse.ok) {
                                 const tomos = await tomosResponse.json();
-                                console.log(`   ✅ ${tomos.length} tomos encontrados`);
+                                (() => {})(`   ✅ ${tomos.length} tomos encontrados`);
                                 
                                 for (const tomo of tomos) {
-                                    console.log(`      📄 Tomo ${tomo.id}:`, {
+                                    (() => {})(`      📄 Tomo ${tomo.id}:`, {
                                         numero: tomo.numero_tomo,
                                         estado: tomo.estado,
                                         paginas: tomo.numero_paginas,
@@ -408,17 +414,17 @@
                                     // Verificar si hay procesos OCR activos
                                     if (tomo.estado === 'procesando') {
                                         hayProcesosActivos = true;
-                                        console.log(`      🔄 PROCESO ACTIVO detectado en tomo ${tomo.id}`);
+                                        (() => {})(`      🔄 PROCESO ACTIVO detectado en tomo ${tomo.id}`);
                                     }
                                     
                                     // Verificar si el OCR está completado al 100%
                                     // Solo se considera completado si tiene estado "completado" Y fecha_procesamiento
                                     if (tomo.estado === 'completado' && tomo.fecha_procesamiento) {
                                         ocrCompletado++;
-                                        console.log(`      ✅ OCR Completado (tomo ${tomo.id})`);
+                                        (() => {})(`      ✅ OCR Completado (tomo ${tomo.id})`);
                                     } else {
                                         ocrPendiente++;
-                                        console.log(`      ⏳ OCR Pendiente (tomo ${tomo.id})`);
+                                        (() => {})(`      ⏳ OCR Pendiente (tomo ${tomo.id})`);
                                     }
                                 }
                             } else {
@@ -429,12 +435,12 @@
                         }
                     }
                     
-                    console.log('───────────────────────────────────────────');
-                    console.log('📊 RESUMEN DE ESTADÍSTICAS OCR:');
-                    console.log('───────────────────────────────────────────');
-                    console.log('   ✅ OCR Completado:', ocrCompletado);
-                    console.log('   ⏳ OCR Pendiente:', ocrPendiente);
-                    console.log('   🔄 Hay procesos activos:', hayProcesosActivos);
+                    (() => {})('───────────────────────────────────────────');
+                    (() => {})('📊 RESUMEN DE ESTADÍSTICAS OCR:');
+                    (() => {})('───────────────────────────────────────────');
+                    (() => {})('   ✅ OCR Completado:', ocrCompletado);
+                    (() => {})('   ⏳ OCR Pendiente:', ocrPendiente);
+                    (() => {})('   🔄 Hay procesos activos:', hayProcesosActivos);
                     
                     document.getElementById('ocrCompletado').textContent = ocrCompletado;
                     document.getElementById('ocrPendiente').textContent = ocrPendiente;
@@ -443,25 +449,25 @@
                     if (hayProcesosActivos) {
                         const mensaje = '🔄 Procesando OCR... (actualizando cada 30s)';
                         document.getElementById('systemStatus').textContent = mensaje;
-                        console.log('🔄 Auto-refresh ACTIVADO (hay procesos activos)');
+                        (() => {})('🔄 Auto-refresh ACTIVADO (hay procesos activos)');
                         if (!autoRefreshInterval) {
                             autoRefreshInterval = setInterval(loadStats, 30000); // 30 segundos
-                            console.log('⏰ Intervalo de auto-refresh iniciado');
+                            (() => {})('⏰ Intervalo de auto-refresh iniciado');
                         }
                     } else {
                         const mensaje = '✓ Sistema funcionando correctamente';
                         document.getElementById('systemStatus').textContent = mensaje;
-                        console.log('✓ Auto-refresh DESACTIVADO (no hay procesos activos)');
+                        (() => {})('✓ Auto-refresh DESACTIVADO (no hay procesos activos)');
                         if (autoRefreshInterval) {
                             clearInterval(autoRefreshInterval);
                             autoRefreshInterval = null;
-                            console.log('⏰ Intervalo de auto-refresh detenido');
+                            (() => {})('⏰ Intervalo de auto-refresh detenido');
                         }
                     }
                     
-                    console.log('═══════════════════════════════════════════');
-                    console.log('✅ CARGA DE ESTADÍSTICAS COMPLETADA');
-                    console.log('═══════════════════════════════════════════');
+                    (() => {})('═══════════════════════════════════════════');
+                    (() => {})('✅ CARGA DE ESTADÍSTICAS COMPLETADA');
+                    (() => {})('═══════════════════════════════════════════');
                 } else {
                     console.error('❌ Error al cargar carpetas:', carpetasResponse.status);
                     document.getElementById('systemStatus').textContent = '⚠️ Error al cargar estadísticas';
@@ -486,7 +492,7 @@
 
         function logout() {
             if (confirm('¿Seguro que deseas cerrar sesión?')) {
-                console.log('👋 Cerrando sesión...');
+                (() => {})('👋 Cerrando sesión...');
                 localStorage.clear();
                 window.location.href = '/index';
             }
@@ -495,15 +501,15 @@
         // Iniciar cuando cargue la página
         window.onload = () => {
             console.clear(); // Limpiar consola para mejor legibilidad
-            console.log('╔═══════════════════════════════════════════╗');
-            console.log('║   🚀 DASHBOARD INICIANDO                  ║');
-            console.log('╚═══════════════════════════════════════════╝');
-            console.log('🕐 Timestamp:', new Date().toLocaleString());
-            console.log('🌐 Location:', window.location.href);
-            console.log('🔌 Puerto:', window.location.port || '80 (default)');
-            console.log('🔧 Modo detectado:', isNginx ? 'NGINX PROXY' : 'BACKEND DIRECTO');
-            console.log('🔗 API URL configurada:', API_URL);
-            console.log('');
+            (() => {})('╔═══════════════════════════════════════════╗');
+            (() => {})('║   🚀 DASHBOARD INICIANDO                  ║');
+            (() => {})('╚═══════════════════════════════════════════╝');
+            (() => {})('🕐 Timestamp:', new Date().toLocaleString());
+            (() => {})('🌐 Location:', window.location.href);
+            (() => {})('🔌 Puerto:', window.location.port || '80 (default)');
+            (() => {})('🔧 Modo detectado:', isNginx ? 'NGINX PROXY' : 'BACKEND DIRECTO');
+            (() => {})('🔗 API URL configurada:', API_URL);
+            (() => {})('');
             checkAuth();
         };
     </script>

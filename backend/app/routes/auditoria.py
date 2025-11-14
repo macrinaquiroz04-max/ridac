@@ -1,12 +1,15 @@
 # backend/app/routes/auditoria.py
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import desc, and_, or_
 from typing import Optional, List
 from datetime import datetime, timedelta
 from pydantic import BaseModel
 import logging
+import csv
+import io
 
 from app.database import get_db
 from app.models.auditoria import Auditoria
@@ -301,3 +304,183 @@ async def registrar_acceso_auditoria(
     except Exception as e:
         logger.warning(f"Error registrando acceso a auditoría: {e}")
         return {"message": "Error registrando acceso"}
+
+
+@router.get("/exportar")
+async def exportar_auditoria_csv(
+    request: Request,
+    periodo: Optional[str] = Query(None, description="today, week, month, year, all"),
+    usuario: Optional[str] = Query(None, description="Username para filtrar"),
+    accion: Optional[str] = Query(None, description="Tipo de acción para filtrar"),
+    ip: Optional[str] = Query(None, description="IP address para filtrar"),
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_active_user)
+):
+    """
+    Exportar eventos de auditoría a formato CSV.
+    Solo usuarios con permiso ver_auditoria pueden acceder.
+    """
+    # Verificar permisos
+    from app.models.permiso import PermisoSistema
+    from app.utils.auditoria_utils import AuditoriaLogger
+    
+    permisos_sistema = db.query(PermisoSistema).filter(
+        PermisoSistema.usuario_id == current_user.id
+    ).first()
+    
+    if not permisos_sistema or not permisos_sistema.ver_auditoria:
+        raise HTTPException(
+            status_code=403,
+            detail="No tienes permisos para exportar la auditoría del sistema"
+        )
+    
+    # Construir query base con JOIN a usuarios (misma lógica que obtener_eventos)
+    query = db.query(
+        Auditoria,
+        Usuario.username,
+        Usuario.nombre_completo,
+        Usuario.rol_id
+    ).outerjoin(
+        Usuario, Auditoria.usuario_id == Usuario.id
+    )
+    
+    # Aplicar filtros de período
+    if periodo and periodo != "all":
+        now = datetime.now()
+        if periodo == "today":
+            fecha_inicio = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        elif periodo == "week":
+            fecha_inicio = now - timedelta(days=7)
+        elif periodo == "month":
+            fecha_inicio = now - timedelta(days=30)
+        elif periodo == "year":
+            fecha_inicio = now - timedelta(days=365)
+        else:
+            fecha_inicio = None
+        
+        if fecha_inicio:
+            query = query.filter(Auditoria.created_at >= fecha_inicio)
+    
+    # Filtro por usuario
+    if usuario:
+        query = query.filter(Usuario.username == usuario)
+    
+    # Filtro por acción
+    if accion and accion != "all":
+        query = query.filter(Auditoria.accion == accion)
+    
+    # Filtro por IP
+    if ip:
+        query = query.filter(Auditoria.ip_address.like(f"%{ip}%"))
+    
+    # Ordenar por fecha descendente
+    query = query.order_by(desc(Auditoria.created_at))
+    resultados = query.all()
+    
+    # Registrar la exportación en auditoría
+    ip_address, user_agent = AuditoriaLogger.extraer_info_request(request)
+    try:
+        AuditoriaLogger.registrar_evento(
+            usuario_id=current_user.id,
+            accion="EXPORTAR_DATOS",
+            tabla_afectada="auditoria",
+            valores_nuevos={
+                "tipo": "auditoria_csv",
+                "total_registros": len(resultados),
+                "filtros": {
+                    "periodo": periodo,
+                    "usuario": usuario,
+                    "accion": accion,
+                    "ip": ip
+                }
+            },
+            descripcion=f"Exportación de {len(resultados)} registros de auditoría a CSV",
+            ip_address=ip_address,
+            user_agent=user_agent,
+            db=db
+        )
+    except Exception as e:
+        logger.warning(f"Error registrando exportación: {e}")
+    
+    # Crear CSV en memoria con codificación UTF-8 con BOM para Excel
+    output = io.StringIO()
+    # Agregar BOM (Byte Order Mark) para que Excel reconozca UTF-8
+    output.write('\ufeff')
+    
+    writer = csv.writer(output, quoting=csv.QUOTE_ALL)
+    
+    # Escribir encabezados más descriptivos
+    writer.writerow([
+        'ID',
+        'Fecha y Hora',
+        'Usuario',
+        'Nombre Completo',
+        'Acción Realizada',
+        'Tabla Afectada',
+        'ID Registro',
+        'Descripción',
+        'Dirección IP',
+        'Navegador/Sistema'
+    ])
+    
+    # Escribir datos de forma más limpia
+    for auditoria, username, nombre_completo, rol_id in resultados:
+        # Limpiar y formatear User Agent para mejor legibilidad
+        user_agent_clean = ''
+        if auditoria.user_agent:
+            # Extraer solo la información relevante del user agent
+            ua = auditoria.user_agent
+            if 'Mozilla' in ua:
+                # Intentar extraer el navegador principal
+                if 'Chrome' in ua:
+                    user_agent_clean = 'Chrome'
+                elif 'Firefox' in ua:
+                    user_agent_clean = 'Firefox'
+                elif 'Safari' in ua and 'Chrome' not in ua:
+                    user_agent_clean = 'Safari'
+                elif 'Edge' in ua:
+                    user_agent_clean = 'Edge'
+                else:
+                    user_agent_clean = 'Navegador Web'
+                    
+                # Agregar SO
+                if 'Windows' in ua:
+                    user_agent_clean += ' (Windows)'
+                elif 'Linux' in ua:
+                    user_agent_clean += ' (Linux)'
+                elif 'Mac' in ua:
+                    user_agent_clean += ' (Mac)'
+            else:
+                user_agent_clean = 'Sistema/API'
+        
+        writer.writerow([
+            auditoria.id,
+            auditoria.created_at.strftime('%Y-%m-%d %H:%M:%S') if auditoria.created_at else '',
+            username or 'Sistema',
+            nombre_completo or '-',
+            auditoria.accion or '-',
+            auditoria.tabla_afectada or '-',
+            auditoria.registro_id or '-',
+            (auditoria.descripcion or '-').replace('\n', ' ').replace('\r', ''),  # Limpiar saltos de línea
+            auditoria.ip_address or '-',
+            user_agent_clean or '-'
+        ])
+    
+    # Preparar el archivo para descarga
+    output.seek(0)
+    
+    # Generar nombre de archivo con timestamp
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    filename = f"auditoria_export_{timestamp}.csv"
+    
+    # Codificar correctamente para UTF-8
+    csv_content = output.getvalue().encode('utf-8')
+    
+    return StreamingResponse(
+        iter([csv_content]),
+        media_type="text/csv; charset=utf-8",
+        headers={
+            "Content-Disposition": f"attachment; filename={filename}",
+            "Content-Type": "text/csv; charset=utf-8"
+        }
+    )

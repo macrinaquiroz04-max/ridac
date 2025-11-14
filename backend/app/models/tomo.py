@@ -20,6 +20,7 @@ class Tomo(Base):
     ruta_archivo = Column(Text, nullable=False)
     tamanio_bytes = Column(Integer)
     numero_paginas = Column(Integer)
+    hash_sha256 = Column(String(64), index=True)  # Hash del archivo para verificar integridad
     estado = Column(String(50), default='pendiente', index=True)  # pendiente, procesando, completado, error
     fecha_subida = Column(DateTime(timezone=True), server_default=func.now())
     fecha_procesamiento = Column(DateTime(timezone=True))

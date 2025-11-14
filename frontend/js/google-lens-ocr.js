@@ -42,12 +42,12 @@ class GoogleLensOCR {
         this.setupEventListeners();
         this.createOverlay();
         
-        console.log('🔍 Google Lens OCR v2.0 inicializado con Computer Vision');
+        (() => {})('🔍 Google Lens OCR v2.0 inicializado con Computer Vision');
     }
     
     async initTesseract() {
         try {
-            console.log('📦 Cargando Tesseract.js con modelos avanzados...');
+            (() => {})('📦 Cargando Tesseract.js con modelos avanzados...');
             
             // Crear worker de Tesseract con MEJOR configuración
             this.tesseractWorker = await Tesseract.createWorker({
@@ -71,7 +71,7 @@ class GoogleLensOCR {
                 tessedit_ocr_engine_mode: Tesseract.OEM.LSTM_ONLY, // Solo red neuronal
             });
             
-            console.log('✅ Tesseract.js listo con LSTM neural network');
+            (() => {})('✅ Tesseract.js listo con LSTM neural network');
         } catch (error) {
             console.error('❌ Error cargando Tesseract:', error);
         }
@@ -273,7 +273,7 @@ class GoogleLensOCR {
             const texto = result.data.text.trim();
             const confidence = result.data.confidence;
             
-            console.log(`📊 OCR completado: ${confidence.toFixed(1)}% confianza`);
+            (() => {})(`📊 OCR completado: ${confidence.toFixed(1)}% confianza`);
             
             if (texto) {
                 // 📝 Post-procesamiento NLP básico
@@ -307,7 +307,7 @@ class GoogleLensOCR {
         let cleaned = texto;
         
         try {
-            console.log('📝 Texto original:', texto);
+            (() => {})('📝 Texto original:', texto);
             
             // 1. Corregir palabras comunes mal reconocidas PRIMERO
             const diccionario = {
@@ -358,7 +358,7 @@ class GoogleLensOCR {
                 return '. ' + char.toUpperCase();
             });
             
-            console.log('✅ Texto corregido:', cleaned);
+            (() => {})('✅ Texto corregido:', cleaned);
             
         } catch (e) {
             console.warn('⚠️ Error en post-procesamiento:', e);
@@ -679,7 +679,7 @@ class GoogleLensOCR {
          * Similar a Text Detection API de Google ML Kit
          */
         try {
-            console.log('🔍 Detectando regiones de texto automáticamente...');
+            (() => {})('🔍 Detectando regiones de texto automáticamente...');
             
             // Obtener imagen del canvas completo
             const imageData = this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
@@ -697,7 +697,7 @@ class GoogleLensOCR {
                 r.aspectRatio > 0.1 && r.aspectRatio < 20
             );
             
-            console.log(`✅ ${textRegions.length} regiones de texto detectadas`);
+            (() => {})(`✅ ${textRegions.length} regiones de texto detectadas`);
             
             // Dibujar regiones detectadas
             this.highlightTextRegions(textRegions);
@@ -969,7 +969,7 @@ class GoogleLensOCR {
         if (this.overlay) {
             this.overlay.remove();
         }
-        console.log('🔍 Google Lens OCR destruido');
+        (() => {})('🔍 Google Lens OCR destruido');
     }
 }
 

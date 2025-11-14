@@ -115,7 +115,7 @@ class UltraOptimizedFrontend {
             request.onerror = () => reject(request.error);
             request.onsuccess = () => {
                 this.db = request.result;
-                console.log('🚀 IndexedDB cache inicializado');
+                (() => {})('🚀 IndexedDB cache inicializado');
                 resolve();
             };
             
@@ -143,7 +143,7 @@ class UltraOptimizedFrontend {
         // Service Worker para cache offline
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('/sw.js').then(() => {
-                console.log('🔄 Service Worker registrado para cache offline');
+                (() => {})('🔄 Service Worker registrado para cache offline');
             });
         }
         
@@ -155,7 +155,7 @@ class UltraOptimizedFrontend {
         // Background sync para procesamiento offline
         if ('serviceWorker' in navigator && 'sync' in window.ServiceWorkerRegistration.prototype) {
             navigator.serviceWorker.ready.then((registration) => {
-                console.log('🌐 Background sync disponible');
+                (() => {})('🌐 Background sync disponible');
             });
         }
     }
@@ -163,7 +163,7 @@ class UltraOptimizedFrontend {
     // ⚡ PROCESAMIENTO ULTRA-OPTIMIZADO
     async processDocumentUltraFast(tomoId, opciones = {}) {
         if (this.isProcessing) {
-            console.log('⏳ Ya hay un procesamiento en curso, agregando a cola...');
+            (() => {})('⏳ Ya hay un procesamiento en curso, agregando a cola...');
             this.processQueue.push({ tomoId, opciones });
             return;
         }
@@ -176,14 +176,14 @@ class UltraOptimizedFrontend {
             let cachedResult = await this.getFromCache(cacheKey);
             
             if (cachedResult && !opciones.forceRefresh) {
-                console.log('⚡ Resultado obtenido del cache ultra-rápido');
+                (() => {})('⚡ Resultado obtenido del cache ultra-rápido');
                 this.displayResults(cachedResult);
                 return;
             }
             
             // 2. Obtener información del documento
             const docInfo = await this.fetchDocumentInfo(tomoId);
-            console.log(`📊 Procesando ${docInfo.numero_paginas} páginas con optimizaciones ultra`);
+            (() => {})(`📊 Procesando ${docInfo.numero_paginas} páginas con optimizaciones ultra`);
             
             // 3. Preparar configuración optimizada
             const config = {
@@ -443,19 +443,19 @@ window.addEventListener('load', () => {
     const memory = navigator.deviceMemory || 4;
     const connection = navigator.connection || { effectiveType: '4g' };
     
-    console.log(`🔍 Hardware detectado: ${cores} cores, ${memory}GB RAM, ${connection.effectiveType}`);
+    (() => {})(`🔍 Hardware detectado: ${cores} cores, ${memory}GB RAM, ${connection.effectiveType}`);
     
     // Ajustar configuraciones automáticamente
     if (cores >= 8 && memory >= 8) {
-        console.log('🚀 Modo ULTRA activado: Hardware potente detectado');
+        (() => {})('🚀 Modo ULTRA activado: Hardware potente detectado');
         ultraFrontend.configMode = 'ultra';
     } else if (cores >= 4 && memory >= 4) {
-        console.log('⚡ Modo RAPIDO activado: Hardware medio detectado');
+        (() => {})('⚡ Modo RAPIDO activado: Hardware medio detectado');
         ultraFrontend.configMode = 'fast';
     } else {
-        console.log('🐌 Modo CONSERVADOR activado: Hardware limitado detectado');
+        (() => {})('🐌 Modo CONSERVADOR activado: Hardware limitado detectado');
         ultraFrontend.configMode = 'conservative';
     }
 });
 
-console.log('🎯 Frontend Ultra-Optimizado cargado y listo para máximo rendimiento!');
+(() => {})('🎯 Frontend Ultra-Optimizado cargado y listo para máximo rendimiento!');
