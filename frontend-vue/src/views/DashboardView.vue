@@ -103,10 +103,10 @@
             </thead>
             <tbody>
               <tr v-for="a in auditoria.slice(0, 10)" :key="a.id">
-                <td><strong>{{ a.usuario }}</strong></td>
+                <td><strong>{{ a.username || '—' }}</strong></td>
                 <td><span class="action-badge">{{ a.accion }}</span></td>
-                <td>{{ a.ip }}</td>
-                <td>{{ formatFecha(a.fecha) }}</td>
+                <td>{{ a.ip_address || '—' }}</td>
+                <td>{{ formatFecha(a.created_at) }}</td>
               </tr>
             </tbody>
           </table>
@@ -161,8 +161,8 @@ async function cargarStats() {
 async function cargarAuditoria() {
   loadingAuditoria.value = true
   try {
-    const data = await get('/auditoria')
-    auditoria.value = data.items || data || []
+    const data = await get('/auditoria/eventos', { periodo: 'today', limit: 10 })
+    auditoria.value = Array.isArray(data) ? data : []
   } catch {
     auditoria.value = []
   } finally {
