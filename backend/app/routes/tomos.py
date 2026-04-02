@@ -656,25 +656,27 @@ async def eliminar_tomo(
                 logger.error(f"Error al eliminar archivo físico: {str(e)}")
                 # No fallar por este error
 
-        # Crear notificación para el usuario que subió el tomo y el usuario que lo eliminó
-        notificacion_service = NotificacionService(db)
-        
-        # Notificar al usuario que subió el tomo
-        if tomo.usuario_subida_id and tomo.usuario_subida_id != current_user.id:
+        # Crear notificación — en try/savepoint porque la tabla puede no existir aún
+        try:
+            sp = db.begin_nested()
+            notificacion_service = NotificacionService(db)
+            if tomo.usuario_subida_id and tomo.usuario_subida_id != current_user.id:
+                notificacion_service.notificar_eliminacion_tomo(
+                    usuario_id=tomo.usuario_subida_id,
+                    tomo_nombre=tomo_nombre,
+                    tomo_id=tomo_id,
+                    carpeta_id=carpeta_id
+                )
             notificacion_service.notificar_eliminacion_tomo(
-                usuario_id=tomo.usuario_subida_id,
+                usuario_id=current_user.id,
                 tomo_nombre=tomo_nombre,
                 tomo_id=tomo_id,
                 carpeta_id=carpeta_id
             )
-        
-        # Notificar al usuario que eliminó el tomo
-        notificacion_service.notificar_eliminacion_tomo(
-            usuario_id=current_user.id,
-            tomo_nombre=tomo_nombre,
-            tomo_id=tomo_id,
-            carpeta_id=carpeta_id
-        )
+            sp.commit()
+        except Exception as e_notif:
+            sp.rollback()
+            logger.warning(f"notificaciones: omitiendo ({e_notif})")
 
         logger.info(f"Tomo eliminado: {tomo_nombre} por {current_user.username}")
 

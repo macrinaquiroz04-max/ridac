@@ -11,6 +11,8 @@ from app.models.extraccion import (
 )
 from app.models.permiso_tomo import PermisoTomo
 from app.models.documento_ocr import DocumentoOCR
+from app.models.notificacion import Notificacion
+from app.models.analisis_ia import AnalisisIA, ResultadoAnalisis
 from app.models.analisis_juridico import (
     Diligencia, PersonaIdentificada, DeclaracionPersona,
     LugarIdentificado, FechaImportante, AlertaMP, EstadisticaCarpeta
@@ -35,6 +37,9 @@ __all__ = [
     "AlertaInactividad",
     "PermisoTomo",
     "DocumentoOCR",
+    "Notificacion",
+    "AnalisisIA",
+    "ResultadoAnalisis",
     "Diligencia",
     "PersonaIdentificada",
     "DeclaracionPersona",
