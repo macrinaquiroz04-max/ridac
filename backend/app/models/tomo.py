@@ -33,8 +33,8 @@ class Tomo(Base):
     usuario_subida = relationship("Usuario", back_populates="tomos_subidos")
     contenido_ocr = relationship("ContenidoOCR", back_populates="tomo", cascade="all, delete-orphan")
     tareas_ocr = relationship("TareaOCR", back_populates="tomo", cascade="all, delete-orphan")
-    permisos_tomos = relationship("PermisoTomo", back_populates="tomo", cascade="all, delete-orphan")
-    documentos_ocr = relationship("DocumentoOCR", back_populates="tomo", cascade="all, delete-orphan")
+    permisos_tomos = relationship("PermisoTomo", back_populates="tomo", cascade="all, delete-orphan", passive_deletes=True)
+    documentos_ocr = relationship("DocumentoOCR", back_populates="tomo", cascade="all, delete-orphan", passive_deletes=True)
     # analisis_ia = relationship("AnalisisIA", back_populates="tomo", cascade="all, delete-orphan")  # Comentado temporalmente
     
     # Relaciones con análisis jurídico - COMENTADAS TEMPORALMENTE PARA EVITAR ERROR DE CONFIGURACIÓN

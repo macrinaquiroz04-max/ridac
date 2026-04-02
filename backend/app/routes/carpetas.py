@@ -321,18 +321,17 @@ async def eliminar_carpeta(
         }
 
         # Borrar primero los análisis IA que referencian los tomos de esta carpeta
-        # Esto evita violaciones de FK si la constraint en la BD no tiene ON DELETE CASCADE
+        # Usa savepoint para que un fallo (tabla inexistente) no cancele la transacción principal
         try:
-            # Subconsulta para obtener ids de tomos de la carpeta
+            sp = db.begin_nested()  # SAVEPOINT
             tomo_ids_query = db.query(Tomo.id).filter(Tomo.carpeta_id == carpeta_id)
-
             deleted_analisis = db.query(AnalisisIA).filter(AnalisisIA.tomo_id.in_(tomo_ids_query)).delete(synchronize_session=False)
+            sp.commit()
             if deleted_analisis:
                 logger.info(f"Se eliminaron {deleted_analisis} registros de analisis_ia relacionados a la carpeta {carpeta_id}")
         except Exception:
-            # No detener el flujo en caso de fallo aquí: haremos rollback y continuaremos
-            db.rollback()
-            logger.exception("Error eliminando analisis_ia relacionados antes de borrar la carpeta")
+            sp.rollback()  # Solo revierte el savepoint, la transacción exterior sigue viva
+            logger.warning("analisis_ia: tabla no existe o sin registros — omitiendo")
 
         # Eliminar carpeta (las relaciones cascade en modelos deberían encargarse de tomos, contenidos, etc.)
         db.delete(carpeta)
