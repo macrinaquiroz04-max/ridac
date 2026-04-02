@@ -160,11 +160,19 @@
 
           <!-- Alertas MP -->
           <div v-if="analisisResultados?.alertas_mp?.length" class="alertas-box">
-            <h3 class="alertas-titulo">⚠️ Alertas del Ministerio Público</h3>
-            <div v-for="(a, i) in analisisResultados.alertas_mp" :key="i" class="alerta-item">
-              <strong class="alerta-tipo">⏰ {{ a.tipo }}:</strong>
-              <span>{{ a.descripcion }}</span>
+            <h3 class="alertas-titulo">⚠️ Alertas del Ministerio Público ({{ analisisResultados.alertas_mp.length }})</h3>
+            <div v-for="(a, i) in analisisResultados.alertas_mp" :key="i" :class="['alerta-item', `alerta-prioridad-${a.prioridad}`]">
+              <div class="alerta-header">
+                <span :class="['alerta-badge', `badge-${a.prioridad}`]">{{ a.prioridad?.toUpperCase() }}</span>
+                <strong class="alerta-tipo">{{ a.titulo || a.tipo }}</strong>
+                <span v-if="a.dias_inactividad" class="alerta-dias">{{ a.dias_inactividad }} días sin actividad</span>
+              </div>
+              <p class="alerta-desc">{{ a.descripcion }}</p>
+              <span v-if="a.fecha_ultima_actuacion" class="alerta-fecha">📅 Última actuación: {{ a.fecha_ultima_actuacion }}</span>
             </div>
+          </div>
+          <div v-else-if="analisisResultados && !analisisResultados?.alertas_mp?.length" class="alertas-box vacio">
+            <p>✅ Sin alertas activas en esta carpeta.</p>
           </div>
 
           <!-- Diligencias -->
@@ -183,7 +191,7 @@
                   <div class="dili-field"><span class="dili-label">Responsable:</span> {{ d.responsable || d.mp_responsable }}</div>
                   <div class="dili-field"><span class="dili-label">Oficio/Folio:</span> {{ d.numero_oficio || d.folio }}</div>
                 </div>
-                <p class="dili-desc">{{ (d.descripcion || d.resumen || '').slice(0, 150) }}{{ (d.descripcion || d.resumen || '').length > 150 ? '…' : '' }}</p>
+                <p class="dili-desc">{{ d.descripcion || d.resumen || '' }}</p>
               </div>
             </div>
           </div>
@@ -320,13 +328,15 @@ async function verResultados(carpeta) {
   analisisResultados.value = null
   modalResultados.value = true
   try {
-    const [stats, diligenciasData] = await Promise.all([
+    const [stats, diligenciasData, alertasData] = await Promise.all([
       get(`/admin/carpetas/${carpeta.id}/estadisticas`),
       get(`/usuario/carpetas/${carpeta.id}/diligencias`),
+      get(`/usuario/carpetas/${carpeta.id}/alertas`).catch(() => ({ alertas: [] })),
     ])
     analisisResultados.value = {
       ...(stats.estadisticas ?? stats),
       diligencias: Array.isArray(diligenciasData) ? diligenciasData : (diligenciasData?.diligencias ?? []),
+      alertas_mp: alertasData?.alertas ?? [],
     }
   } catch (e) {
     showToast('Error al cargar resultados: ' + (e.message || ''), 'error')
@@ -490,16 +500,31 @@ onUnmounted(() => { if (intervalo) clearInterval(intervalo) })
   border-left: 6px solid #ffc107; padding: 18px 20px; border-radius: 12px;
   margin-bottom: 24px;
 }
+.alertas-box.vacio { background: #f0fff4; border-left-color: #28a745; }
+.alertas-box.vacio p { margin: 0; color: #155724; font-weight: 600; }
 .alertas-titulo { color: #856404; margin: 0 0 12px; display: flex; align-items: center; gap: 8px; }
 .alerta-item {
-  background: white; padding: 10px 14px; border-radius: 8px; margin-bottom: 8px;
+  background: white; padding: 12px 14px; border-radius: 8px; margin-bottom: 8px;
   box-shadow: 0 2px 4px rgba(0,0,0,.08);
 }
-.alerta-tipo { color: #dc3545; margin-right: 8px; }
+.alerta-prioridad-crítica { border-left: 4px solid #dc3545; }
+.alerta-prioridad-alta    { border-left: 4px solid #fd7e14; }
+.alerta-prioridad-media   { border-left: 4px solid #ffc107; }
+.alerta-prioridad-baja    { border-left: 4px solid #20c997; }
+.alerta-header { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; flex-wrap: wrap; }
+.alerta-badge { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 20px; color: white; }
+.badge-crítica { background: #dc3545; }
+.badge-alta    { background: #fd7e14; }
+.badge-media   { background: #ffc107; color: #333; }
+.badge-baja    { background: #20c997; }
+.alerta-tipo { font-weight: 700; color: #212529; flex: 1; }
+.alerta-dias { font-size: 12px; color: #6c757d; margin-left: auto; white-space: nowrap; }
+.alerta-desc { margin: 0 0 4px; font-size: 13px; color: #495057; }
+.alerta-fecha { font-size: 12px; color: #6c757d; }
 
 .diligencias-seccion {}
 .diligencias-titulo { color: #2c3e50; border-bottom: 3px solid #667eea; padding-bottom: 10px; margin-bottom: 16px; }
-.diligencias-scroll { max-height: 400px; overflow-y: auto; padding-right: 6px; display: flex; flex-direction: column; gap: 12px; }
+.diligencias-scroll { max-height: 520px; overflow-y: auto; padding-right: 6px; display: flex; flex-direction: column; gap: 12px; }
 .diligencia-card {
   border-left: 4px solid #667eea; padding: 14px 16px; border-radius: 0 10px 10px 0;
   background: #f8f9fa;
@@ -507,7 +532,7 @@ onUnmounted(() => { if (intervalo) clearInterval(intervalo) })
 .dili-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 8px; }
 .dili-field { font-size: 13px; color: #495057; }
 .dili-label { font-weight: 700; color: #1a365d; }
-.dili-desc { margin: 0; font-size: 13px; color: #6c757d; font-style: italic; }
+.dili-desc { margin: 0; font-size: 13px; color: #6c757d; font-style: italic; line-height: 1.6; white-space: pre-wrap; }
 
 .btn-analizar-tomos {
   padding: 12px 24px; background: linear-gradient(135deg, #28a745, #20c997);
