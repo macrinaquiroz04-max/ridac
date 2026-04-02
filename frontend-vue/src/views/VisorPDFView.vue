@@ -259,6 +259,9 @@ async function buildTextLayer(page, viewport) {
 
   const textContent = await page.getTextContent()
 
+  // Requerido por PDF.js >= 3.x para posicionar correctamente el text layer
+  tl.style.setProperty('--scale-factor', viewport.scale)
+
   // Usar la API de PDF.js para renderizar la capa de texto
   if (window.pdfjsLib.renderTextLayer) {
     window.pdfjsLib.renderTextLayer({
