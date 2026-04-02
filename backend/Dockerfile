@@ -33,7 +33,9 @@ WORKDIR /app
 # ── Dependencias Python (capa cacheada) ──
 COPY requirements-production.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements-production.txt
+    pip install --no-cache-dir -r requirements-production.txt && \
+    python -m spacy download es_core_news_lg && \
+    python -m spacy download es_core_news_sm
 
 # ── Código fuente ──
 COPY . .

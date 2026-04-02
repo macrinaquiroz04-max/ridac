@@ -4,13 +4,19 @@ Integra spaCy + NER personalizado para fiscalía
 """
 
 import warnings
-import spacy
 import re
 from typing import Dict, List, Any, Optional, Tuple
 import logging
 from dataclasses import dataclass
 from datetime import datetime
 import json
+
+try:
+    import spacy
+    _SPACY_AVAILABLE = True
+except ImportError:
+    _SPACY_AVAILABLE = False
+    spacy = None
 
 # Suprimir advertencias de spaCy sobre transformers
 warnings.filterwarnings("ignore", category=UserWarning, module="transformers")
@@ -40,6 +46,9 @@ class LegalNLPService:
     
     def initialize_spacy(self):
         """Inicializar spaCy con modelo en español optimizado"""
+        if not _SPACY_AVAILABLE:
+            logger.info("spaCy no disponible — NLP deshabilitado")
+            return
         try:
             # 🎯 MODELO GRANDE OPTIMIZADO - Mejor precisión para documentos legales
             self.nlp = spacy.load("es_core_news_lg")
