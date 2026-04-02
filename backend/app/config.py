@@ -84,12 +84,21 @@ class Settings(BaseSettings):
 
     @property
     def cors_origins(self) -> list:
-        """Lista de orígenes permitidos para CORS"""
-        origins = [
-            "http://localhost:5173",   # Vue dev server
-            "http://localhost:3000",
-            "http://127.0.0.1:5173",
-        ]
+        """Lista de orígenes permitidos para CORS.
+        En producción (HF Spaces, SPACE_ID presente) solo permite ridac.pages.dev.
+        En desarrollo local permite localhost.
+        FRONTEND_URL puede agregar orígenes extra (separados por coma).
+        """
+        import os as _os
+        is_prod = bool(_os.environ.get("SPACE_ID"))
+        if is_prod:
+            origins = ["https://ridac.pages.dev"]
+        else:
+            origins = [
+                "http://localhost:5173",
+                "http://localhost:3000",
+                "http://127.0.0.1:5173",
+            ]
         if self.FRONTEND_URL:
             for url in self.FRONTEND_URL.split(","):
                 url = url.strip()

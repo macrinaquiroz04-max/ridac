@@ -63,7 +63,6 @@ from app.utils.error_logger import ErrorLogger, cleanup_old_logs
 from app.database import test_connection
 from app.config import settings
 from app.middlewares.error_handler_middleware import ErrorHandlerMiddleware, RequestLoggingMiddleware
-from app.middlewares.access_token_middleware import AccessTokenMiddleware
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -156,7 +155,8 @@ async def lifespan(app: FastAPI):
 
 # Crear aplicación FastAPI
 # A05: /docs y /redoc solo accesibles en desarrollo local (nunca en producción)
-_IS_PRODUCTION = bool(settings.API_ACCESS_TOKEN)  # si hay token es HF/producción
+# HF Spaces inyecta SPACE_ID automáticamente — úsalo para detectar producción
+_IS_PRODUCTION = bool(os.environ.get("SPACE_ID"))
 app = FastAPI(
     title="Sistema OCR - RIDAC",
     description="Sistema de Procesamiento OCR para la RIDAC",
@@ -192,8 +192,7 @@ app.add_middleware(
 # Solo registra errores REALES, no peticiones normales
 app.add_middleware(ErrorHandlerMiddleware)
 
-# 🔐 Protección por token compartido (activo solo si API_ACCESS_TOKEN está configurado)
-app.add_middleware(AccessTokenMiddleware)
+# Seguridad real: CORS estricto + JWT + rate limiting (sin token compartido en cliente)
 
 # 📝 Middleware de logging de peticiones DESACTIVADO para no llenar logs
 # Solo se activa para debugging temporal
