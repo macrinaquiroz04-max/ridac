@@ -76,8 +76,8 @@ def test_connection():
 def init_db():
     """Inicializar base de datos: crea tablas y siembra datos iniciales"""
     try:
-        # Importar todos los modelos para que create_all los detecte
-        from app.models import usuario, carpeta, tomo, tarea_ocr, permiso, auditoria
+        # Importar el paquete completo para registrar TODOS los modelos en Base.metadata
+        import app.models  # noqa: F401 — activa __init__.py que importa todos los modelos
 
         # Crear cada tabla individualmente para que el fallo de un índice
         # duplicado no impida crear las demás (PostgreSQL hace rollback por tabla)
