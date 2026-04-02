@@ -65,7 +65,8 @@
 
     <!-- ══ TOOLTIP RESULTADO LENS ══ -->
     <Teleport to="body">
-      <div v-if="lensResult.visible" class="lens-result-panel" :style="lensResult.style">
+      <div v-if="lensResult.visible" class="lens-backdrop" @click.self="lensResult.visible = false">
+        <div class="lens-result-panel">
         <div class="lr-header">
           <span>🔍 Texto extraído ({{ lensResult.confidence }}% confianza)</span>
           <button @click="lensResult.visible = false">✕</button>
@@ -77,6 +78,7 @@
           <button @click="escucharLensText()" class="lr-btn">🔊 Escuchar</button>
           <button @click="lensResult.visible = false" class="lr-btn">✕ Cerrar</button>
         </div>
+      </div>
       </div>
     </Teleport>
 
@@ -434,14 +436,8 @@ async function extraerTextoArea(x, y, w, h) {
     }
 
     if (texto) {
-      // Mostrar resultado en panel
-      const canvasRect = canvas.getBoundingClientRect()
       lensResult.text = limpiarTextoOCR(texto)
       lensResult.confidence = confianza
-      lensResult.style = {
-        top: (canvasRect.top + y + h + 10) + 'px',
-        left: Math.min((canvasRect.left + x), window.innerWidth - 380) + 'px'
-      }
       lensResult.visible = true
       showToast(`✅ Texto extraído (${confianza}% confianza)`, 'success')
     } else {
@@ -769,14 +765,25 @@ function loadScript(src) {
 }
 
 /* ── Lens result panel ── */
-.lens-result-panel {
+.lens-backdrop {
   position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 4999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.lens-result-panel {
   background: white;
   border-radius: 12px;
-  box-shadow: 0 8px 30px rgba(0,0,0,0.3);
+  box-shadow: 0 8px 30px rgba(0,0,0,0.5);
   z-index: 5000;
-  width: 360px;
+  width: 480px;
   max-width: 95vw;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
 }
 .lr-header {
@@ -795,7 +802,7 @@ function loadScript(src) {
   font-size: 14px;
   color: #333;
   line-height: 1.6;
-  max-height: 200px;
+  flex: 1;
   overflow-y: auto;
   white-space: pre-wrap;
   border-bottom: 1px solid #e9ecef;
