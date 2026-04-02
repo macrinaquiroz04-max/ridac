@@ -49,6 +49,9 @@ hiredis==2.3.2
 # Celery para tareas asíncronas
 celery==5.3.4
 
+# Búsqueda semántica
+scikit-learn==1.3.0
+
 # Rate limiting
 slowapi==0.1.9
 

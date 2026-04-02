@@ -14,7 +14,7 @@ try:
     _ELASTICSEARCH_AVAILABLE = True
 except ImportError:
     _ELASTICSEARCH_AVAILABLE = False
-    logger.warning("⚠️ Paquete 'elasticsearch' no instalado — búsqueda avanzada deshabilitada")
+    logger.info("Elasticsearch no instalado — búsqueda avanzada deshabilitada")
 
 class ElasticsearchService:
     """Servicio de búsqueda avanzada con Elasticsearch"""

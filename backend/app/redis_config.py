@@ -33,8 +33,7 @@ class RedisConfig:
                 self.redis_client.ping()
                 logger.info("✅ Redis conectado exitosamente")
             except Exception as e:
-                logger.error(f"❌ Error conectando a Redis: {e}")
-                logger.warning("⚠️ Sistema funcionará sin caché")
+                logger.info(f"Redis no disponible ({type(e).__name__}) — sistema sin caché")
                 self.redis_client = None
         
         return self.redis_client

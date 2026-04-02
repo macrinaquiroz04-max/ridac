@@ -26,7 +26,7 @@ try:
     ADVANCED_SERVICES_AVAILABLE = True
     logger.info("✅ Servicios avanzados (NLP, OpenCV, Camelot) cargados")
 except ImportError as e:
-    logger.warning(f"⚠️ Servicios avanzados no disponibles: {e}")
+    logger.debug(f"Servicios avanzados opcionales no instalados: {e}")
     ADVANCED_SERVICES_AVAILABLE = False
 
 class AdvancedOCRService:

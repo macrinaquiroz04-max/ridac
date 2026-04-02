@@ -19,7 +19,7 @@ try:
     logger.info("Librerías ML cargadas correctamente para búsqueda semántica")
 except ImportError as e:
     ML_DISPONIBLE = False
-    logger.warning(f"Librerías ML no disponibles: {str(e)}")
+    logger.info(f"Librerías ML opcionales no disponibles: {str(e)}")
     np = None
     cosine_similarity = None
     SentenceTransformer = None

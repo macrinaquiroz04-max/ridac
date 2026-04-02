@@ -16,7 +16,7 @@ try:
     _MINIO_AVAILABLE = True
 except ImportError:
     _MINIO_AVAILABLE = False
-    logger.warning("⚠️ Paquete 'minio' no instalado — almacenamiento MinIO deshabilitado")
+    logger.info("MinIO no instalado — almacenamiento MinIO deshabilitado")
 
 class MinIOService:
     """Servicio de almacenamiento de objetos con MinIO"""

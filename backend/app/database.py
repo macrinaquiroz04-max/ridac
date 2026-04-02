@@ -79,9 +79,17 @@ def init_db():
         # Importar todos los modelos para que create_all los detecte
         from app.models import usuario, carpeta, tomo, tarea_ocr, permiso, auditoria
 
-        # Crear todas las tablas (checkfirst=True evita error si ya existen índices)
-        Base.metadata.create_all(bind=engine, checkfirst=True)
-        logger.info("Tablas creadas / verificadas correctamente")
+        # Crear todas las tablas — checkfirst=True para tablas e índices ya existentes
+        try:
+            Base.metadata.create_all(bind=engine, checkfirst=True)
+            logger.info("Tablas creadas / verificadas correctamente")
+        except Exception as e_create:
+            # DuplicateTable/DuplicateObject es normal en reinicios — ignorar y continuar
+            err_str = str(e_create)
+            if "already exists" in err_str or "DuplicateTable" in err_str or "DuplicateObject" in err_str:
+                logger.info("Tablas e índices ya existen — omitiendo creación")
+            else:
+                raise
 
         # --- Seed inicial: roles y usuario admin ---
         _seed_initial_data()

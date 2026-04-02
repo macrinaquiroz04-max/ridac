@@ -34,7 +34,7 @@ try:
     NLP_AVAILABLE = True
 except ImportError:
     NLP_AVAILABLE = False
-    logger.warning("⚠️ Servicios NLP no disponibles")
+    logger.info("Servicios NLP opcionales no disponibles")
 
 router = APIRouter()
 pattern_service = PatternDetectionService()

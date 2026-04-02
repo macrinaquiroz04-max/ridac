@@ -228,7 +228,11 @@ try:
 except ImportError:
     logger.warning("⚠️ OCR PDF24 no disponible - faltan dependencias")
 
-# Endpoint raíz de la API
+# Endpoint raíz — responde 200 para health checks de HF Spaces / proxies
+@app.get("/")
+async def root_health():
+    return {"status": "ok", "service": "RIDAC API"}
+
 @app.get("/api")
 async def root():
     """Información de la API"""
