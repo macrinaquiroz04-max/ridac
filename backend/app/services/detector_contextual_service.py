@@ -17,7 +17,8 @@ class DetectorContextualService:
     """
     
     def __init__(self):
-        self.engine = create_engine(settings.DATABASE_URL)
+        self.engine = None
+        self._engine_initialized = False
         
         # Palabras que indican que viene un nombre de persona
         self.indicadores_persona = [
@@ -186,6 +187,10 @@ class DetectorContextualService:
     def _existe_en_sepomex(self, texto: str) -> bool:
         """Verifica si el texto existe como colonia en SEPOMEX"""
         try:
+            if self.engine is None:
+                if not settings.DATABASE_URL:
+                    return False
+                self.engine = create_engine(settings.DATABASE_URL)
             with self.engine.connect() as conn:
                 result = conn.execute(text("""
                     SELECT EXISTS(
