@@ -210,8 +210,16 @@ const errorTomo = ref('')
 onMounted(async () => {
   await cargarCarpetas()
   autoRefresh = setInterval(async () => {
-    if (!carpetaActual.value) await cargarCarpetas()
-    else await cargarTomos(carpetaActual.value.id)
+    try {
+      if (!carpetaActual.value) await cargarCarpetas()
+      else await cargarTomos(carpetaActual.value.id)
+    } catch (e) {
+      // Detener el polling si la sesión ya no es válida
+      if (e.status === 401 || e.status === 403) {
+        clearInterval(autoRefresh)
+        autoRefresh = null
+      }
+    }
   }, 15000)
 })
 

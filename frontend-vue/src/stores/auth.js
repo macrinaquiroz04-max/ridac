@@ -45,9 +45,12 @@ export const useAuthStore = defineStore('auth', () => {
         if (!refreshToken) return
 
         const apiBase = import.meta.env.VITE_API_URL || '/api'
+        const accessToken = import.meta.env.VITE_ACCESS_TOKEN || ''
+        const headers = { 'Content-Type': 'application/json' }
+        if (accessToken) headers['X-Access-Token'] = accessToken
         const res = await fetch(`${apiBase}/auth/refresh`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers,
           body: JSON.stringify({ refresh_token: refreshToken })
         })
 
