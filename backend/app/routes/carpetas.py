@@ -3,8 +3,9 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, func
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from typing import List, Dict, Any, Optional
+import re
 from datetime import datetime
 
 from app.database import get_db
@@ -24,15 +25,51 @@ router = APIRouter(
 )
 
 
+# ---- helper A03 ----
+def _sanitize_text(v: str, max_len: int = 200) -> str:
+    v = v.strip()[:max_len]
+    if re.search(r'[<>"\';\x00-\x08\x0b\x0c\x0e-\x1f]', v):
+        raise ValueError('El campo contiene caracteres no permitidos')
+    return v
+
+
 # Schemas
 class CarpetaCreate(BaseModel):
     nombre: str
     descripcion: Optional[str] = None
 
+    @field_validator('nombre', mode='before')
+    @classmethod
+    def sanitizar_nombre(cls, v: str) -> str:
+        if not isinstance(v, str):
+            return v
+        return _sanitize_text(v, max_len=150)
+
+    @field_validator('descripcion', mode='before')
+    @classmethod
+    def sanitizar_descripcion(cls, v) -> str:
+        if not isinstance(v, str):
+            return v
+        return _sanitize_text(v, max_len=500)
+
 
 class CarpetaUpdate(BaseModel):
     nombre: Optional[str] = None
     descripcion: Optional[str] = None
+
+    @field_validator('nombre', mode='before')
+    @classmethod
+    def sanitizar_nombre(cls, v) -> str:
+        if not isinstance(v, str):
+            return v
+        return _sanitize_text(v, max_len=150)
+
+    @field_validator('descripcion', mode='before')
+    @classmethod
+    def sanitizar_descripcion(cls, v) -> str:
+        if not isinstance(v, str):
+            return v
+        return _sanitize_text(v, max_len=500)
 
 
 class CarpetaResponse(BaseModel):

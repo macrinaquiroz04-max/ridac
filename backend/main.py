@@ -120,6 +120,33 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"No se pudieron limpiar logs antiguos: {e}")
 
+    # A06: auditoría de dependencias (CVE check) — solo registra, no bloquea inicio
+    try:
+        import subprocess, json as _json
+        _audit = subprocess.run(
+            ["pip-audit", "--format=json", "-q", "--skip-editable"],
+            capture_output=True, text=True, timeout=60
+        )
+        if _audit.returncode != 0 and _audit.stdout:
+            try:
+                _vulns = _json.loads(_audit.stdout)
+                _count = sum(len(p.get("vulns", [])) for p in _vulns.get("dependencies", []))
+                if _count:
+                    logger.warning(f"⚠️  A06: pip-audit encontró {_count} vulnerabilidades en dependencias. "
+                                   "Revisar con: pip-audit --format=columns")
+                    for _pkg in _vulns.get("dependencies", []):
+                        for _v in _pkg.get("vulns", []):
+                            logger.warning(f"   📦 {_pkg['name']}=={_pkg.get('version','?')}: "
+                                           f"{_v.get('id','?')} — {_v.get('description','')[:120]}")
+            except Exception:
+                pass
+        else:
+            logger.info("✅ A06: pip-audit — sin vulnerabilidades conocidas en dependencias")
+    except FileNotFoundError:
+        logger.warning("A06: pip-audit no disponible. Instálalo con: pip install pip-audit")
+    except Exception as _e:
+        logger.warning(f"A06: pip-audit falló: {_e}")
+
     yield
 
     # Shutdown: Detener servicios
@@ -128,13 +155,16 @@ async def lifespan(app: FastAPI):
     logger.info("Sistema detenido correctamente")
 
 # Crear aplicación FastAPI
+# A05: /docs y /redoc solo accesibles en desarrollo local (nunca en producción)
+_IS_PRODUCTION = bool(settings.API_ACCESS_TOKEN)  # si hay token es HF/producción
 app = FastAPI(
     title="Sistema OCR - RIDAC",
-    description="Sistema de Procesamiento OCR para la RIDAC - Red de Integración de Datos para Análisis y Contexto",
+    description="Sistema de Procesamiento OCR para la RIDAC",
     version="1.0.0",
     lifespan=lifespan,
-    docs_url="/docs",
-    redoc_url="/redoc"
+    docs_url=None if _IS_PRODUCTION else "/docs",
+    redoc_url=None if _IS_PRODUCTION else "/redoc",
+    openapi_url=None if _IS_PRODUCTION else "/openapi.json"
 )
 
 # 🛡️ Configurar Rate Limiting (protección para 20+ usuarios concurrentes)

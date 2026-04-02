@@ -65,3 +65,6 @@ prometheus-client==0.19.0
 
 # Rate limiting
 slowapi==0.1.9
+
+# A06: auditoría de dependencias con CVEs conocidas
+pip-audit==2.7.3

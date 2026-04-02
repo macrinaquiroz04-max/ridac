@@ -2,8 +2,9 @@
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from sqlalchemy.orm import Session
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, field_validator
 from typing import List, Dict, Any, Optional
+import re
 from datetime import datetime
 
 from app.database import get_db
@@ -23,6 +24,16 @@ router = APIRouter(
 )
 
 
+# ---- helpers A03 ----
+def _sanitize_text(v: str, max_len: int = 150) -> str:
+    """Elimina caracteres peligrosos y limita longitud (A03 – Injection)."""
+    v = v.strip()[:max_len]
+    # rechazar caracteres que podrían usarse en SQLi / XSS / path-traversal
+    if re.search(r'[<>"\';\x00-\x08\x0b\x0c\x0e-\x1f]', v):
+        raise ValueError('El campo contiene caracteres no permitidos')
+    return v
+
+
 # Schemas
 class UsuarioCreate(BaseModel):
     username: str
@@ -32,6 +43,22 @@ class UsuarioCreate(BaseModel):
     rol_id: int
     activo: bool = True
 
+    @field_validator('username', 'nombre', mode='before')
+    @classmethod
+    def sanitizar_texto(cls, v: str) -> str:
+        if not isinstance(v, str):
+            return v
+        return _sanitize_text(v)
+
+    @field_validator('password', mode='before')
+    @classmethod
+    def validar_password(cls, v: str) -> str:
+        if not isinstance(v, str):
+            return v
+        if len(v) > 256:
+            raise ValueError('Contraseña demasiado larga')
+        return v
+
 
 class UsuarioUpdate(BaseModel):
     username: Optional[str] = None
@@ -40,6 +67,22 @@ class UsuarioUpdate(BaseModel):
     password: Optional[str] = None
     rol_id: Optional[int] = None
     activo: Optional[bool] = None
+
+    @field_validator('username', 'nombre', mode='before')
+    @classmethod
+    def sanitizar_texto(cls, v) -> str:
+        if not isinstance(v, str):
+            return v
+        return _sanitize_text(v)
+
+    @field_validator('password', mode='before')
+    @classmethod
+    def validar_password(cls, v) -> str:
+        if not isinstance(v, str):
+            return v
+        if len(v) > 256:
+            raise ValueError('Contraseña demasiado larga')
+        return v
 
 
 class UsuarioResponse(BaseModel):

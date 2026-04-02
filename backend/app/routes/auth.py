@@ -3,9 +3,11 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Body, Request
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, field_validator
 from typing import Dict, Any, Optional
 from datetime import datetime, timedelta
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 from app.database import get_db
 from app.models.usuario import Usuario, TokenReset
@@ -19,6 +21,9 @@ import secrets
 
 logger = logging.getLogger(__name__)
 
+# A07: rate limiter propio del módulo de autenticación
+_limiter = Limiter(key_func=get_remote_address)
+
 router = APIRouter(
     tags=["Autenticación"]
 )
@@ -28,6 +33,22 @@ router = APIRouter(
 class LoginRequest(BaseModel):
     username: str
     password: str
+
+    @field_validator('username')
+    @classmethod
+    def sanitizar_username(cls, v: str) -> str:
+        # A03: strip espacios, limitar longitud, rechazar caracteres de control
+        v = v.strip()[:100]
+        if not v:
+            raise ValueError('username no puede estar vacío')
+        return v
+
+    @field_validator('password')
+    @classmethod
+    def validar_password_len(cls, v: str) -> str:
+        if len(v) > 256:
+            raise ValueError('password demasiado largo')
+        return v
 
 
 class LoginResponse(BaseModel):
@@ -56,6 +77,7 @@ class ChangePasswordRequest(BaseModel):
 
 
 @router.post("/login", response_model=LoginResponse)
+@_limiter.limit("5/minute")
 async def login(
     request: Request,
     login_data: LoginRequest,
