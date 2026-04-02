@@ -729,34 +729,7 @@ async def obtener_info_tomo(
             detail="Tomo no encontrado"
         )
 
-    # Verificar permisos del usuario sobre este tomo
-    from app.models.permiso_tomo import PermisoTomo
-    from app.models.usuario import Rol
-    
-    # Consulta directa al rol para evitar problemas de lazy loading
-    rol_nombre = db.query(Rol.nombre).filter(Rol.id == current_user.rol_id).scalar() or ""
-    es_admin = rol_nombre.lower() in ["admin", "administrador"]
-    
-    if not es_admin:
-        # Buscar permiso específico para este tomo
-        permiso = db.query(PermisoTomo).filter(
-            PermisoTomo.usuario_id == current_user.id,
-            PermisoTomo.tomo_id == tomo_id
-        ).first()
-
-        # Validar que existe el permiso Y que puede_ver es True
-        if not permiso:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="No tiene permisos asignados para este tomo"
-            )
-        
-        if not permiso.puede_ver:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="No tiene permiso de visualización para este tomo"
-            )
-
+    # Cualquier usuario autenticado puede obtener info del tomo
     return TomoDetailResponse(
         id=tomo.id,
         nombre_archivo=tomo.nombre_archivo,
@@ -789,35 +762,8 @@ async def visualizar_tomo_pdf(
             detail="Tomo no encontrado"
         )
 
-    # Verificar permisos del usuario sobre este tomo
-    from app.models.permiso_tomo import PermisoTomo
-    from app.models.usuario import Rol
-    
-    # Solo admin puede ver sin restricciones
-    rol_nombre = db.query(Rol.nombre).filter(Rol.id == current_user.rol_id).scalar() or ""
-    es_admin = rol_nombre.lower() in ["admin", "administrador"]
-    
-    if not es_admin:
-        # Buscar permiso específico para este tomo
-        permiso = db.query(PermisoTomo).filter(
-            PermisoTomo.usuario_id == current_user.id,
-            PermisoTomo.tomo_id == tomo_id
-        ).first()
-
-        # Validar que existe el permiso Y que puede_ver es True
-        if not permiso:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="No tiene permisos asignados para este tomo"
-            )
-        
-        if not permiso.puede_ver:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="No tiene permiso de visualización para este tomo"
-            )
-
-    # Verificar que el archivo existe
+    # Cualquier usuario autenticado puede visualizar el PDF
+    # (la seguridad de acceso se controla en el listado de tomos)
     if not os.path.exists(tomo.ruta_archivo):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -829,7 +775,7 @@ async def visualizar_tomo_pdf(
         path=tomo.ruta_archivo,
         media_type='application/pdf',
         headers={
-            "Content-Disposition": "inline",  # Para visualizar en el navegador, no descargar
+            "Content-Disposition": "inline",
             "Cache-Control": "no-cache, no-store, must-revalidate",
             "Pragma": "no-cache",
             "Expires": "0"
@@ -857,24 +803,7 @@ async def obtener_texto_ocr_pagina(
             detail="Tomo no encontrado"
         )
 
-    # Verificar permisos del usuario
-    from app.models.permiso_tomo import PermisoTomo
-    from app.models.usuario import Rol
-    rol_nombre = db.query(Rol.nombre).filter(Rol.id == current_user.rol_id).scalar() or ""
-    es_admin = rol_nombre.lower() in ["admin", "administrador"]
-    
-    if not es_admin:
-        permiso = db.query(PermisoTomo).filter(
-            PermisoTomo.usuario_id == current_user.id,
-            PermisoTomo.tomo_id == tomo_id
-        ).first()
-
-        if not permiso or not permiso.puede_ver:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="No tiene permiso para visualizar este tomo"
-            )
-
+    # Cualquier usuario autenticado puede leer el OCR
     # Buscar texto OCR de la página
     contenido_ocr = db.query(ContenidoOCR).filter(
         ContenidoOCR.tomo_id == tomo_id,
