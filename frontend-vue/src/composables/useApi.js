@@ -18,13 +18,19 @@ async function handleResponse(res) {
   if (contentType.includes('application/json')) {
     const data = await res.json()
     if (!res.ok) {
-      throw new Error(data.detail || data.message || `Error ${res.status}`)
+      const err = new Error(data.detail || data.message || `Error ${res.status}`)
+      err.status = res.status
+      throw err
     }
     return data
   }
 
   const text = await res.text()
-  if (!res.ok) throw new Error(text || `Error ${res.status}`)
+  if (!res.ok) {
+    const err = new Error(text || `Error ${res.status}`)
+    err.status = res.status
+    throw err
+  }
   return text
 }
 
@@ -41,7 +47,7 @@ function handleAuthError(error) {
   const { showToast } = useToast()
   const auth = useAuthStore()
 
-  const is401 = error.message.includes('401') || error.message.toLowerCase().includes('token') || error.message.toLowerCase().includes('no autorizado')
+  const is401 = error.status === 401 || error.message.includes('401')
   if (is401) {
     showToast('Sesión expirada. Iniciando sesión nuevamente.', 'error')
     setTimeout(() => {
@@ -112,6 +118,7 @@ export function useApi() {
       const auth = useAuthStore()
       const headers = {}
       if (auth.token) headers['Authorization'] = `Bearer ${auth.token}`
+      if (ACCESS_TOKEN) headers['X-Access-Token'] = ACCESS_TOKEN
       const res = await fetch(API_BASE + endpoint, {
         method: 'POST',
         headers,
