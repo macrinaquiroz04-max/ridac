@@ -74,18 +74,64 @@ def test_connection():
         return False
 
 def init_db():
-    """Inicializar base de datos"""
-    # Sistema OCR - Desarrollado por Eduardo Lozada Quiroz (ISC) para UAyC
+    """Inicializar base de datos: crea tablas y siembra datos iniciales"""
     try:
-        # Importar todos los modelos
+        # Importar todos los modelos para que create_all los detecte
         from app.models import usuario, carpeta, tomo, tarea_ocr, permiso, auditoria
 
         # Crear todas las tablas
         Base.metadata.create_all(bind=engine)
+        logger.info("Tablas creadas / verificadas correctamente")
 
-        logger.info("Base de datos inicializada correctamente")
-        # Metadata: Autor=ELQ_ISC, Cliente=UAyC, Year=2025
+        # --- Seed inicial: roles y usuario admin ---
+        _seed_initial_data()
+
         return True
     except Exception as e:
         logger.error(f"Error inicializando base de datos: {e}")
         return False
+
+
+def _seed_initial_data():
+    """Crea roles base y usuario admin si no existen (idempotente)."""
+    from app.models.usuario import Rol, Usuario
+    from app.utils.password_hash import hash_password
+    import os
+
+    db = SessionLocal()
+    try:
+        # 1. Roles base
+        roles_base = [
+            ("admin",   "Administrador del sistema con acceso completo"),
+            ("usuario", "Analista con acceso a tomos asignados"),
+        ]
+        for nombre, descripcion in roles_base:
+            existe = db.query(Rol).filter(Rol.nombre == nombre).first()
+            if not existe:
+                db.add(Rol(nombre=nombre, descripcion=descripcion))
+                logger.info(f"Rol '{nombre}' creado")
+        db.commit()
+
+        # 2. Usuario admin inicial
+        admin_user = db.query(Usuario).filter(Usuario.username == "admin").first()
+        if not admin_user:
+            rol_admin = db.query(Rol).filter(Rol.nombre == "admin").first()
+            # Contraseña desde env o default solo para primer arranque
+            pwd = os.environ.get("ADMIN_INITIAL_PASSWORD", "Ridac2026!")
+            db.add(Usuario(
+                username="admin",
+                email="admin@ridac.gob.mx",
+                password=hash_password(pwd),
+                nombre_completo="Administrador",
+                rol_id=rol_admin.id,
+                activo=True,
+                debe_cambiar_password=True,  # Fuerza cambio en primer login
+            ))
+            db.commit()
+            logger.info(f"Usuario 'admin' creado — contraseña inicial: {pwd}")
+            logger.info("⚠️  Cambia la contraseña en el primer acceso")
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error en seed inicial: {e}")
+    finally:
+        db.close()

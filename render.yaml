@@ -51,6 +51,8 @@ services:
         value: "false"         # Elasticsearch deshabilitado en cloud
       - key: MINIO_ENABLED
         value: "false"         # MinIO deshabilitado — usar Supabase Storage
+      - key: ADMIN_INITIAL_PASSWORD
+        sync: false            # Contraseña del admin en primer arranque (luego cámbiala)
 
   # ─── Worker Celery (procesamiento asíncrono OCR) ─────────
   - type: worker
