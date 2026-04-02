@@ -320,17 +320,20 @@ async def eliminar_carpeta(
             "total_tomos": db.query(func.count(Tomo.id)).filter(Tomo.carpeta_id == carpeta_id).scalar() or 0
         }
 
-        # Borrar primero los análisis IA que referencian los tomos de esta carpeta
-        # Usa savepoint para que un fallo (tabla inexistente) no cancele la transacción principal
+        # Borrar análisis IA en sesión independiente para no contaminar la transacción principal
         try:
-            sp = db.begin_nested()  # SAVEPOINT
-            tomo_ids_query = db.query(Tomo.id).filter(Tomo.carpeta_id == carpeta_id)
-            deleted_analisis = db.query(AnalisisIA).filter(AnalisisIA.tomo_id.in_(tomo_ids_query)).delete(synchronize_session=False)
-            sp.commit()
-            if deleted_analisis:
-                logger.info(f"Se eliminaron {deleted_analisis} registros de analisis_ia relacionados a la carpeta {carpeta_id}")
+            from app.database import SessionLocal
+            analisis_db = SessionLocal()
+            try:
+                tomo_ids = [r[0] for r in analisis_db.query(Tomo.id).filter(Tomo.carpeta_id == carpeta_id).all()]
+                if tomo_ids:
+                    deleted_analisis = analisis_db.query(AnalisisIA).filter(AnalisisIA.tomo_id.in_(tomo_ids)).delete(synchronize_session=False)
+                    analisis_db.commit()
+                    if deleted_analisis:
+                        logger.info(f"Se eliminaron {deleted_analisis} registros de analisis_ia de carpeta {carpeta_id}")
+            finally:
+                analisis_db.close()
         except Exception:
-            sp.rollback()  # Solo revierte el savepoint, la transacción exterior sigue viva
             logger.warning("analisis_ia: tabla no existe o sin registros — omitiendo")
 
         # Eliminar carpeta (las relaciones cascade en modelos deberían encargarse de tomos, contenidos, etc.)
