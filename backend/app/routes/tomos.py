@@ -168,6 +168,7 @@ async def listar_tomos_carpeta(
 
 
 @router.post("/upload", response_model=TomoResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/subir", response_model=TomoResponse, status_code=status.HTTP_201_CREATED)
 async def subir_tomo(
     request: Request,
     archivo: UploadFile = File(...),
