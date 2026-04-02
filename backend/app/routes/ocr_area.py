@@ -12,6 +12,8 @@ from pydantic import BaseModel
 import io
 import os
 import statistics
+import numpy as np
+import cv2
 from PIL import Image, ImageEnhance, ImageFilter, ImageOps
 import pytesseract
 from pdf2image import convert_from_path
@@ -253,12 +255,12 @@ async def ocr_area_tomo_almacenado(
     try:
         logger.info(f"OCR área tomo={tomo_id} pág={pagina} x={body.x_pct:.2f} y={body.y_pct:.2f} w={body.w_pct:.2f} h={body.h_pct:.2f}")
 
-        # Renderizar la página a 300 DPI
+        # Renderizar la página a 400 DPI (mayor resolución = mejor OCR en docs escaneados)
         imagenes = convert_from_path(
             tomo.ruta_archivo,
             first_page=pagina,
             last_page=pagina,
-            dpi=300
+            dpi=400
         )
         if not imagenes:
             raise HTTPException(status_code=404, detail=f"No se pudo renderizar la página {pagina}")
@@ -282,21 +284,38 @@ async def ocr_area_tomo_almacenado(
 
         recorte = img_full.crop((left, top, right, bottom))
 
-        # Escalar si el recorte es pequeño (texto pequeño → más píxeles = mejor OCR)
-        rw, rh = recorte.size
-        if rw < 600:
-            factor = max(2, 600 // rw)
-            recorte = recorte.resize((rw * factor, rh * factor), Image.LANCZOS)
+        # ── Preprocesamiento con OpenCV (mayor confianza que PIL puro) ────────
+        # Convertir PIL → numpy para usar OpenCV
+        arr = np.array(recorte.convert('RGB'))
+        gray = cv2.cvtColor(arr, cv2.COLOR_RGB2GRAY)
 
-        # Preprocesamiento: gris → contraste → nitidez
-        recorte = recorte.convert('L')
-        recorte = ImageEnhance.Contrast(recorte).enhance(2.2)
-        recorte = ImageEnhance.Sharpness(recorte).enhance(2.0)
-        recorte = recorte.filter(ImageFilter.UnsharpMask(radius=1, percent=120, threshold=3))
+        # Escalar si el recorte es pequeño (texto pequeño → más píxeles = mejor OCR)
+        rh, rw = gray.shape[:2]
+        if rw < 800:
+            factor = max(2, int(np.ceil(800 / rw)))
+            gray = cv2.resize(gray, (rw * factor, rh * factor), interpolation=cv2.INTER_CUBIC)
+
+        # Reducción de ruido (preserva bordes de letras)
+        gray = cv2.fastNlMeansDenoising(gray, h=10, templateWindowSize=7, searchWindowSize=21)
+
+        # Umbral adaptativo de Otsu — se adapta al nivel de grises de cada doc escaneado
+        _, binarized = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+
+        # Si el fondo salió negro (inversión), invertir
+        if np.mean(binarized) < 127:
+            binarized = cv2.bitwise_not(binarized)
+
+        # Operación morfológica mínima para cerrar huecos en las letras
+        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1, 1))
+        binarized = cv2.morphologyEx(binarized, cv2.MORPH_CLOSE, kernel)
+
+        # Volver a PIL para pytesseract
+        recorte = Image.fromarray(binarized)
 
         # Intentos con diferentes PSM para maximizar extracción
+        # PSM 6=bloque uniforme, 4=columna única, 3=auto, 11=texto disperso
         mejores = ('', 0)
-        for psm in (6, 3, 11):
+        for psm in (6, 4, 3, 11):
             try:
                 cfg = f'--psm {psm} --oem 3'
                 data = pytesseract.image_to_data(
@@ -311,7 +330,7 @@ async def ocr_area_tomo_almacenado(
                 confianza = int(statistics.mean(confs)) if confs else 0
                 if confianza > mejores[1] or (not mejores[0] and texto):
                     mejores = (texto, confianza)
-                if confianza >= 80:
+                if confianza >= 85:
                     break
             except Exception:
                 continue
