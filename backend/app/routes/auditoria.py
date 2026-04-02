@@ -71,15 +71,16 @@ async def obtener_eventos(
     # Verificar permisos
     from app.models.permiso import PermisoSistema
     
-    permisos_sistema = db.query(PermisoSistema).filter(
-        PermisoSistema.usuario_id == current_user.id
-    ).first()
-    
-    if not permisos_sistema or not permisos_sistema.ver_auditoria:
-        raise HTTPException(
-            status_code=403,
-            detail="No tienes permisos para ver la auditoría del sistema"
-        )
+    es_admin = current_user.rol is not None and current_user.rol.nombre in ["admin", "administrador"]
+    if not es_admin:
+        permisos_sistema = db.query(PermisoSistema).filter(
+            PermisoSistema.usuario_id == current_user.id
+        ).first()
+        if not permisos_sistema or not permisos_sistema.ver_auditoria:
+            raise HTTPException(
+                status_code=403,
+                detail="No tienes permisos para ver la auditoría del sistema"
+            )
     
     # Construir query base con JOIN a usuarios
     query = db.query(
@@ -166,15 +167,16 @@ async def obtener_estadisticas(
     """
     # Verificar permisos
     from app.models.permiso import PermisoSistema
-    permisos_sistema = db.query(PermisoSistema).filter(
-        PermisoSistema.usuario_id == current_user.id
-    ).first()
-    
-    if not permisos_sistema or not permisos_sistema.ver_auditoria:
-        raise HTTPException(
-            status_code=403,
-            detail="No tienes permisos para ver la auditoría del sistema"
-        )
+    es_admin = current_user.rol is not None and current_user.rol.nombre in ["admin", "administrador"]
+    if not es_admin:
+        permisos_sistema = db.query(PermisoSistema).filter(
+            PermisoSistema.usuario_id == current_user.id
+        ).first()
+        if not permisos_sistema or not permisos_sistema.ver_auditoria:
+            raise HTTPException(
+                status_code=403,
+                detail="No tienes permisos para ver la auditoría del sistema"
+            )
     
     # Calcular fecha de inicio según período
     query = db.query(Auditoria)
@@ -233,15 +235,16 @@ async def obtener_usuarios_activos(
     """
     # Verificar permisos
     from app.models.permiso import PermisoSistema
-    permisos_sistema = db.query(PermisoSistema).filter(
-        PermisoSistema.usuario_id == current_user.id
-    ).first()
-    
-    if not permisos_sistema or not permisos_sistema.ver_auditoria:
-        raise HTTPException(
-            status_code=403,
-            detail="No tienes permisos para ver la auditoría del sistema"
-        )
+    es_admin = current_user.rol is not None and current_user.rol.nombre in ["admin", "administrador"]
+    if not es_admin:
+        permisos_sistema = db.query(PermisoSistema).filter(
+            PermisoSistema.usuario_id == current_user.id
+        ).first()
+        if not permisos_sistema or not permisos_sistema.ver_auditoria:
+            raise HTTPException(
+                status_code=403,
+                detail="No tienes permisos para ver la auditoría del sistema"
+            )
     
     # Obtener usuarios únicos de auditoría
     usuarios = db.query(
@@ -276,15 +279,16 @@ async def registrar_acceso_auditoria(
     from app.models.permiso import PermisoSistema
     from app.utils.auditoria_utils import AuditoriaLogger
     
-    permisos_sistema = db.query(PermisoSistema).filter(
-        PermisoSistema.usuario_id == current_user.id
-    ).first()
-    
-    if not permisos_sistema or not permisos_sistema.ver_auditoria:
-        raise HTTPException(
-            status_code=403,
-            detail="No tienes permisos para ver la auditoría del sistema"
-        )
+    es_admin = current_user.rol is not None and current_user.rol.nombre in ["admin", "administrador"]
+    if not es_admin:
+        permisos_sistema = db.query(PermisoSistema).filter(
+            PermisoSistema.usuario_id == current_user.id
+        ).first()
+        if not permisos_sistema or not permisos_sistema.ver_auditoria:
+            raise HTTPException(
+                status_code=403,
+                detail="No tienes permisos para ver la auditoría del sistema"
+            )
     
     # Registrar acceso
     ip_address, user_agent = AuditoriaLogger.extraer_info_request(request)
@@ -324,15 +328,16 @@ async def exportar_auditoria_csv(
     from app.models.permiso import PermisoSistema
     from app.utils.auditoria_utils import AuditoriaLogger
     
-    permisos_sistema = db.query(PermisoSistema).filter(
-        PermisoSistema.usuario_id == current_user.id
-    ).first()
-    
-    if not permisos_sistema or not permisos_sistema.ver_auditoria:
-        raise HTTPException(
-            status_code=403,
-            detail="No tienes permisos para exportar la auditoría del sistema"
-        )
+    es_admin = current_user.rol is not None and current_user.rol.nombre in ["admin", "administrador"]
+    if not es_admin:
+        permisos_sistema = db.query(PermisoSistema).filter(
+            PermisoSistema.usuario_id == current_user.id
+        ).first()
+        if not permisos_sistema or not permisos_sistema.ver_auditoria:
+            raise HTTPException(
+                status_code=403,
+                detail="No tienes permisos para exportar la auditoría del sistema"
+            )
     
     # Construir query base con JOIN a usuarios (misma lógica que obtener_eventos)
     query = db.query(
