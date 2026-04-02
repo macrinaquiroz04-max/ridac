@@ -449,7 +449,7 @@ async def reanalizar_tomo(
         )
 
         # 6. ACTUALIZAR ESTADO FINAL
-        tomo.estado = "procesado" if validacion["es_valido"] and pdf_info["numero_paginas"] > 0 else "error"
+        tomo.estado = "completado" if validacion["es_valido"] and pdf_info["numero_paginas"] > 0 else "error"
         db.commit()
         db.refresh(tomo)
 
@@ -552,7 +552,7 @@ async def reanalizar_todos_tomos_carpeta(
 
                 # Actualizar información
                 tomo.numero_paginas = pdf_info["numero_paginas"]
-                tomo.estado = "procesado" if validacion["es_valido"] and pdf_info["numero_paginas"] > 0 else "error"
+                tomo.estado = "completado" if validacion["es_valido"] and pdf_info["numero_paginas"] > 0 else "error"
                 tomo.fecha_procesamiento = datetime.now()
                 
                 procesados += 1
