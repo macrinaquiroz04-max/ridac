@@ -508,6 +508,7 @@ async function copiarPagina() {
   } catch {}
 
   // 2. Fallback: texto nativo PDF.js
+  if (!pdfDoc) { showToast('❌ El documento no está cargado aún', 'error'); return }
   try {
     const page = await pdfDoc.getPage(pageNum.value)
     const tc = await page.getTextContent()
