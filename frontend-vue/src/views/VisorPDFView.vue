@@ -124,6 +124,7 @@ const router = useRouter()
 const auth = useAuthStore()
 
 const API_BASE = import.meta.env.VITE_API_URL || '/api'
+const ACCESS_TOKEN = import.meta.env.VITE_ACCESS_TOKEN || ''
 
 // ── Refs DOM ─────────────────────────────────────────────────────────────────
 const canvasEl   = ref(null)
@@ -193,9 +194,9 @@ onUnmounted(() => {
 async function cargarPDF() {
   try {
     const pdfUrl = `${API_BASE}/tomos/pdf/${tomoId.value}`
-    const response = await fetch(pdfUrl, {
-      headers: { Authorization: `Bearer ${auth.token}` }
-    })
+    const headers = { Authorization: `Bearer ${auth.token}` }
+    if (ACCESS_TOKEN) headers['X-Access-Token'] = ACCESS_TOKEN
+    const response = await fetch(pdfUrl, { headers })
     if (!response.ok) throw new Error(`Error al cargar el PDF (${response.status})`)
 
     const blob = await response.blob()
@@ -493,9 +494,9 @@ async function copiarPagina() {
   showToast('⏳ Extrayendo texto de la página...', 'info', 5000)
   try {
     // 1. Intentar OCR del backend
-    const res = await fetch(`${API_BASE}/tomos/ocr/${tomoId.value}/pagina/${pageNum.value}`, {
-      headers: { Authorization: `Bearer ${auth.token}` }
-    })
+    const ocrHeaders = { Authorization: `Bearer ${auth.token}` }
+    if (ACCESS_TOKEN) ocrHeaders['X-Access-Token'] = ACCESS_TOKEN
+    const res = await fetch(`${API_BASE}/tomos/ocr/${tomoId.value}/pagina/${pageNum.value}`, { headers: ocrHeaders })
     if (res.ok) {
       const data = await res.json()
       const t = data.texto_extraido?.trim()
