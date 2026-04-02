@@ -99,7 +99,7 @@
               <label>Rol *</label>
               <select v-model="form.rol" required class="input">
                 <option value="">Seleccione...</option>
-                <option v-for="r in roles" :key="r.id ?? r" :value="r.nombre ?? r">{{ r.nombre ?? r }}</option>
+                <option v-for="r in roles" :key="r.id ?? r" :value="r.id ?? r">{{ r.nombre ?? r }}</option>
               </select>
             </div>
             <div class="form-group">
@@ -199,13 +199,14 @@ async function cargarRoles() {
 }
 
 function abrirModalCrear() {
-  form.value = { username:'', nombre:'', email:'', password:'', rol:'usuario', activo: true }
+  const rolAdmin = roles.value.find(r => r.nombre === 'admin')
+  form.value = { username:'', nombre:'', email:'', password:'', rol: rolAdmin?.id ?? '', activo: true }
   modal.value = { visible: true, editando: false, userId: null }
   mostrarPassword.value = false
 }
 
 function editarUsuario(u) {
-  form.value = { username: u.username, nombre: u.nombre, email: u.email, password: '', rol: u.rol?.nombre ?? u.rol ?? '', activo: u.activo }
+  form.value = { username: u.username, nombre: u.nombre, email: u.email, password: '', rol: u.rol?.id ?? u.rol_id ?? '', activo: u.activo }
   modal.value = { visible: true, editando: true, userId: u.id }
   mostrarPassword.value = false
 }
@@ -229,7 +230,7 @@ async function guardarUsuario() {
       username: form.value.username,
       nombre: form.value.nombre,
       email: form.value.email,
-      rol: form.value.rol,
+      rol_id: Number(form.value.rol),
       activo: form.value.activo
     }
     if (form.value.password) payload.password = form.value.password

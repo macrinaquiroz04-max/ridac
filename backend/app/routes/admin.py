@@ -216,35 +216,22 @@ async def crear_usuario(
             detail="Rol no encontrado"
         )
 
-    # Obtener próximo ID disponible (reutilizando huecos)
-    from sqlalchemy import text
-    next_id = db.execute(text("SELECT obtener_proximo_id_usuario()")).scalar()
-    
     # Hash de la contraseña
     hashed_password = hash_password(usuario_data.password)
-    
-    # Crear usuario con ID específico usando SQL directo
-    db.execute(
-        text("""
-            INSERT INTO usuarios (id, username, email, nombre_completo, password, rol_id, activo, debe_cambiar_password)
-            VALUES (:id, :username, :email, :nombre, :password, :rol_id, :activo, true)
-        """),
-        {
-            "id": next_id,
-            "username": usuario_data.username,
-            "email": usuario_data.email,
-            "nombre": usuario_data.nombre,
-            "password": hashed_password,
-            "rol_id": usuario_data.rol_id,
-            "activo": usuario_data.activo
-        }
+
+    # Crear usuario con SQLAlchemy (deja que la secuencia genere el ID)
+    nuevo_usuario = Usuario(
+        username=usuario_data.username,
+        email=usuario_data.email,
+        nombre_completo=usuario_data.nombre,
+        password=hashed_password,
+        rol_id=usuario_data.rol_id,
+        activo=usuario_data.activo,
+        debe_cambiar_password=True,
     )
-    
-    # Commit de la transacción
-    db.connection().commit()
-    
-    # Obtener el usuario recién creado
-    nuevo_usuario = db.query(Usuario).filter(Usuario.id == next_id).first()
+    db.add(nuevo_usuario)
+    db.commit()
+    db.refresh(nuevo_usuario)
 
     logger.info(f"Usuario creado: {nuevo_usuario.username} por {current_user.username}")
 
