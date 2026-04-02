@@ -287,7 +287,7 @@ async function descargarTomo(tomo) {
 async function procesarOCR(tomo) {
   if (!confirm(`¿Iniciar procesamiento OCR del tomo "${tomo.nombre_archivo || tomo.nombre}"?`)) return
   try {
-    await post(`/tomos/${tomo.id}/procesar-ocr`, {})
+    await put(`/tomos/${tomo.id}/reanalizar`, {})
     showToast('OCR iniciado. Puede demorar varios minutos.', 'success')
     await cargarTomos(carpetaActual.value.id)
   } catch (e) {
