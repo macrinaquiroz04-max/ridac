@@ -325,7 +325,7 @@ async function verResultados(carpeta) {
       get(`/usuario/carpetas/${carpeta.id}/diligencias`),
     ])
     analisisResultados.value = {
-      ...stats,
+      ...(stats.estadisticas ?? stats),
       diligencias: Array.isArray(diligenciasData) ? diligenciasData : (diligenciasData?.diligencias ?? []),
     }
   } catch (e) {
