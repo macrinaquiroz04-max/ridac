@@ -94,6 +94,18 @@
                 <button type="button" class="btn-sm secondary" @click="mostrarPassword = !mostrarPassword">{{ mostrarPassword ? '🙈' : '👁️' }}</button>
                 <button type="button" class="btn-sm secondary" @click="generarPassword">🔑</button>
               </div>
+              <div v-if="form.password" class="pwd-meter">
+                <div class="pwd-bar-track">
+                  <div class="pwd-bar-fill" :style="{ width: (passwordFortaleza.nivel * 20) + '%', background: passwordFortaleza.color }"></div>
+                </div>
+                <span class="pwd-label" :style="{ color: passwordFortaleza.color }">{{ passwordFortaleza.texto }}</span>
+              </div>
+              <ul v-if="form.password" class="pwd-hints">
+                <li :class="form.password.length >= 8 ? 'ok' : 'no'">{{ form.password.length >= 8 ? '✓' : '✗' }} Mínimo 8 caracteres</li>
+                <li :class="/[A-Z]/.test(form.password) ? 'ok' : 'no'">{{ /[A-Z]/.test(form.password) ? '✓' : '✗' }} Una letra mayúscula</li>
+                <li :class="/[0-9]/.test(form.password) ? 'ok' : 'no'">{{ /[0-9]/.test(form.password) ? '✓' : '✗' }} Un número</li>
+                <li :class="/[!@#$%^&*]/.test(form.password) ? 'ok' : 'no'">{{ /[!@#$%^&*]/.test(form.password) ? '✓' : '✗' }} Un carácter especial (!@#$%^&*)</li>
+              </ul>
             </div>
             <div class="form-group">
               <label>Rol *</label>
@@ -143,6 +155,22 @@ const pagina    = ref(1)
 const porPagina = 10
 const guardando = ref(false)
 const mostrarPassword = ref(false)
+
+const passwordFortaleza = computed(() => {
+  const pwd = form.value.password
+  if (!pwd) return null
+  let puntos = 0
+  if (pwd.length >= 8)  puntos++
+  if (pwd.length >= 12) puntos++
+  if (/[A-Z]/.test(pwd)) puntos++
+  if (/[0-9]/.test(pwd)) puntos++
+  if (/[!@#$%^&*]/.test(pwd)) puntos++
+  if (puntos <= 1) return { nivel: 1, texto: 'Muy débil',   color: '#dc3545' }
+  if (puntos === 2) return { nivel: 2, texto: 'Débil',      color: '#fd7e14' }
+  if (puntos === 3) return { nivel: 3, texto: 'Regular',    color: '#ffc107' }
+  if (puntos === 4) return { nivel: 4, texto: 'Fuerte',     color: '#20c997' }
+  return               { nivel: 5, texto: 'Muy fuerte',  color: '#28a745' }
+})
 
 const usuarioActual = computed(() => auth.user)
 
@@ -342,6 +370,14 @@ function formatFecha(f) {
 .input:disabled { background: #f0f0f0; }
 .password-row { display: flex; gap: 6px; }
 .password-row .input { flex: 1; }
+.pwd-meter { display: flex; align-items: center; gap: 10px; margin-top: 6px; }
+.pwd-bar-track { flex: 1; height: 6px; background: #e9ecef; border-radius: 4px; overflow: hidden; }
+.pwd-bar-fill { height: 100%; border-radius: 4px; transition: width 0.3s, background 0.3s; }
+.pwd-label { font-size: 12px; font-weight: 700; min-width: 80px; }
+.pwd-hints { margin: 6px 0 0; padding: 0; list-style: none; display: grid; grid-template-columns: 1fr 1fr; gap: 3px 12px; }
+.pwd-hints li { font-size: 11px; }
+.pwd-hints li.ok { color: #28a745; }
+.pwd-hints li.no { color: #adb5bd; }
 .form-footer { grid-column: 1 / -1; display: flex; justify-content: flex-end; gap: 10px; padding-top: 8px; border-top: 1px solid #f0f0f0; }
 
 /* Toast */
