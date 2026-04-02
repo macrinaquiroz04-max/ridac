@@ -12,7 +12,18 @@ import shutil
 import hashlib
 
 # Almacenamiento persistente: /data/uploads en HF Spaces, uploads/ en local
-_BASE_UPLOAD_DIR = "/data/uploads" if os.path.isdir("/data") else os.path.join(os.getcwd(), "uploads")
+# Se evalúa en tiempo de ejecución (no de importación) para garantizar
+# que el volumen /data ya esté montado cuando se calcule la ruta.
+def _get_upload_dir() -> str:
+    if os.path.isdir("/data"):
+        path = "/data/uploads"
+        os.makedirs(path, exist_ok=True)
+        return path
+    path = os.path.join(os.getcwd(), "uploads")
+    os.makedirs(path, exist_ok=True)
+    return path
+
+_BASE_UPLOAD_DIR = _get_upload_dir()
 
 from app.database import get_db
 from app.models.tomo import Tomo, ContenidoOCR

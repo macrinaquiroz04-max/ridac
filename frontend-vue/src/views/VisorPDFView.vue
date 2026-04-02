@@ -199,7 +199,15 @@ async function cargarPDF() {
     const headers = { Authorization: `Bearer ${auth.token}` }
     if (ACCESS_TOKEN) headers['X-Access-Token'] = ACCESS_TOKEN
     const response = await fetch(pdfUrl, { headers })
-    if (!response.ok) throw new Error(`Error al cargar el PDF (${response.status})`)
+    if (!response.ok) {
+      if (response.status === 404) {
+        throw new Error('El archivo PDF no se encontró en el servidor (404). Es posible que el servidor haya reiniciado y perdido los archivos temporales. Vuelve a subir el documento desde Carpetas.')
+      }
+      if (response.status === 403) {
+        throw new Error('No tienes permiso para ver este documento (403). Verifica que tu sesión esté activa.')
+      }
+      throw new Error(`Error al cargar el PDF (${response.status})`)
+    }
 
     const blob = await response.blob()
     const objectUrl = URL.createObjectURL(blob)
