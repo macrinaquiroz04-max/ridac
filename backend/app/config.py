@@ -29,6 +29,9 @@ class Settings(BaseSettings):
     # Seguridad
     JWT_SECRET_KEY: str = "default-secret-key-change-in-production"
     JWT_ALGORITHM: str = "HS256"
+    # Token de acceso compartido para plataformas públicas (HF Spaces, etc.)
+    # Dejar vacío en desarrollo local o entornos privados (Render, Fly)
+    API_ACCESS_TOKEN: Optional[str] = None
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 480  # 8 horas para red local
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30  # 30 días
 

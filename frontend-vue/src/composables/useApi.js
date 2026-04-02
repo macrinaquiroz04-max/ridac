@@ -4,6 +4,8 @@ import router from '@/router'
 
 // API_URL: en producción viene de Cloudflare Pages env vars
 const API_BASE = import.meta.env.VITE_API_URL || '/api'
+// Token de acceso compartido para despliegue en HF Spaces (vacío en dev local)
+const ACCESS_TOKEN = import.meta.env.VITE_ACCESS_TOKEN || ''
 
 async function handleResponse(res) {
   const contentType = res.headers.get('content-type') || ''
@@ -31,6 +33,7 @@ function getHeaders(isJson = true) {
   const headers = {}
   if (isJson) headers['Content-Type'] = 'application/json'
   if (auth.token) headers['Authorization'] = `Bearer ${auth.token}`
+  if (ACCESS_TOKEN) headers['X-Access-Token'] = ACCESS_TOKEN
   return headers
 }
 
