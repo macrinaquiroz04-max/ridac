@@ -8,7 +8,7 @@ from app.config import settings
 
 
 # Rutas exentas — health check y docs de HF Spaces
-_EXEMPT_PATHS = {"/health", "/", "/docs", "/openapi.json", "/redoc"}
+_EXEMPT_PATHS = {"/health", "/", "/docs", "/openapi.json", "/redoc", "/favicon.ico"}
 
 
 class AccessTokenMiddleware(BaseHTTPMiddleware):
