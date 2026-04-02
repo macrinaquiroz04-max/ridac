@@ -192,7 +192,7 @@ onUnmounted(() => {
 // ── Cargar PDF ────────────────────────────────────────────────────────────────
 async function cargarPDF() {
   try {
-    const pdfUrl = `${API_BASE}/tomos/${tomoId.value}/pdf`
+    const pdfUrl = `${API_BASE}/tomos/pdf/${tomoId.value}`
     const response = await fetch(pdfUrl, {
       headers: { Authorization: `Bearer ${auth.token}` }
     })
