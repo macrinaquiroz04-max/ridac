@@ -11,6 +11,9 @@ import os
 import shutil
 import hashlib
 
+# Almacenamiento persistente: /data/uploads en HF Spaces, uploads/ en local
+_BASE_UPLOAD_DIR = "/data/uploads" if os.path.isdir("/data") else os.path.join(os.getcwd(), "uploads")
+
 from app.database import get_db
 from app.models.tomo import Tomo, ContenidoOCR
 from app.models.carpeta import Carpeta
@@ -232,7 +235,7 @@ async def subir_tomo(
         # Crear directorio usando el NOMBRE del expediente (no el número)
         # Limpiar el nombre para que sea válido como nombre de carpeta
         nombre_carpeta = carpeta.nombre.replace('/', '_').replace('\\', '_').replace(':', '_')
-        upload_dir = os.path.join("uploads", "tomos", nombre_carpeta)
+        upload_dir = os.path.join(_BASE_UPLOAD_DIR, "tomos", nombre_carpeta)
         os.makedirs(upload_dir, exist_ok=True)
 
         # Generar nombre del archivo como: {nombre_expediente}_Tomo_{numero}.pdf
@@ -274,7 +277,7 @@ async def subir_tomo(
             )
 
         # Determinar estado inicial
-        estado_inicial = "procesado" if pdf_info["numero_paginas"] > 0 else "error"
+        estado_inicial = "pendiente" if pdf_info["numero_paginas"] > 0 else "error"
         
         # Crear registro en base de datos
         nuevo_tomo = Tomo(
