@@ -5,6 +5,9 @@
       <span>Red de Integración de Datos para Análisis y Contexto</span>
     </div>
     <div class="header-actions">
+      <RouterLink v-if="!esDashboard" to="/dashboard" class="btn-back-dash">
+        <i class="fas fa-arrow-left" /> Dashboard
+      </RouterLink>
       <span class="user-label">
         <i class="fas fa-user-circle" />
         {{ auth.user?.username }} ({{ auth.user?.rol }})
@@ -17,11 +20,17 @@
 </template>
 
 <script setup>
+import { computed } from 'vue'
 import { useAuthStore } from '@/stores/auth'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute, RouterLink } from 'vue-router'
 
 const auth = useAuthStore()
 const router = useRouter()
+const route = useRoute()
+
+const esDashboard = computed(() =>
+  ['dashboard', 'login', 'dashboard-usuario'].includes(route.name)
+)
 
 function handleLogout() {
   auth.clearSession()
@@ -81,6 +90,25 @@ function handleLogout() {
   display: flex;
   align-items: center;
   gap: 6px;
+}
+
+.btn-back-dash {
+  background: rgba(255,255,255,0.12);
+  color: white;
+  border: 1.5px solid rgba(255,255,255,0.35);
+  padding: 7px 16px;
+  border-radius: 20px;
+  font-weight: 600;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  text-decoration: none;
+  transition: background 0.2s, transform 0.15s;
+}
+.btn-back-dash:hover {
+  background: rgba(255,255,255,0.25);
+  transform: translateX(-2px);
 }
 
 .btn-logout {
