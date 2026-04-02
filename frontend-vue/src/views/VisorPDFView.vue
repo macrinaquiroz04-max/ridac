@@ -59,7 +59,7 @@
         <!-- Capa de texto seleccionable (estilo real PDF viewer) -->
         <div id="text-layer" ref="textLayerEl" class="text-layer"></div>
         <!-- Overlay de selección Lens -->
-        <div v-if="lensMode || lensSelecting" class="lens-overlay-box" ref="lensBoxEl"></div>
+        <div v-show="lensMode || lensSelecting" class="lens-overlay-box" ref="lensBoxEl"></div>
       </div>
     </div>
 
@@ -336,19 +336,22 @@ function toggleLens() { lensMode.value = !lensMode.value }
 function activarLens() { lensMode.value = true }
 
 watch(lensMode, (active) => {
-  const canvas = canvasEl.value
-  if (!canvas) return
+  const wrap = pageWrapEl.value
+  if (!wrap) return
   if (active) {
-    canvas.style.cursor = 'crosshair'
-    canvas.addEventListener('mousedown', onLensMouseDown)
-    canvas.addEventListener('mousemove', onLensMouseMove)
-    canvas.addEventListener('mouseup',   onLensMouseUp)
+    wrap.style.cursor = 'crosshair'
+    // Deshabilitar text-layer para que no intercepte los eventos del mouse
+    if (textLayerEl.value) textLayerEl.value.style.pointerEvents = 'none'
+    wrap.addEventListener('mousedown', onLensMouseDown)
+    wrap.addEventListener('mousemove', onLensMouseMove)
+    wrap.addEventListener('mouseup',   onLensMouseUp)
     showToast('🔍 Arrastra sobre el texto para extraerlo', 'info', 4000)
   } else {
-    canvas.style.cursor = 'default'
-    canvas.removeEventListener('mousedown', onLensMouseDown)
-    canvas.removeEventListener('mousemove', onLensMouseMove)
-    canvas.removeEventListener('mouseup',   onLensMouseUp)
+    wrap.style.cursor = ''
+    if (textLayerEl.value) textLayerEl.value.style.pointerEvents = ''
+    wrap.removeEventListener('mousedown', onLensMouseDown)
+    wrap.removeEventListener('mousemove', onLensMouseMove)
+    wrap.removeEventListener('mouseup',   onLensMouseUp)
     if (lensBoxEl.value) lensBoxEl.value.style.display = 'none'
   }
 })
