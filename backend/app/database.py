@@ -108,10 +108,9 @@ def _seed_initial_data():
 
     db = SessionLocal()
     try:
-        # 1. Roles base
+        # 1. Roles base — solo admin; el rol usuario se eliminó (todo lo hace el admin)
         roles_base = [
-            ("admin",   "Administrador del sistema con acceso completo"),
-            ("usuario", "Analista con acceso a tomos asignados"),
+            ("admin", "Administrador del sistema con acceso completo"),
         ]
         for nombre, descripcion in roles_base:
             existe = db.query(Rol).filter(Rol.nombre == nombre).first()

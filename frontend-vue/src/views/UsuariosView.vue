@@ -192,9 +192,9 @@ async function cargarUsuarios() {
 async function cargarRoles() {
   try {
     const data = await get('/admin/roles')
-    roles.value = Array.isArray(data) ? data : [{ nombre: 'admin' }, { nombre: 'supervisor' }, { nombre: 'usuario' }]
+    roles.value = Array.isArray(data) ? data : [{ nombre: 'admin' }]
   } catch {
-    roles.value = [{ nombre: 'admin' }, { nombre: 'supervisor' }, { nombre: 'usuario' }]
+    roles.value = [{ nombre: 'admin' }]
   }
 }
 

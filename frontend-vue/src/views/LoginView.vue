@@ -80,10 +80,8 @@ async function handleLogin() {
 
     if (data.user?.debe_cambiar_password) {
       router.push({ name: 'cambiar-password' })
-    } else if (data.user?.rol === 'admin') {
-      router.push({ name: 'dashboard' })
     } else {
-      router.push({ name: 'dashboard-usuario' })
+      router.push({ name: 'dashboard' })
     }
   } catch (err) {
     errorMsg.value = err.message || 'Credenciales incorrectas'

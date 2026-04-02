@@ -17,8 +17,7 @@ const routes = [
   {
     path: '/dashboard-usuario',
     name: 'dashboard-usuario',
-    component: () => import('@/views/DashboardUsuarioView.vue'),
-    meta: { requiresAuth: true }
+    redirect: '/dashboard'
   },
   {
     path: '/carpetas',
@@ -42,13 +41,13 @@ const routes = [
     path: '/usuarios',
     name: 'usuarios',
     component: () => import('@/views/UsuariosView.vue'),
-    meta: { requiresAuth: true, roles: ['admin'] }
+    meta: { requiresAuth: true }
   },
   {
     path: '/auditoria',
     name: 'auditoria',
     component: () => import('@/views/AuditoriaView.vue'),
-    meta: { requiresAuth: true, roles: ['admin'] }
+    meta: { requiresAuth: true }
   },
   {
     path: '/monitor-ocr',
@@ -78,7 +77,7 @@ const routes = [
     path: '/permisos',
     name: 'permisos',
     component: () => import('@/views/PermisosView.vue'),
-    meta: { requiresAuth: true, roles: ['admin'] }
+    meta: { requiresAuth: true }
   },
   {
     path: '/analisis-avanzado',
@@ -90,25 +89,25 @@ const routes = [
     path: '/autocorrector-legal',
     name: 'autocorrector-legal',
     component: () => import('@/views/AutocorrectorLegalView.vue'),
-    meta: { requiresAuth: true, roles: ['admin'] }
+    meta: { requiresAuth: true }
   },
   {
     path: '/correccion-diligencias',
     name: 'correccion-diligencias',
     component: () => import('@/views/CorreccionDiligenciasView.vue'),
-    meta: { requiresAuth: true, roles: ['admin'] }
+    meta: { requiresAuth: true }
   },
   {
     path: '/generar-embeddings',
     name: 'generar-embeddings',
     component: () => import('@/views/GenerarEmbeddingsView.vue'),
-    meta: { requiresAuth: true, roles: ['admin'] }
+    meta: { requiresAuth: true }
   },
   {
     path: '/limpieza-personas',
     name: 'limpieza-personas',
     component: () => import('@/views/LimpiezaPersonasView.vue'),
-    meta: { requiresAuth: true, roles: ['admin'] }
+    meta: { requiresAuth: true }
   },
   {
     path: '/ocr-extraction',
@@ -154,11 +153,7 @@ router.beforeEach((to, from, next) => {
   }
 
   if (to.meta.requiresGuest && auth.isAuthenticated) {
-    return next({ name: auth.user?.rol === 'admin' ? 'dashboard' : 'dashboard-usuario' })
-  }
-
-  if (to.meta.roles && !to.meta.roles.includes(auth.user?.rol)) {
-    return next({ name: 'dashboard-usuario' })
+    return next({ name: 'dashboard' })
   }
 
   next()
