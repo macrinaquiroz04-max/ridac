@@ -1,4 +1,5 @@
 # backend/app/routes/tomos.py
+# /subir alias agregado para compatibilidad con frontend
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File, Form, Request
 from sqlalchemy.orm import Session
