@@ -79,8 +79,8 @@ def init_db():
         # Importar todos los modelos para que create_all los detecte
         from app.models import usuario, carpeta, tomo, tarea_ocr, permiso, auditoria
 
-        # Crear todas las tablas
-        Base.metadata.create_all(bind=engine)
+        # Crear todas las tablas (checkfirst=True evita error si ya existen índices)
+        Base.metadata.create_all(bind=engine, checkfirst=True)
         logger.info("Tablas creadas / verificadas correctamente")
 
         # --- Seed inicial: roles y usuario admin ---
