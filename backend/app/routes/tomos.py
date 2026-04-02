@@ -731,9 +731,11 @@ async def obtener_info_tomo(
 
     # Verificar permisos del usuario sobre este tomo
     from app.models.permiso_tomo import PermisoTomo
+    from app.models.usuario import Rol
     
-    # Solo admin puede ver sin restricciones
-    es_admin = current_user.rol.nombre in ["admin", "administrador"]
+    # Consulta directa al rol para evitar problemas de lazy loading
+    rol_nombre = db.query(Rol.nombre).filter(Rol.id == current_user.rol_id).scalar() or ""
+    es_admin = rol_nombre.lower() in ["admin", "administrador"]
     
     if not es_admin:
         # Buscar permiso específico para este tomo
@@ -789,9 +791,11 @@ async def visualizar_tomo_pdf(
 
     # Verificar permisos del usuario sobre este tomo
     from app.models.permiso_tomo import PermisoTomo
+    from app.models.usuario import Rol
     
     # Solo admin puede ver sin restricciones
-    es_admin = current_user.rol.nombre in ["admin", "administrador"]
+    rol_nombre = db.query(Rol.nombre).filter(Rol.id == current_user.rol_id).scalar() or ""
+    es_admin = rol_nombre.lower() in ["admin", "administrador"]
     
     if not es_admin:
         # Buscar permiso específico para este tomo
@@ -855,7 +859,9 @@ async def obtener_texto_ocr_pagina(
 
     # Verificar permisos del usuario
     from app.models.permiso_tomo import PermisoTomo
-    es_admin = current_user.rol.nombre in ["admin", "administrador"]
+    from app.models.usuario import Rol
+    rol_nombre = db.query(Rol.nombre).filter(Rol.id == current_user.rol_id).scalar() or ""
+    es_admin = rol_nombre.lower() in ["admin", "administrador"]
     
     if not es_admin:
         permiso = db.query(PermisoTomo).filter(
