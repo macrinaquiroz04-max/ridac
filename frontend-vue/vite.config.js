@@ -21,10 +21,33 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
-    // Cloudflare Pages espera el output en dist/
+    // Sin sourcemaps en producción — el código fuente nunca llega al cliente
+    sourcemap: false,
+    // Terser: elimina console.log, debugger, y ofusca nombres de variables
+    minify: 'terser',
+    terserOptions: {
+      compress: {
+        drop_console: true,      // Elimina todo console.log/warn/info
+        drop_debugger: true,     // Elimina statements debugger
+        pure_funcs: ['console.log', 'console.info', 'console.debug', 'console.warn', 'console.error'],
+        passes: 3,               // Múltiples pasadas de compresión
+        unsafe: true,
+        unsafe_arrows: true
+      },
+      mangle: {
+        toplevel: true,          // Renombra variables del top-level (offusca más)
+        properties: false        // No renombra propiedades (rompe frameworks)
+      },
+      format: {
+        comments: false          // Elimina todos los comentarios del bundle
+      }
+    },
     rollupOptions: {
       output: {
-        // Code splitting por ruta para carga más rápida
+        // Nombres hasheados: el atacante no sabe qué archivo es qué módulo
+        chunkFileNames: 'assets/[hash].js',
+        entryFileNames: 'assets/[hash].js',
+        assetFileNames: 'assets/[hash].[ext]',
         manualChunks: {
           vendor: ['vue', 'vue-router', 'pinia']
         }

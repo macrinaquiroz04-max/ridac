@@ -8,6 +8,7 @@ from typing import Dict, Any, Optional
 from datetime import datetime, timedelta
 from slowapi import Limiter
 from slowapi.util import get_remote_address
+import re
 
 from app.database import get_db
 from app.models.usuario import Usuario, TokenReset
@@ -30,6 +31,19 @@ router = APIRouter(
 
 
 # Schemas de request/response
+
+# Caracteres y patrones que deben rechazarse en el username (A03 - Injection defense)
+_USERNAME_FORBIDDEN_RE = re.compile(r"[\s'\"`;=\-\\/|<>()\[\]{}!@#$%^&*+~,?]")
+_SQL_KEYWORDS_RE = re.compile(
+    r'\b(select|insert|update|delete|drop|truncate|union|where|or|and|not|exec|'
+    r'execute|xp_|sp_|cast|convert|declare|char|nchar|varchar|alter|create|grant|'
+    r'revoke|null|true|false|like|between|having|group|order|limit|offset)\b',
+    re.IGNORECASE
+)
+# Solo letras, números, punto y guion bajo (formato típico de username corporativo)
+_USERNAME_ALLOWED_RE = re.compile(r'^[a-zA-Z0-9._áéíóúÁÉÍÓÚñÑ]+$')
+
+
 class LoginRequest(BaseModel):
     username: str
     password: str
@@ -37,15 +51,27 @@ class LoginRequest(BaseModel):
     @field_validator('username')
     @classmethod
     def sanitizar_username(cls, v: str) -> str:
-        # A03: strip espacios, limitar longitud, rechazar caracteres de control
-        v = v.strip()[:100]
+        v = v.strip()
         if not v:
-            raise ValueError('username no puede estar vacío')
+            raise ValueError('username requerido')
+        if len(v) > 60:
+            raise ValueError('username demasiado largo')
+        # Bloquear caracteres de inyección SQL/XSS
+        if _USERNAME_FORBIDDEN_RE.search(v):
+            raise ValueError('username contiene caracteres no permitidos')
+        # Bloquear palabras clave SQL
+        if _SQL_KEYWORDS_RE.search(v):
+            raise ValueError('username no válido')
+        # Solo alfanumérico + punto + guion bajo
+        if not _USERNAME_ALLOWED_RE.match(v):
+            raise ValueError('username solo puede contener letras, números, punto y guion bajo')
         return v
 
     @field_validator('password')
     @classmethod
     def validar_password_len(cls, v: str) -> str:
+        if not v:
+            raise ValueError('password requerido')
         if len(v) > 256:
             raise ValueError('password demasiado largo')
         return v

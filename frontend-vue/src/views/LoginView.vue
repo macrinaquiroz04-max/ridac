@@ -9,7 +9,7 @@
         <p>Sistema OCR de Análisis Jurídico</p>
       </div>
 
-      <form @submit.prevent="handleLogin">
+      <form @submit.prevent="handleLogin" autocomplete="on" novalidate>
         <div class="form-group">
           <label for="username">
             <i class="fas fa-user" /> Usuario
@@ -20,8 +20,15 @@
             type="text"
             placeholder="Ingresa tu usuario"
             autocomplete="username"
+            maxlength="50"
+            spellcheck="false"
             required
+            :class="{ 'input-error': usernameError }"
+            @input="onUsernameInput"
+            @keydown="blockForbiddenKeys"
+            @paste="onUsernamePaste"
           />
+          <span v-if="usernameError" class="field-error">{{ usernameError }}</span>
         </div>
 
         <div class="form-group">
@@ -35,6 +42,7 @@
               :type="showPassword ? 'text' : 'password'"
               placeholder="Ingresa tu contraseña"
               autocomplete="current-password"
+              maxlength="128"
               required
             />
             <button type="button" class="toggle-pw" @click="showPassword = !showPassword">
@@ -47,7 +55,7 @@
           <i class="fas fa-exclamation-circle" /> {{ errorMsg }}
         </p>
 
-        <button type="submit" class="btn-login" :disabled="loading">
+        <button type="submit" class="btn-login" :disabled="loading || !!usernameError || !canSubmit">
           <span v-if="loading"><i class="fas fa-spinner fa-spin" /> Ingresando...</span>
           <span v-else><i class="fas fa-sign-in-alt" /> Ingresar</span>
         </button>
@@ -57,7 +65,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useApi } from '@/composables/useApi'
@@ -70,13 +78,73 @@ const form = ref({ username: '', password: '' })
 const loading = ref(false)
 const showPassword = ref(false)
 const errorMsg = ref('')
+const usernameError = ref('')
+// Cooldown anti-fuerza-bruta en cliente: bloquea N segundos tras error
+const failCount = ref(0)
+const blockedUntil = ref(0)
+
+const canSubmit = computed(() => Date.now() >= blockedUntil.value)
+
+// Caracteres prohibidos en el campo usuario:
+// espacios, guiones, comillas, puntos y coma, operadores SQL, barras, ángulos, etc.
+const FORBIDDEN_CHARS_RE = /[\s'"`;=\-\\/|<>(){}[\]!@#$%^&*+~,?]/
+const SQL_KEYWORDS_RE = /\b(select|insert|update|delete|drop|union|where|or|and|exec|xp_|cast|convert|declare|char|nchar|varchar)\b/i
+
+function validateUsername(val) {
+  if (!val) return ''
+  if (FORBIDDEN_CHARS_RE.test(val)) return 'El usuario no puede contener espacios, guiones ni caracteres especiales'
+  if (SQL_KEYWORDS_RE.test(val)) return 'Contenido no permitido en el usuario'
+  if (val.length > 50) return 'Máximo 50 caracteres'
+  return ''
+}
+
+function onUsernameInput() {
+  usernameError.value = validateUsername(form.value.username)
+}
+
+function blockForbiddenKeys(e) {
+  // Bloquear espacio y caracteres clave de inyección en tiempo real
+  const forbidden = [' ', "'", '"', ';', '=', '-', '/', '\\', '<', '>', '(', ')', '`', '|', '+']
+  if (forbidden.includes(e.key)) {
+    e.preventDefault()
+  }
+}
+
+function onUsernamePaste(e) {
+  e.preventDefault()
+  const pasted = (e.clipboardData || window.clipboardData).getData('text')
+  // Eliminar todos los caracteres prohibidos del texto pegado
+  const cleaned = pasted.replace(/[\s'"`;=\-\\/|<>(){}[\]!@#$%^&*+~,?]/g, '').slice(0, 50)
+  form.value.username = cleaned
+  usernameError.value = validateUsername(cleaned)
+}
 
 async function handleLogin() {
+  // Verificar cooldown anti-fuerza-bruta
+  if (!canSubmit.value) {
+    const secs = Math.ceil((blockedUntil.value - Date.now()) / 1000)
+    errorMsg.value = `Demasiados intentos. Espera ${secs} segundos.`
+    return
+  }
+
+  // Validación final antes de enviar
+  usernameError.value = validateUsername(form.value.username)
+  if (usernameError.value) return
+
+  if (!form.value.username.trim() || !form.value.password) {
+    errorMsg.value = 'Completa todos los campos'
+    return
+  }
+
   errorMsg.value = ''
   loading.value = true
   try {
-    const data = await post('/auth/login', form.value)
+    const data = await post('/auth/login', {
+      username: form.value.username.trim(),
+      password: form.value.password
+    })
     auth.setSession(data)
+    failCount.value = 0
 
     if (data.user?.debe_cambiar_password) {
       router.push({ name: 'cambiar-password' })
@@ -84,7 +152,14 @@ async function handleLogin() {
       router.push({ name: 'dashboard' })
     }
   } catch (err) {
-    errorMsg.value = err.message || 'Credenciales incorrectas'
+    failCount.value++
+    // Cooldown exponencial: 5s, 15s, 30s tras 3+ errores consecutivos
+    if (failCount.value >= 3) {
+      const delay = Math.min(30, 5 * (failCount.value - 2)) * 1000
+      blockedUntil.value = Date.now() + delay
+    }
+    // Nunca revelar si el error es de usuario vs contraseña (A07)
+    errorMsg.value = 'Credenciales incorrectas. Verifica tu usuario y contraseña.'
   } finally {
     loading.value = false
   }
@@ -235,5 +310,18 @@ async function handleLogin() {
 .btn-login:disabled {
   opacity: 0.7;
   cursor: not-allowed;
+}
+
+/* Validación en tiempo real */
+.field-error {
+  display: block;
+  color: #dc3545;
+  font-size: 12px;
+  margin-top: 5px;
+}
+
+.form-group input.input-error {
+  border-color: #dc3545;
+  box-shadow: 0 0 0 3px rgba(220,53,69,0.12);
 }
 </style>
