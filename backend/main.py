@@ -226,68 +226,6 @@ try:
 except ImportError:
     logger.warning("⚠️ OCR PDF24 no disponible - faltan dependencias")
 
-# 🎯 MIDDLEWARE PARA URLs LIMPIAS (sin .html)
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.responses import FileResponse, RedirectResponse
-
-class CleanURLMiddleware(BaseHTTPMiddleware):
-    """Middleware para URLs limpias sin .html - Solo afecta páginas HTML"""
-    
-    # Extensiones de archivos estáticos que NO deben procesarse
-    STATIC_EXTENSIONS = {
-        '.css', '.js', '.json', '.jpg', '.jpeg', '.png', '.gif', '.svg', 
-        '.ico', '.woff', '.woff2', '.ttf', '.eot', '.mp4', '.webm', 
-        '.pdf', '.zip', '.txt', '.xml'
-    }
-    
-    async def dispatch(self, request, call_next):
-        path = request.url.path
-        
-        # Ignorar rutas API
-        if path.startswith("/api"):
-            return await call_next(request)
-        
-        # Ignorar archivos estáticos (CSS, JS, imágenes, etc.)
-        file_extension = Path(path).suffix.lower()
-        if file_extension in self.STATIC_EXTENSIONS:
-            return await call_next(request)
-        
-        # Si es la raíz, servir index.html
-        if path == "/":
-            frontend_path = Path(__file__).parent.parent / "frontend" / "index.html"
-            if frontend_path.exists():
-                return FileResponse(frontend_path)
-        
-        # Si la URL no tiene extensión, intentar agregar .html
-        if not file_extension and path != "/":
-            frontend_path = Path(__file__).parent.parent / "frontend"
-            html_file = frontend_path / f"{path.strip('/')}.html"
-            
-            if html_file.exists():
-                return FileResponse(html_file)
-        
-        # Si accede con .html, redirigir a URL limpia
-        if path.endswith(".html"):
-            clean_path = path[:-5]  # Quitar .html
-            return RedirectResponse(url=clean_path, status_code=301)
-        
-        response = await call_next(request)
-        return response
-
-# Agregar middleware de URLs limpias
-app.add_middleware(CleanURLMiddleware)
-
-# Servir archivos estáticos del frontend
-try:
-    frontend_path = Path(__file__).parent.parent / "frontend"
-    if frontend_path.exists():
-        app.mount("/", StaticFiles(directory=str(frontend_path), html=True), name="frontend")
-        logger.info(f"✓ Frontend montado desde: {frontend_path}")
-    else:
-        logger.warning(f"⚠ Directorio frontend no encontrado: {frontend_path}")
-except Exception as e:
-    logger.error(f"✗ Error montando frontend: {e}")
-
 # Endpoint raíz de la API
 @app.get("/api")
 async def root():

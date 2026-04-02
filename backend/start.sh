@@ -1,6 +1,5 @@
 #!/bin/bash
 # start.sh — Script de inicio para Render.com
-# Ejecuta migraciones Alembic y luego inicia uvicorn
 
 set -e
 
@@ -15,10 +14,16 @@ mkdir -p /tmp/ridac/documentos \
 
 echo "📁 Directorios /tmp creados"
 
-# Ejecutar migraciones de base de datos (Supabase)
-echo "🗄️  Ejecutando migraciones Alembic..."
-alembic upgrade head
-echo "✅ Migraciones completadas"
+# Crear tablas en la base de datos (SQLAlchemy create_all)
+echo "🗄️  Inicializando base de datos..."
+python -c "
+from app.database import init_db
+result = init_db()
+if result:
+    print('✅ Base de datos inicializada correctamente')
+else:
+    print('⚠️  Advertencia: init_db() reportó error — revisa los logs')
+"
 
 # Iniciar la API
 echo "🌐 Iniciando FastAPI en puerto $PORT..."
