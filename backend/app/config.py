@@ -1,7 +1,7 @@
 # backend/app/config.py
 # Sistema OCR con Análisis Jurídico
 # Ingeniero: Eduardo Lozada Quiroz, ISC
-# Cliente: Unidad de Análisis y Contexto (UAyC) - FGJCDMX
+# Cliente: Unidad de Análisis y Contexto (UAyC) - RIDAC
 # Confidencial - Propiedad Intelectual Protegida
 # Firma Digital: ELQ_ISC_UAYC_27102025
 
@@ -11,12 +11,20 @@ from typing import Optional
 
 # Metadata del sistema - Autor: E.Lozada.Q (ISC)
 class Settings(BaseSettings):
-    # Base de datos
+    # --- Base de datos ---
+    # Opción 1: URL completa (recomendado para Supabase/Render)
+    DATABASE_URL: Optional[str] = None
+
+    # Opción 2: variables separadas (desarrollo local)
     DB_HOST: str = "localhost"
     DB_PORT: int = 5432
     DB_NAME: str = "sistema_ocr"
     DB_USER: str = "postgres"
     DB_PASSWORD: str = "1234"
+
+    # --- CORS ---
+    # Para producción: URL de Cloudflare Pages, separadas por comas si hay varias
+    FRONTEND_URL: str = "http://localhost:5173"
 
     # Seguridad
     JWT_SECRET_KEY: str = "default-secret-key-change-in-production"
@@ -25,10 +33,10 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30  # 30 días
 
     # Rutas
-    UPLOAD_PATH: str = "C:/FGJCDMX/documentos"
-    EXPORT_PATH: str = "C:/FGJCDMX/exportaciones"
-    TEMP_PATH: str = "C:/FGJCDMX/temp"
-    LOG_PATH: str = "C:/FGJCDMX/logs"
+    UPLOAD_PATH: str = "C:/RIDAC/documentos"
+    EXPORT_PATH: str = "C:/RIDAC/exportaciones"
+    TEMP_PATH: str = "C:/RIDAC/temp"
+    LOG_PATH: str = "C:/RIDAC/logs"
 
     # OCR
     OCR_ENABLE_TESSERACT: bool = True
@@ -59,12 +67,32 @@ class Settings(BaseSettings):
     SECURE_PORT: int = 8443  # Puerto seguro (usuarios autenticados)
 
     @property
-    def DATABASE_URL(self) -> str:
-        """URL de conexión a PostgreSQL con encoding UTF-8"""
+    def get_database_url(self) -> str:
+        """
+        Retorna la URL de conexión a PostgreSQL.
+        Prioriza DATABASE_URL (Supabase/Render), si no la construye desde las variables separadas.
+        Supabase requiere sslmode=require en el connection string.
+        """
+        if self.DATABASE_URL:
+            return self.DATABASE_URL
         import urllib.parse
-        # Codificar la contraseña para manejar caracteres especiales
         encoded_password = urllib.parse.quote_plus(self.DB_PASSWORD)
-        return f"postgresql://{self.DB_USER}:{encoded_password}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}?client_encoding=utf8&options=-c client_encoding=utf8"
+        return f"postgresql://{self.DB_USER}:{encoded_password}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}?client_encoding=utf8"
+
+    @property
+    def cors_origins(self) -> list:
+        """Lista de orígenes permitidos para CORS"""
+        origins = [
+            "http://localhost:5173",   # Vue dev server
+            "http://localhost:3000",
+            "http://127.0.0.1:5173",
+        ]
+        if self.FRONTEND_URL:
+            for url in self.FRONTEND_URL.split(","):
+                url = url.strip()
+                if url and url not in origins:
+                    origins.append(url)
+        return origins
 
     class Config:
         env_file = ".env"

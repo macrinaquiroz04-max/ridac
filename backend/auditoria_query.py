@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Sistema de Auditoría Avanzado para Sistema OCR FGJCDMX
+Sistema de Auditoría Avanzado para Sistema OCR RIDAC
 Permite consultar logs de auditoría de forma detallada
 """
 
@@ -202,7 +202,7 @@ def main():
     """Función principal para consulta de auditoría"""
     if len(sys.argv) < 2:
         print("""
-🔍 Sistema de Consulta de Auditoría - OCR FGJCDMX
+🔍 Sistema de Consulta de Auditoría - OCR RIDAC
 
 Uso: python auditoria_query.py <comando> [opciones]
 

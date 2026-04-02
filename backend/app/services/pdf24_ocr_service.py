@@ -25,7 +25,7 @@ import math
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import tempfile
 
-logger = logging.getLogger("fgjcdmx_ocr")
+logger = logging.getLogger("ridac_ocr")
 
 class OCRSpeed(Enum):
     """Modelos de velocidad como PDF24"""

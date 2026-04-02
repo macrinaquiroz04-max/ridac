@@ -155,7 +155,7 @@ def test_filesystem():
     """Probar acceso al sistema de archivos"""
     print("\n=== Prueba 4: Sistema de Archivos ===")
 
-    base_path = Path("C:/FGJCDMX")
+    base_path = Path("C:/RIDAC")
 
     dirs = {
         "documentos": base_path / "documentos",
@@ -246,7 +246,7 @@ def test_api_config():
 
 def main():
     print("\n" + "="*50)
-    print("  PRUEBAS DEL SISTEMA OCR - FGJCDMX")
+    print("  PRUEBAS DEL SISTEMA OCR - RIDAC")
     print("="*50)
 
     tests = [

@@ -1,6 +1,6 @@
 """
 Detector Contextual para diferenciar Nombres de Personas vs Colonias
-Sistema específico para documentos jurídicos FGJCDMX
+Sistema específico para documentos jurídicos RIDAC
 """
 from typing import Dict, List, Optional, Tuple
 import re

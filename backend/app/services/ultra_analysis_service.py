@@ -13,7 +13,7 @@ import logging
 from concurrent.futures import ThreadPoolExecutor
 from collections import defaultdict
 
-logger = logging.getLogger("fgjcdmx_ocr")
+logger = logging.getLogger("ridac_ocr")
 
 class UltraAnalysisService:
     """Servicio de análisis ultra-optimizado que nunca se cuelga"""

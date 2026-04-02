@@ -605,7 +605,7 @@ async def corregir_carpeta(
 
 
 # ============================================
-# NUEVOS ENDPOINTS - ENTIDADES LEGALES FGJCDMX
+# NUEVOS ENDPOINTS - ENTIDADES LEGALES RIDAC
 # ============================================
 
 @router.post("/normalizar-fiscalia", summary="Normalizar nombre de fiscalía")

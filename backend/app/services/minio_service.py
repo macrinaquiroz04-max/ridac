@@ -8,9 +8,15 @@
 import os
 import io
 from typing import Optional, BinaryIO
-from minio import Minio
-from minio.error import S3Error
 from app.utils.logger import logger
+
+try:
+    from minio import Minio
+    from minio.error import S3Error
+    _MINIO_AVAILABLE = True
+except ImportError:
+    _MINIO_AVAILABLE = False
+    logger.warning("⚠️ Paquete 'minio' no instalado — almacenamiento MinIO deshabilitado")
 
 class MinIOService:
     """Servicio de almacenamiento de objetos con MinIO"""
@@ -24,6 +30,9 @@ class MinIOService:
     
     def _initialize(self):
         """Inicializar conexión con MinIO"""
+        if not _MINIO_AVAILABLE:
+            self.enabled = False
+            return
         try:
             endpoint = os.getenv("MINIO_ENDPOINT", "localhost:9000")
             access_key = os.getenv("MINIO_ACCESS_KEY", "minioadmin")

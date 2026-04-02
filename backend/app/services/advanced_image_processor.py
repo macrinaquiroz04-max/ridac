@@ -16,7 +16,7 @@ from dataclasses import dataclass
 warnings.filterwarnings("ignore", category=FutureWarning, module="cv2")
 warnings.filterwarnings("ignore", message=".*GFPGAN.*")
 
-logger = logging.getLogger("fgjcdmx_ocr")
+logger = logging.getLogger("ridac_ocr")
 
 @dataclass
 class ImageProcessingResult:

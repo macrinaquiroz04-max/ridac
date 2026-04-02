@@ -17,7 +17,7 @@ import os
 warnings.filterwarnings("ignore", category=UserWarning, module="matplotlib")
 warnings.filterwarnings("ignore", category=FutureWarning, module="pandas")
 
-logger = logging.getLogger("fgjcdmx_ocr")
+logger = logging.getLogger("ridac_ocr")
 
 @dataclass
 class LegalTable:

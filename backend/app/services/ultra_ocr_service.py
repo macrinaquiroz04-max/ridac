@@ -102,7 +102,7 @@ try:
 except ImportError:
     NLP_SERVICE_AVAILABLE = False
 
-logger = logging.getLogger("fgjcdmx_ocr")
+logger = logging.getLogger("ridac_ocr")
 
 @dataclass
 class OCRResult:

@@ -1,191 +1,102 @@
-# 🏛️ Sistema OCR - Fiscalía General de Justicia CDMX
+# Sistema OCR RIDAC
 
-Sistema de Procesamiento OCR y Análisis Jurídico para la Fiscalía General de Justicia de la Ciudad de México
-
----
-
-## 🚀 Inicio Rápido con Docker (RECOMENDADO)
-
-### Instalación en 3 pasos:
-
-#### 1️⃣ Instalar Docker Desktop
-```powershell
-# Descarga e instala Docker Desktop para Windows
-# https://www.docker.com/products/docker-desktop
-```
-📖 **Guía detallada**: Ver `INSTALACION_DOCKER.md`
-
-#### 2️⃣ Iniciar el Sistema
-```powershell
-# Simplemente ejecuta:
-start-docker.bat
-```
-
-#### 3️⃣ Acceder al Sistema
-- **Frontend**: http://localhost
-- **API Docs**: http://localhost/api/docs
-- **PgAdmin**: http://localhost:5050
-
-**¡Listo!** PostgreSQL, Backend y Frontend corriendo automáticamente.
+Sistema de digitalización, extracción OCR y análisis jurídico de documentos para la
+Unidad de Análisis y Contexto (UAyC) — FGJ CDMX.
 
 ---
 
-## 📚 Documentación Completa
+## Descripción
 
-| Documento | Descripción |
-|-----------|-------------|
-| 📘 **INSTALACION_DOCKER.md** | Guía paso a paso para instalar Docker Desktop |
-| 🐳 **README_DOCKER.md** | Uso del sistema con Docker (inicio rápido) |
-| 📖 **DOCKER_GUIA_INSTALACION.md** | Guía completa de Docker (comandos, troubleshooting) |
-| 📋 **LEEME_PRIMERO.md** | Resumen de funcionalidades implementadas |
-| ⚖️ **GUIA_USO_ANALISIS_JURIDICO.md** | Sistema de análisis jurídico con NLP |
+Plataforma web que permite al personal de la UAyC:
 
----
-
-## 🎯 ¿Qué incluye este sistema?
-
-### ✨ Características Principales
-
-✅ **OCR Multi-Motor**
-- Tesseract (español e inglés)
-- EasyOCR (opcional)
-- PaddleOCR (opcional)
-- Preprocesamiento automático de imágenes
-
-✅ **Análisis Jurídico Automatizado**
-- Extracción de diligencias judiciales
-- Identificación de personas mencionadas
-- Detección de lugares y direcciones
-- Alertas de inactividad MP
-- Timeline de eventos
-
-✅ **Búsqueda Avanzada**
-- Búsqueda semántica con IA
-- Búsqueda por palabras clave
-- Filtros avanzados
-- Autocorrector legal mexicano
-
-✅ **Gestión de Carpetas y Tomos**
-- Organización por carpetas de investigación
-- Tomos con 800-900 páginas
-- Permisos granulares por usuario
-- Historial de cambios
-
-✅ **Seguridad**
-- Autenticación JWT
-- Roles y permisos
-- Auditoría completa
-- Aislamiento de datos por usuario
+- **Digitalizar** tomos físicos escaneados (PDF) mediante OCR (Tesseract / EasyOCR / PaddleOCR)
+- **Organizar** documentos en carpetas de investigación con control de acceso por analista
+- **Buscar** texto libre e inteligente (búsqueda semántica con embeddings vectoriales)
+- **Analizar** jurídicamente cada tomo: diligencias, personas, fechas, lugares, alertas de inactividad MP
+- **Auditar** todas las acciones del sistema por usuario y fecha
 
 ---
 
-## 🛠️ Stack Tecnológico
+## Stack Tecnológico
 
-### Backend
-- **FastAPI** - Framework web moderno
-- **PostgreSQL 15** - Base de datos
-- **SQLAlchemy** - ORM
-- **Tesseract** - OCR principal
-- **Sentence Transformers** - Búsqueda semántica
-- **spaCy** - NLP para análisis jurídico
-
-### Frontend
-- **HTML5 + CSS3 + JavaScript**
-- **Bootstrap 5** - UI Framework
-- **Chart.js** - Gráficos
-- **DataTables** - Tablas interactivas
-
-### Infraestructura
-- **Docker** - Contenedores
-- **Docker Compose** - Orquestación
-- **Nginx** - Servidor web y proxy
-- **PgAdmin** - Administración BD
+| Capa | Tecnología |
+|------|-----------|
+| Frontend | Vue 3.4 + Vite 5 + Vue Router 4 + Pinia |
+| Backend | FastAPI 0.104.1 + Uvicorn |
+| Base de datos | PostgreSQL 15+ con extensión `pg_trgm` y `pgvector` |
+| Cola de tareas | Celery + Redis |
+| OCR | Tesseract (base) · EasyOCR · PaddleOCR (opcional) |
+| Auth | JWT — python-jose + passlib/bcrypt |
 
 ---
 
-## 📦 Scripts Útiles
-
-Todos los scripts están en la raíz del proyecto:
-
-| Script | Descripción |
-|--------|-------------|
-| `start-docker.bat` | ⭐ Iniciar todo el sistema |
-| `stop-docker.bat` | Detener el sistema |
-| `ver-estado.bat` | Ver estado de contenedores y recursos |
-| `ver-logs.bat` | Ver logs en tiempo real |
-| `backup-database.bat` | Crear backup de PostgreSQL |
-| `restaurar-backup.bat` | Restaurar backup |
-| `consola-postgres.bat` | Abrir consola SQL interactiva |
-
----
-
-## 👥 Usuarios por Defecto
-
-### Administrador
-- **Usuario**: `admin`
-- **Contraseña**: `admin123`
-- **Rol**: Administrador (acceso completo)
-
-### Usuario de Prueba
-- **Usuario**: `eduardo`
-- **Contraseña**: `eduardo123`
-- **Rol**: Usuario (permisos limitados)
-
-**⚠️ Importante**: Cambia estas contraseñas en producción.
-
----
-
-## 🗂️ Estructura del Proyecto
+## Estructura del Proyecto
 
 ```
-FJ1/
-├── backend/                    # Backend FastAPI
-│   ├── app/
-│   │   ├── models/            # Modelos de datos
-│   │   ├── routes/            # Endpoints API
-│   │   ├── controllers/       # Lógica de negocio
-│   │   ├── services/          # Servicios (OCR, NLP, etc)
-│   │   └── utils/             # Utilidades
-│   ├── scripts/               # Scripts SQL
-│   ├── Dockerfile             # Imagen Docker backend
-│   └── requirements.txt       # Dependencias Python
-│
-├── frontend/                  # Frontend HTML/JS
-│   ├── js/                    # JavaScript modules
-│   ├── css/                   # Estilos
-│   └── *.html                # Páginas
-│
-├── docs/                      # Documentación
-├── docker-compose.yml         # 🐳 Desarrollo
-├── docker-compose.prod.yml    # 🐳 Producción
-├── nginx.conf                 # Configuración Nginx
-└── *.bat                      # Scripts Windows
+sistemaocr/
+├── backend/             # API FastAPI (Python)
+│   ├── app/             # Código principal
+│   │   ├── controllers/ # Lógica de negocio
+│   │   ├── models/      # Modelos SQLAlchemy
+│   │   ├── routes/      # Endpoints REST
+│   │   ├── services/    # Servicios (OCR, embeddings, etc.)
+│   │   └── tasks/       # Tareas Celery (procesamiento async)
+│   ├── scripts/         # Scripts SQL y migraciones
+│   ├── uploads/         # Archivos subidos (PDFs)
+│   ├── main.py          # Punto de entrada FastAPI
+│   └── .env             # Variables de entorno (NO subir a git)
+├── frontend-vue/        # SPA Vue 3
+│   ├── src/
+│   │   ├── views/       # Vistas (22 pantallas)
+│   │   ├── stores/      # Estado global Pinia
+│   │   ├── router/      # Vue Router con guards de rol
+│   │   └── composables/ # useApi, useToast
+│   └── vite.config.js   # Proxy /api → localhost:8000 (dev)
+├── backups/             # Respaldos de base de datos
+├── logs/                # Logs del sistema (ver logs/README.md)
+├── mock-api.js          # API mock Node.js para desarrollo sin backend
+└── render.yaml          # Configuracion despliegue Render.com
 ```
 
 ---
 
-## ✅ Checklist de Despliegue en Fiscalía
+## Roles de Usuario
 
-- [ ] Docker Desktop instalado y corriendo
-- [ ] Proyecto copiado en servidor
-- [ ] Archivo `.env` configurado
-- [ ] Contraseñas cambiadas
-- [ ] Firewall configurado (puertos 80, 443)
-- [ ] Sistema iniciado: `start-docker.bat`
-- [ ] Verificar estado: `ver-estado.bat`
-- [ ] Crear usuario admin con contraseña segura
-- [ ] Configurar backups automáticos
-- [ ] Probar acceso desde red local
-- [ ] Capacitar usuarios finales
+| Rol | Acceso |
+|-----|--------|
+| `admin` | Dashboard completo, gestión de carpetas/tomos/usuarios, análisis IA, auditoría, configuración |
+| `usuario` | Dashboard analista, tomos asignados (ver/buscar/exportar según permisos), análisis jurídico avanzado |
 
 ---
 
-**¡Sistema listo para usar!** 🎉
+## Documentación disponible
 
-Para más información, consulta la documentación en la carpeta `docs/`.  
-✓ Gestión de carpetas y tomos  
-✓ Auditoría completa  
+| Archivo | Contenido |
+|---------|-----------|
+| [INSTALACION.md](./INSTALACION.md) | Requisitos e instalación paso a paso |
+| [ARQUITECTURA.md](./ARQUITECTURA.md) | Arquitectura técnica, endpoints, modelos de datos |
+| [GUIA_USO.md](./GUIA_USO.md) | Guía de uso por rol: admin y analista |
+| [../logs/README.md](../logs/README.md) | Estructura y uso de los logs |
 
-## Base de datos: sistema_ocr
-## Password PostgreSQL: 1234
+---
 
+## Inicio Rápido (Desarrollo)
+
+```bash
+# 1. Backend
+cd backend
+pip install -r requirements.txt
+uvicorn main:app --reload --port 8001
+
+# 2. Frontend
+cd frontend-vue
+npm install
+npm run dev          # http://localhost:5173
+
+# 3. Mock API (sin backend real)
+node mock-api.js     # http://localhost:8000
+```
+
+---
+
+*Desarrollado por Eduardo Lozada Quiroz, ISC — UAyC · FGJ CDMX · 2025*

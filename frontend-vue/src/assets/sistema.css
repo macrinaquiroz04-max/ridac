@@ -1,0 +1,51 @@
+/* Sistema OCR RIDAC — CSS Global */
+:root {
+  --primary-color: #1a365d;
+  --secondary-color: #2c5aa0;
+  --accent-color: #dc3545;
+  --success-color: #28a745;
+  --warning-color: #ffc107;
+  --dark-color: #2c3e50;
+  --light-bg: #f8f9fa;
+  --white: #ffffff;
+  --shadow: 0 4px 15px rgba(0,0,0,0.08);
+  --border-radius: 12px;
+}
+
+*, *::before, *::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background: linear-gradient(135deg, var(--light-bg) 0%, #e9ecef 100%);
+  min-height: 100vh;
+  color: #4a5568;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Scrollbar personalizado */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
+::-webkit-scrollbar-thumb { background: #c1c7d0; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #a0aec0; }
+
+/* Focus global accesible */
+:focus-visible {
+  outline: 2px solid var(--secondary-color);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Transiciones página */
+.v-enter-active, .v-leave-active { transition: opacity 0.2s ease; }
+.v-enter-from, .v-leave-to { opacity: 0; }
+
+/* Utilidades */
+.text-primary { color: var(--primary-color); }
+.text-muted   { color: #6c757d; }
+.text-success { color: var(--success-color); }
+.text-danger  { color: var(--accent-color); }
+.text-warning { color: var(--warning-color); }

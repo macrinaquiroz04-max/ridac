@@ -1,0 +1,86 @@
+# render.yaml — Configuración de despliegue en Render
+# https://render.com/docs/blueprint-spec
+#
+# INSTRUCCIONES:
+#   1. Conecta este repo en Render Dashboard → New Blueprint
+#   2. Rellena las variables marcadas como sync: false en el Dashboard
+#   3. DATABASE_URL viene de Supabase (Settings → Database → Connection string)
+#   4. REDIS_URL viene de Upstash Redis o Render Redis add-on
+#   5. FRONTEND_URL es la URL de Cloudflare Pages (ej: https://ridac.pages.dev)
+
+services:
+  # ─── API principal (FastAPI) ─────────────────────────────
+  - type: web
+    name: sistema-ocr-ridac-api
+    runtime: python
+    region: oregon
+    plan: starter
+    rootDir: backend
+    buildCommand: >
+      apt-get update -qq &&
+      apt-get install -y -qq tesseract-ocr tesseract-ocr-spa poppler-utils &&
+      pip install --upgrade pip &&
+      pip install -r requirements-production.txt
+    startCommand: bash start.sh
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: DATABASE_URL
+        sync: false            # Supabase connection string
+      - key: REDIS_URL
+        sync: false            # Upstash Redis URL  redis://...
+      - key: JWT_SECRET_KEY
+        generateValue: true
+      - key: FRONTEND_URL
+        sync: false            # https://tu-app.pages.dev
+      - key: UPLOAD_PATH
+        value: /tmp/ridac/documentos
+      - key: EXPORT_PATH
+        value: /tmp/ridac/exportaciones
+      - key: TEMP_PATH
+        value: /tmp/ridac/temp
+      - key: LOG_PATH
+        value: /tmp/ridac/logs
+      - key: OCR_ENABLE_TESSERACT
+        value: "true"
+      - key: OCR_MAX_WORKERS
+        value: "2"
+      - key: PYTHON_VERSION
+        value: "3.11.0"
+      - key: ELASTIC_ENABLED
+        value: "false"         # Elasticsearch deshabilitado en cloud
+      - key: MINIO_ENABLED
+        value: "false"         # MinIO deshabilitado — usar Supabase Storage
+
+  # ─── Worker Celery (procesamiento asíncrono OCR) ─────────
+  - type: worker
+    name: sistema-ocr-ridac-celery
+    runtime: python
+    region: oregon
+    plan: starter
+    rootDir: backend
+    buildCommand: >
+      apt-get update -qq &&
+      apt-get install -y -qq tesseract-ocr tesseract-ocr-spa poppler-utils &&
+      pip install --upgrade pip &&
+      pip install -r requirements-production.txt
+    startCommand: celery -A app.tasks.celery_app worker --loglevel=info --concurrency=2
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: JWT_SECRET_KEY
+        sync: false
+      - key: UPLOAD_PATH
+        value: /tmp/ridac/documentos
+      - key: TEMP_PATH
+        value: /tmp/ridac/temp
+      - key: OCR_ENABLE_TESSERACT
+        value: "true"
+      - key: OCR_MAX_WORKERS
+        value: "2"
+      - key: ELASTIC_ENABLED
+        value: "false"
+      - key: MINIO_ENABLED
+        value: "false"

@@ -13,21 +13,25 @@ import logging
 logger = logging.getLogger(__name__)
 # Autor del sistema: E.L.Q - ISC
 
-# Configuración del engine optimizada para 20 usuarios simultáneos
+# Configuración del engine — soporta Supabase (SSL) y PostgreSQL local
+db_url = settings.get_database_url
+
+# Supabase usa SSL obligatorio; psycopg2 lo maneja via sslmode en la URL
+# Para conexión local no se necesita SSL, así que solo añadimos connect_args básicos
+_connect_args = {
+    "options": "-c timezone=America/Mexico_City -c client_encoding=utf8 -c statement_timeout=30000"
+}
+
 engine = create_engine(
-    settings.DATABASE_URL,
-    pool_pre_ping=True,  # Verificar conexión antes de usar
-    pool_size=15,  # Aumentado para 20 usuarios simultáneos
-    max_overflow=25,  # Pool más grande para picos de carga
-    pool_timeout=30,  # Timeout para obtener conexión
-    pool_recycle=3600,  # Reciclar conexiones cada hora
-    echo=False,  # Cambiar a True para debug SQL
-    connect_args={
-        "client_encoding": "utf8",
-        "options": "-c timezone=America/Mexico_City -c client_encoding=utf8 -c statement_timeout=30000"  # Timeout de 30 segundos
-    },
-    # Configuraciones adicionales para concurrencia
-    isolation_level="READ_COMMITTED"  # Nivel de aislamiento optimizado
+    db_url,
+    pool_pre_ping=True,
+    pool_size=10,
+    max_overflow=20,
+    pool_timeout=30,
+    pool_recycle=1800,
+    echo=False,
+    connect_args=_connect_args,
+    isolation_level="READ_COMMITTED"
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

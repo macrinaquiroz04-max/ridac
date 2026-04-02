@@ -3,7 +3,7 @@
 """
 Servicio para extraer números de página REALES de PDFs (no del visor).
 
-Para carpetas judiciales FGJCDMX que pueden tener numeración interna como:
+Para carpetas judiciales RIDAC que pueden tener numeración interna como:
 "Página 196 de 821" donde 196 es el número real y 821 el total.
 """
 

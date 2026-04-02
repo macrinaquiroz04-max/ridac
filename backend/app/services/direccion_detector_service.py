@@ -10,7 +10,7 @@ from app.utils.logger import logger
 class DireccionDetectorService:
     """
     Servicio para detectar y validar direcciones en texto OCR
-    Diseñado específicamente para documentos legales de FGJCDMX
+    Diseñado específicamente para documentos legales de RIDAC
     """
     
     def __init__(self):

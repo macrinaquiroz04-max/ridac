@@ -67,7 +67,7 @@ class TextCorrectionService:
             'CIUDAD DE MEX|CO': 'CIUDAD DE MÉXICO',
             'CIUDAD DE MEX1CO': 'CIUDAD DE MÉXICO',
             'CDMX': 'CDMX',
-            'FGJCDMX': 'FGJCDMX',
+            'RIDAC': 'RIDAC',
             'PGJ': 'PGJ',
             'PGJDF': 'PGJDF',
             

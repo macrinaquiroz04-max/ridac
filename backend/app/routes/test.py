@@ -41,7 +41,7 @@ async def test_health():
         status_info = {
             "success": True,
             "status": "healthy",
-            "service": "Sistema OCR FGJCDMX",
+            "service": "Sistema OCR RIDAC",
             "version": "2.1.0",
             "environment": "development",
             "procesos_activos": procesos_activos,
@@ -59,7 +59,7 @@ async def test_health():
         return {
             "success": True,
             "status": "healthy",
-            "service": "Sistema OCR FGJCDMX",
+            "service": "Sistema OCR RIDAC",
             "version": "2.1.0",
             "environment": "development"
         }

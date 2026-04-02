@@ -16,7 +16,7 @@ import json
 warnings.filterwarnings("ignore", category=UserWarning, module="transformers")
 warnings.filterwarnings("ignore", message=".*resume_download.*deprecated.*")
 
-logger = logging.getLogger("fgjcdmx_ocr")
+logger = logging.getLogger("ridac_ocr")
 
 @dataclass
 class LegalEntity:

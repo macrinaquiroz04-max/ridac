@@ -69,7 +69,7 @@ async def lifespan(app: FastAPI):
     """Gestión del ciclo de vida de la aplicación"""
     # Startup: Iniciar servicios
     logger.info("="*60)
-    logger.info("INICIANDO SISTEMA OCR - FGJCDMX")
+    logger.info("INICIANDO SISTEMA OCR - RIDAC")
     logger.info("="*60)
 
     # Verificar conexión a base de datos
@@ -85,7 +85,7 @@ async def lifespan(app: FastAPI):
     # background_service.start()
 
     logger.info("="*60)
-    logger.info("🏛️  SISTEMA OCR FGJCDMX INICIADO CORRECTAMENTE")
+    logger.info("🏛️  SISTEMA OCR RIDAC INICIADO CORRECTAMENTE")
     logger.info("="*60)
     logger.info("")
     logger.info("🌐 Endpoints disponibles:")
@@ -130,8 +130,8 @@ async def lifespan(app: FastAPI):
 
 # Crear aplicación FastAPI
 app = FastAPI(
-    title="Sistema OCR - FGJCDMX",
-    description="Sistema de Procesamiento OCR para la Fiscalía General de Justicia de la Ciudad de México",
+    title="Sistema OCR - RIDAC",
+    description="Sistema de Procesamiento OCR para la RIDAC - Red de Integración de Datos para Análisis y Contexto",
     version="1.0.0",
     lifespan=lifespan,
     docs_url="/docs",
@@ -149,22 +149,10 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 # Limite de 500MB para archivos PDF grandes
 MAX_FILE_SIZE = 500 * 1024 * 1024  # 500MB en bytes
 
-# Configurar CORS - Priorizar sistema-ocr.local como dominio principal
+# Configurar CORS — usa settings.cors_origins para soportar Cloudflare Pages + desarrollo local
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://sistema-ocr.local",
-        "https://sistema-ocr.local",
-        "http://fgj-ocr.local",
-        "https://fgj-ocr.local",
-        "http://172.22.134.61",
-        "https://172.22.134.61",
-        "http://localhost:8000",
-        "http://127.0.0.1:8000",
-        "http://localhost",
-        "http://127.0.0.1",
-        "*"  # Permite cualquier origen (solo para desarrollo)
-    ],
+    allow_origins=settings.cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -305,9 +293,9 @@ except Exception as e:
 async def root():
     """Información de la API"""
     return {
-        "nombre": "Sistema OCR - FGJCDMX",
+        "nombre": "Sistema OCR - RIDAC",
         "version": "1.0.0",
-        "descripcion": "Sistema de Procesamiento OCR para la Fiscalía General de Justicia de la Ciudad de México",
+        "descripcion": "Sistema de Procesamiento OCR para la RIDAC - Red de Integración de Datos para Análisis y Contexto",
         "documentacion": "/docs",
         "frontend": "/",
         "pruebas": "/test.html"
@@ -341,7 +329,7 @@ async def health_check():
             
             response = {
                 "status": "healthy" if db_status else "degraded",
-                "service": "Sistema OCR - FGJCDMX",
+                "service": "Sistema OCR - RIDAC",
                 "version": "2.1.0",
                 "database": "connected" if db_status else "disconnected",
                 "procesos_activos": procesos_activos,
@@ -358,7 +346,7 @@ async def health_check():
             # Si falla la importación, usar health check básico
             return {
                 "status": "healthy" if db_status else "degraded",
-                "service": "Sistema OCR - FGJCDMX",
+                "service": "Sistema OCR - RIDAC",
                 "version": "2.1.0",
                 "database": "connected" if db_status else "disconnected"
             }

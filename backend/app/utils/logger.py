@@ -6,7 +6,7 @@ from pathlib import Path
 from datetime import datetime
 from app.config import settings
 
-def setup_logger(name: str = "fgjcdmx_ocr") -> logging.Logger:
+def setup_logger(name: str = "ridac_ocr") -> logging.Logger:
     """Configurar logger del sistema"""
 
     logger = logging.getLogger(name)

@@ -1,3 +1,10 @@
+# Node
+node_modules/
+frontend-vue/node_modules/
+frontend-vue/dist/
+frontend-vue/.vite/
+.vite/
+
 # Python
 __pycache__/
 *.py[cod]

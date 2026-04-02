@@ -23,7 +23,7 @@ except ImportError:
     PDF24_AVAILABLE = False
 
 router = APIRouter()
-logger = logging.getLogger("fgjcdmx_ocr")
+logger = logging.getLogger("ridac_ocr")
 
 @router.post("/api/tomos/{tomo_id}/ocr-pdf24")
 async def process_tomo_pdf24_style(

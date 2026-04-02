@@ -1,6 +1,6 @@
 """
 Script para crear la tabla de direcciones corregidas
-Sistema OCR - Fiscalía CDMX
+Sistema OCR - RIDAC
 """
 
 from sqlalchemy import create_engine, text
@@ -107,7 +107,7 @@ def crear_tabla_direcciones():
 if __name__ == "__main__":
     print("=" * 80)
     print("🗄️  CREACIÓN DE TABLA: direcciones_corregidas")
-    print("Sistema OCR - Fiscalía CDMX")
+    print("Sistema OCR - RIDAC")
     print("=" * 80)
     print()
     

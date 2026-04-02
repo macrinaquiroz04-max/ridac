@@ -105,7 +105,7 @@ class TestController:
 
     def test_filesystem(self) -> Dict[str, Any]:
         """
-        Prueba de acceso al sistema de archivos C:/FGJCDMX/*
+        Prueba de acceso al sistema de archivos C:/RIDAC/*
 
         Returns:
             dict: Estado de los directorios y permisos

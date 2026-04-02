@@ -22,7 +22,7 @@ except ImportError:
     TABLE_EXTRACTION_AVAILABLE = False
 
 router = APIRouter()
-logger = logging.getLogger("fgjcdmx_ocr")
+logger = logging.getLogger("ridac_ocr")
 
 @router.get("/api/tomos/{tomo_id}/analisis-tablas")
 async def analyze_document_tables(

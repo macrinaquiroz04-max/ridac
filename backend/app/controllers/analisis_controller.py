@@ -123,7 +123,7 @@ async def crear_pdf_temporal(tomo_id: int, nombre_archivo: str) -> str:
         # Footer
         c.setFont("Helvetica", 8)
         c.setFillColor(colors.gray)
-        c.drawString(50, 30, f"Sistema OCR FGJCDMX - Documento generado automáticamente - {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}")
+        c.drawString(50, 30, f"Sistema OCR RIDAC - Documento generado automáticamente - {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}")
         
         c.save()
         
@@ -1089,7 +1089,7 @@ def crear_pdf_simple_demo(tomo_id: int, nombre_archivo: str) -> bytes:
             </div>
             
             <div style="margin-top: 50px; text-align: center; font-size: 12px; color: #666;">
-                Documento generado para demostración del Sistema OCR FGJCDMX
+                Documento generado para demostración del Sistema OCR RIDAC
             </div>
         </body>
         </html>

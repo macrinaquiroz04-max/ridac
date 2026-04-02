@@ -7,8 +7,14 @@
 
 import os
 from typing import List, Dict, Any, Optional
-from elasticsearch import Elasticsearch
 from app.utils.logger import logger
+
+try:
+    from elasticsearch import Elasticsearch
+    _ELASTICSEARCH_AVAILABLE = True
+except ImportError:
+    _ELASTICSEARCH_AVAILABLE = False
+    logger.warning("⚠️ Paquete 'elasticsearch' no instalado — búsqueda avanzada deshabilitada")
 
 class ElasticsearchService:
     """Servicio de búsqueda avanzada con Elasticsearch"""
@@ -21,6 +27,9 @@ class ElasticsearchService:
     
     def _initialize(self):
         """Inicializar conexión con Elasticsearch"""
+        if not _ELASTICSEARCH_AVAILABLE:
+            self.enabled = False
+            return
         try:
             es_url = os.getenv("ELASTICSEARCH_URL", "http://localhost:9200")
             self.es_client = Elasticsearch([es_url], request_timeout=30)
