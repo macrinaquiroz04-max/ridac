@@ -407,32 +407,63 @@ async function extraerTextoArea(x, y, w, h) {
   const canvas = canvasEl.value
   if (!canvas) return
 
-  showToast('🔍 Analizando texto...', 'info', 30000)
+  showToast('🔍 Analizando texto con OCR...', 'info', 30000)
 
   try {
-    // Obtener imagen del área seleccionada
-    const tempCanvas = document.createElement('canvas')
-    tempCanvas.width = w * 4   // Escalar 4x para mejor OCR
-    tempCanvas.height = h * 4
-    const tempCtx = tempCanvas.getContext('2d')
-    tempCtx.imageSmoothingEnabled = true
-    tempCtx.imageSmoothingQuality = 'high'
-    tempCtx.drawImage(canvas, x, y, w, h, 0, 0, tempCanvas.width, tempCanvas.height)
-
-    // Mejorar contraste para OCR
-    mejorarContraste(tempCtx, tempCanvas.width, tempCanvas.height)
-
     let texto = ''
     let confianza = 0
 
-    if (tesseractWorker) {
+    // ── 1. Backend OCR (pytesseract 300 DPI) — máxima precisión ─────────────
+    try {
+      const x_pct = x / canvas.width
+      const y_pct = y / canvas.height
+      const w_pct = w / canvas.width
+      const h_pct = h / canvas.height
+
+      const backendHeaders = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${auth.token}`
+      }
+      if (ACCESS_TOKEN) backendHeaders['X-Access-Token'] = ACCESS_TOKEN
+
+      const res = await fetch(
+        `${API_BASE}/ocr/tomo/${tomoId.value}/pagina/${pageNum.value}/area`,
+        {
+          method: 'POST',
+          headers: backendHeaders,
+          body: JSON.stringify({ x_pct, y_pct, w_pct, h_pct })
+        }
+      )
+      if (res.ok) {
+        const data = await res.json()
+        if (data.texto) {
+          texto = data.texto
+          confianza = data.confianza ?? 95
+        }
+      }
+    } catch (backendErr) {
+      console.warn('Backend OCR falló, usando Tesseract.js:', backendErr)
+    }
+
+    // ── 2. Fallback: Tesseract.js del navegador ───────────────────────────────
+    if (!texto && tesseractWorker) {
+      const tempCanvas = document.createElement('canvas')
+      tempCanvas.width  = w * 4
+      tempCanvas.height = h * 4
+      const tempCtx = tempCanvas.getContext('2d')
+      tempCtx.imageSmoothingEnabled = false
+      tempCtx.drawImage(canvas, x, y, w, h, 0, 0, tempCanvas.width, tempCanvas.height)
+      mejorarContraste(tempCtx, tempCanvas.width, tempCanvas.height)
+
       const result = await tesseractWorker.recognize(tempCanvas)
       texto = result.data.text.trim()
       confianza = Math.round(result.data.confidence)
-    } else {
-      // Fallback: extraer texto de la capa PDF.js
+    }
+
+    // ── 3. Fallback: capa de texto PDF.js ────────────────────────────────────
+    if (!texto) {
       texto = extraerTextoCapa(x, y, w, h)
-      confianza = 95
+      confianza = texto ? 90 : 0
     }
 
     if (texto) {
@@ -441,7 +472,7 @@ async function extraerTextoArea(x, y, w, h) {
       lensResult.visible = true
       showToast(`✅ Texto extraído (${confianza}% confianza)`, 'success')
     } else {
-      showToast('⚠️ No se detectó texto en el área', 'warning')
+      showToast('⚠️ No se detectó texto en el área seleccionada', 'warning')
     }
   } catch (e) {
     showToast('❌ Error al extraer texto: ' + e.message, 'error')

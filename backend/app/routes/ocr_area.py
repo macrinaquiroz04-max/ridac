@@ -8,8 +8,10 @@ Desarrollado por: Eduardo Lozada Quiroz, ISC
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Request
 from sqlalchemy.orm import Session
 from typing import Optional
+from pydantic import BaseModel
 import io
 import os
+import statistics
 from PIL import Image, ImageEnhance, ImageFilter, ImageOps
 import pytesseract
 from pdf2image import convert_from_path
@@ -212,3 +214,123 @@ async def extract_text_from_area(
                 os.unlink(temp_pdf_path)
             except Exception as e:
                 logger.error(f"Error eliminando archivo temporal: {e}")
+
+
+# ── Nuevo endpoint: OCR de área por tomo almacenado ─────────────────────────
+class OcrAreaRequest(BaseModel):
+    x_pct: float   # 0.0 – 1.0, posición relativa dentro de la página
+    y_pct: float
+    w_pct: float
+    h_pct: float
+
+
+@router.post("/tomo/{tomo_id}/pagina/{pagina}/area")
+async def ocr_area_tomo_almacenado(
+    tomo_id: int,
+    pagina: int,
+    body: OcrAreaRequest,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """
+    Extrae texto de un área de una página de un tomo ya almacenado,
+    renderizando el PDF a 300 DPI en el servidor para máxima precisión.
+    Las coordenadas son porcentajes (0.0-1.0) del ancho/alto de la página.
+    """
+    from app.models.tomo import Tomo
+
+    # Validar porcentajes
+    if not (0 <= body.x_pct <= 1 and 0 <= body.y_pct <= 1 and
+            0 < body.w_pct <= 1 and 0 < body.h_pct <= 1):
+        raise HTTPException(status_code=400, detail="Coordenadas fuera de rango (deben ser 0.0-1.0)")
+
+    tomo = db.query(Tomo).filter(Tomo.id == tomo_id).first()
+    if not tomo:
+        raise HTTPException(status_code=404, detail="Tomo no encontrado")
+    if not os.path.exists(tomo.ruta_archivo):
+        raise HTTPException(status_code=404, detail="Archivo PDF no encontrado en el servidor")
+
+    try:
+        logger.info(f"OCR área tomo={tomo_id} pág={pagina} x={body.x_pct:.2f} y={body.y_pct:.2f} w={body.w_pct:.2f} h={body.h_pct:.2f}")
+
+        # Renderizar la página a 300 DPI
+        imagenes = convert_from_path(
+            tomo.ruta_archivo,
+            first_page=pagina,
+            last_page=pagina,
+            dpi=300
+        )
+        if not imagenes:
+            raise HTTPException(status_code=404, detail=f"No se pudo renderizar la página {pagina}")
+
+        img_full = imagenes[0]
+        iw, ih = img_full.size
+
+        # Convertir porcentajes a píxeles
+        px = int(body.x_pct * iw)
+        py = int(body.y_pct * ih)
+        pw = int(body.w_pct * iw)
+        ph = int(body.h_pct * ih)
+
+        # Añadir margen del 4% para no cortar texto en los bordes
+        margin_x = max(8, int(pw * 0.04))
+        margin_y = max(8, int(ph * 0.04))
+        left   = max(0, px - margin_x)
+        top    = max(0, py - margin_y)
+        right  = min(iw, px + pw + margin_x)
+        bottom = min(ih, py + ph + margin_y)
+
+        recorte = img_full.crop((left, top, right, bottom))
+
+        # Escalar si el recorte es pequeño (texto pequeño → más píxeles = mejor OCR)
+        rw, rh = recorte.size
+        if rw < 600:
+            factor = max(2, 600 // rw)
+            recorte = recorte.resize((rw * factor, rh * factor), Image.LANCZOS)
+
+        # Preprocesamiento: gris → contraste → nitidez
+        recorte = recorte.convert('L')
+        recorte = ImageEnhance.Contrast(recorte).enhance(2.2)
+        recorte = ImageEnhance.Sharpness(recorte).enhance(2.0)
+        recorte = recorte.filter(ImageFilter.UnsharpMask(radius=1, percent=120, threshold=3))
+
+        # Intentos con diferentes PSM para maximizar extracción
+        mejores = ('', 0)
+        for psm in (6, 3, 11):
+            try:
+                cfg = f'--psm {psm} --oem 3'
+                data = pytesseract.image_to_data(
+                    recorte, lang='spa', config=cfg,
+                    output_type=pytesseract.Output.DICT
+                )
+                confs = [int(c) for c in data['conf'] if str(c).lstrip('-').isdigit() and int(c) >= 0]
+                texto = ' '.join(
+                    w for w, c in zip(data['text'], data['conf'])
+                    if str(c).lstrip('-').isdigit() and int(c) >= 0 and str(w).strip()
+                ).strip()
+                confianza = int(statistics.mean(confs)) if confs else 0
+                if confianza > mejores[1] or (not mejores[0] and texto):
+                    mejores = (texto, confianza)
+                if confianza >= 80:
+                    break
+            except Exception:
+                continue
+
+        texto_final, confianza_final = mejores
+
+        # Limpiar texto
+        texto_final = ' '.join(texto_final.split())
+
+        logger.info(f"OCR completado: {len(texto_final)} chars, confianza={confianza_final}%")
+
+        return {
+            "success": True,
+            "texto": texto_final,
+            "confianza": confianza_final
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error en OCR de área: {e}")
+        raise HTTPException(status_code=500, detail=f"Error al procesar OCR: {str(e)}")
