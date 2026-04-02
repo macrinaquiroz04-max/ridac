@@ -412,29 +412,80 @@ class OCRService:
 
     def _extraer_con_multiple_ocr(self, page) -> Dict[str, any]:
         """
-        Extrae texto usando Tesseract RÁPIDO (sin ensemble)
-        OPTIMIZADO: Solo 1 estrategia en lugar de 15+ = 80% más rápido
+        Extrae texto usando Tesseract con preprocesamiento optimizado para documentos escaneados.
+        300 DPI + deskew + CLAHE + Otsu + múltiples PSM = máxima precisión en nombres/fechas/lugares.
         """
-        # Renderizar página a imagen con alta calidad
-        matrix = fitz.Matrix(3, 3)  # 3x zoom para mejor calidad
+        import numpy as np
+        import cv2
+
+        # ── 1. Renderizar a ~300 DPI (72 * 4.17 ≈ 300) ───────────────────────
+        matrix = fitz.Matrix(4.17, 4.17)
         pix = page.get_pixmap(matrix=matrix)
         img_data = pix.tobytes("png")
         img = Image.open(io.BytesIO(img_data))
-        
-        # MODO RÁPIDO: Solo Tesseract con preprocesamiento 'document'
-        img_processed = self.preprocessing_service.preprocess_for_ocr(img, 'document')
-        
-        # Tesseract con configuración óptima para documentos legales
+
+        # ── 2. Deskew — corregir inclinación del escáner ──────────────────────
+        try:
+            img = self.preprocessing_service.correct_skew(img)
+        except Exception:
+            pass
+
+        # ── 3. Preprocesamiento adaptado a escaneos ───────────────────────────
+        arr = np.array(img.convert('RGB'))
+        gray = cv2.cvtColor(arr, cv2.COLOR_RGB2GRAY)
+
+        # CLAHE: mejora contraste local (no destruye zonas claras ni oscuras)
+        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+        gray = clahe.apply(gray)
+
+        # Reducción de ruido (manchas/puntos del escáner)
+        gray = cv2.fastNlMeansDenoising(gray, h=12, templateWindowSize=7, searchWindowSize=21)
+
+        # Umbral Otsu — se adapta al nivel del papel
+        _, binarized = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+
+        # Invertir si el fondo salió negro
+        if np.mean(binarized) < 127:
+            binarized = cv2.bitwise_not(binarized)
+
+        # Cierre morfológico mínimo para letras rotas por el escáner
+        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1, 1))
+        binarized = cv2.morphologyEx(binarized, cv2.MORPH_CLOSE, kernel)
+
+        img_processed = Image.fromarray(binarized)
+
+        # ── 4. Tesseract con múltiples PSM (elige el de mayor confianza) ──────
         if self.tesseract_available:
-            resultado = self._tesseract_ocr(
-                img_processed, 
-                self.tesseract_configs.get('single_column_spa', '--psm 4'),
-                "tesseract_fast"
-            )
-            if resultado['confianza'] > 30:
-                return resultado
-        
-        # Fallback si Tesseract falla
+            import pytesseract, statistics as _stats
+
+            mejor = {'texto': '', 'confianza': 0, 'motor': 'tesseract_scan'}
+            # PSM 6=bloque uniforme, 4=columna única, 3=auto, 11=disperso
+            for psm in (6, 4, 3, 11):
+                try:
+                    cfg = f'--psm {psm} --oem 3'
+                    data = pytesseract.image_to_data(
+                        img_processed, lang='spa', config=cfg,
+                        output_type=pytesseract.Output.DICT
+                    )
+                    confs = [int(c) for c in data['conf']
+                             if str(c).lstrip('-').isdigit() and int(c) >= 0]
+                    texto = pytesseract.image_to_string(img_processed, lang='spa', config=cfg)
+                    conf = int(_stats.mean(confs)) if confs else 0
+                    if conf > mejor['confianza'] or (not mejor['texto'] and texto.strip()):
+                        mejor = {
+                            'texto': self._post_process_text(texto),
+                            'confianza': min(99.0, conf * 1.1),
+                            'motor': f'tesseract_scan_psm{psm}'
+                        }
+                    if conf >= 85:
+                        break
+                except Exception:
+                    continue
+
+            if mejor['texto']:
+                return mejor
+
+        # Fallback
         return self._fallback_ocr(img)
 
     def _tesseract_ocr(self, img: Image.Image, config: str, motor_name: str) -> Dict[str, any]:
@@ -593,30 +644,35 @@ class OCRService:
         return {'texto': '', 'confianza': 0, 'motor': 'none'}
 
     def _post_process_text(self, texto: str) -> str:
-        """Postprocesa el texto extraído para mejorar calidad"""
+        """Postprocesa el texto extraído para mejorar calidad y maximizar extracción de
+        fechas, nombres y lugares."""
         import re
-        
+
         if not texto:
             return ""
-        
-        # Eliminar múltiples espacios
-        texto = re.sub(r'\s+', ' ', texto)
-        
-        # Corregir errores comunes de OCR específicos de este motor
-        correcciones_basicas = {
-            r'\b0\b': 'O',  # Cero por O
-            r'\b1\b': 'I',  # Uno por I en contextos apropiados
-            r'\bIOS\b': '105',  # iOS por 105
-            r'\bI0\b': '10',   # I0 por 10
-            r'\b5\b(?=\w)': 'S',  # 5 por S al inicio de palabra
-        }
-        
-        for patron, reemplazo in correcciones_basicas.items():
-            texto = re.sub(patron, reemplazo, texto)
-        
-        # Limpiar caracteres extraños (preservar más caracteres especiales legales)
-        texto = re.sub(r'[^\w\s\.,;:!?\-\(\)\"\'\/\\°ª²³ñÑáéíóúÁÉÍÓÚü@#$%&]', '', texto)
-        
+
+        # ── 1. Normalizar espacios y saltos de línea ──────────────────────────
+        texto = re.sub(r'\r\n|\r', '\n', texto)
+        texto = re.sub(r'[ \t]+', ' ', texto)         # espacios múltiples → uno
+        texto = re.sub(r'\n{3,}', '\n\n', texto)       # más de 2 saltos → 2
+
+        # ── 2. Correcciones comunes de OCR en documentos escaneados ──────────
+        # l/1/I confundidos en contexto de dígitos
+        texto = re.sub(r'(?<=\d)l(?=\d)', '1', texto)    # 3l5 → 315
+        texto = re.sub(r'(?<=\d)I(?=\d)', '1', texto)    # 3I5 → 315
+        texto = re.sub(r'(?<=\d)O(?=\d)', '0', texto)    # 3O5 → 305
+        texto = re.sub(r'(?<=\d)o(?=\d)', '0', texto)    # 3o5 → 305
+        # Letras partidas con espacio (error típico de escaneos inclinados)
+        # P.E.P → PEP   M. A. → MA — conservador: solo elimina punto+espacio entre mayúsculas
+        texto = re.sub(r'\b([A-ZÁÉÍÓÚÑ])\.\s+(?=[A-ZÁÉÍÓÚÑ])', r'\1', texto)
+
+        # ── 3. Reconstruir palabras rotas por guion al final de línea ─────────
+        texto = re.sub(r'(\w)-\n(\w)', r'\1\2', texto)
+
+        # ── 4. Limpiar caracteres extraños pero conservar los legales ─────────
+        # Conserva: alfanuméricos, tildes, ñ, signos de puntuación, /, \, °, @, #, $, %
+        texto = re.sub(r'[^\w\s\.,;:!?\-\(\)\"\'\/\\°ª²³ñÑáéíóúÁÉÍÓÚü@#$%&\n]', '', texto)
+
         return texto.strip()
 
     def _calculate_result_score(self, resultado: Dict[str, any]) -> float:

@@ -22,74 +22,93 @@ class LegalEntityExtractor:
             'carpetas': [
                 r'(?:carpeta|C\.?I\.?|CI)\s*(?:de\s*investigación\s*)?(?:núm\.?|número|no\.?|N°)?\s*:?\s*([A-Z]{2,4}[-/][A-Z]{2,5}[-/][A-Z0-9]{1,4}[-/][A-Z0-9]{1,6}[-/]\d{2,6})',
                 r'(?:averiguación\s*previa|A\.?P\.?|AP)\s*(?:núm\.?|número|no\.?)?\s*:?\s*([A-Z]{2,4}[-/]\d{1,2}[-/]\d{4,6})',
-                r'\b(CI-[A-Z]{3}/[A-Z]{2}/[A-Z0-9-]{2,15}/\d{2,6})\b',  # Formato específico CI-FBJ/...
+                r'\b(CI-[A-Z]{3}/[A-Z]{2}/[A-Z0-9-]{2,15}/\d{2,6})\b',
             ],
-            
+
             # Oficios
             'oficios': [
                 r'(?:oficio|circular|memorándum)\s*(?:núm\.?|número|no\.?|N°)?\s*:?\s*([A-Z]{2,6}[-/][A-Z]{2,6}[-/]\d{2,6}[-/]?\d{0,4})',
-                r'\b(FGJ-?CDMX-?\d{4}-?\d{3,6})\b',  # Formato específico FGJ-CDMX
+                r'\b(FGJ-?CDMX-?\d{4}-?\d{3,6})\b',
             ],
-            
+
             # Teléfonos
             'telefonos': [
                 r'\b(?:\+?52\s*)?(?:\d{2}[-\s]?)?\d{4}[-\s]?\d{4}\b',
                 r'\b(?:tel\.?|teléfono|cel\.?|celular)[:.]?\s*(\d{2,4}[-\s]?\d{4}[-\s]?\d{4})\b',
             ],
-            
-            # Fechas
+
+            # ── FECHAS ── máxima cobertura ───────────────────────────────────
             'fechas': [
+                # "15 de marzo de 2024" / "15 de marzo 2024"
                 r'\b(\d{1,2})\s+de\s+(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\s+(?:de\s+)?(\d{4})\b',
-                r'\b(\d{1,2})[-/](\d{1,2})[-/](\d{4})\b',
+                # "15/03/2024" | "15-03-2024" | "15.03.2024"
+                r'\b(\d{1,2})[/\-\.](\d{1,2})[/\-\.](\d{4})\b',
+                # "2024/03/15" (ISO invertido)
+                r'\b(\d{4})[/\-\.](\d{1,2})[/\-\.](\d{1,2})\b',
+                # "Ciudad de México, a 15 de marzo de 2024" — con prefijo de lugar
+                r'(?:ciudad|méxico|d\.f\.|cdmx)[,\s]+a\s+(\d{1,2})\s+de\s+(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)(?:\s+de)?\s+(\d{4})',
+                # "a los quince días del mes de marzo" — solo captura el mes+año si hay año
+                r'mes\s+de\s+(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)(?:\s+de\s+(\d{4}))?',
             ],
-            
-            # Nombres completos (MUY FLEXIBLES - captura nombres sin palabras clave)
+
+            # ── NOMBRES ── captura nombres normales Y en MAYÚSCULAS ──────────
             'nombres': [
-                # Con palabras clave tradicionales
-                r'(?:ciudadano|C\.|ciudadana|señor|sr\.|señora|sra\.|licenciado|lic\.|licenciada)\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+){1,3})',
-                r'(?:víctima|ofendido|ofendida|imputado|imputada|testigo|perito|perita)[:.]?\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+){1,3})',
-                # SIN palabras clave - captura 2-4 palabras capitalizadas seguidas
-                r'\b([A-ZÁÉÍÓÚÑ][a-záéíóúñ]{3,15}\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]{3,15}(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]{3,15}){0,2})\b(?:\s+(?:Fecha|Número|CI-|Página))',
-                # Nombres antes de palabras comunes de documentos
-                r'\b([A-ZÁÉÍÓÚÑ][a-záéíóúñ]{3,15}\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]{3,15}(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]{3,15})?)\s+(?:Duarte|Lopez|Fecha|Número)',
-                # Patrón después de "Por", "De", etc.
+                # Con título o rol — normal y mayúsculas
+                r'(?:ciudadano|ciudadana|señor|sr\.|señora|sra\.|licenciado|lic\.|licenciada|ing\.|ingeniero|doctor|dr\.|dra\.)\s+([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ]+){1,3})',
+                r'(?:víctima|ofendido|ofendida|imputado|imputada|testigo|perito|perita|denunciante|querellante|detenido|detenida)[:.]?\s+([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ]+){1,3})',
+                # Etiquetas tipo formulario: "NOMBRE: JUAN GARCIA LOPEZ"
+                r'(?:NOMBRE|NOMBRE COMPLETO|DENUNCIANTE|VÍCTIMA|IMPUTADO|DECLARANTE|DE LA PERSONA)[:\s]+([A-ZÁÉÍÓÚÑ]{3,}(?:\s+[A-ZÁÉÍÓÚÑ]{2,}){1,4})',
+                # Nombres en MAYÚSCULAS (muy común en docs escaneados de PGR/FGJ)
+                r'\b([A-ZÁÉÍÓÚÑ]{3,20}\s+[A-ZÁÉÍÓÚÑ]{3,20}(?:\s+[A-ZÁÉÍÓÚÑ]{2,20}){0,2})\b(?=\s*(?:,|\n|\.|\s+(?:nació|de|con|cuyo|quien|comparece|manifiesta|declara)))',
+                # Con apellidos compuestos: "DE LA ROSA", "DEL TORO"
+                r'\b([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+\s+(?:de\s+(?:la|los|las)\s+)?[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+){0,2})\b(?:\s+(?:Fecha|Número|CI-|Página))',
                 r'(?:Por|De|Del)\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñ]{3,15}\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]{3,15}(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]{3,15})?)',
             ],
-            
+
             # Direcciones
             'direcciones': [
                 r'(?:domicilio|calle|avenida|av\.|boulevard|blvd\.)?\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+){0,4})\s+(?:núm\.?|número|no\.?|#)\s*(\d+[A-Z]?)',
                 r'(?:colonia|col\.)\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñ\s]+),\s*(?:alcaldía|delegación|municipio)\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñ\s]+)',
             ],
-            
+
             # Delitos
             'delitos': [
                 r'(?:delito|delitos)\s+(?:de\s+)?([a-záéíóúñ\s,y]+?)(?:\s+previsto|\s+contemplado|\s+sancionado|,|\.|;)',
                 r'(?:probable\s+responsabilidad|responsable)\s+(?:del?\s+)?(?:delito\s+de\s+)?([A-ZÁÉÍÓÚÑ][a-záéíóúñ\s]+)',
             ],
-            
-            # Lugares (MUY FLEXIBLES - captura colonias, calles, alcaldías)
+
+            # ── LUGARES ── incluye estados y municipios de México ─────────────
             'lugares': [
-                r'(?:ciudad\s+de\s+méxico|cdmx|estado\s+de\s+méxico|edomex)',
+                # Ciudad de México
+                r'(?:ciudad\s+de\s+méxico|cdmx|d\.f\.|distrito\s+federal)',
+                # Estados de la República
+                r'\b(Aguascalientes|Baja\s+California(?:\s+Sur)?|Campeche|Chiapas|Chihuahua|'
+                r'Coahuila|Colima|Durango|Guanajuato|Guerrero|Hidalgo|Jalisco|'
+                r'Estado\s+de\s+México|Michoacán|Morelos|Nayarit|Nuevo\s+León|Oaxaca|'
+                r'Puebla|Querétaro|Quintana\s+Roo|San\s+Luis\s+Potosí|Sinaloa|Sonora|'
+                r'Tabasco|Tamaulipas|Tlaxcala|Veracruz|Yucatán|Zacatecas)\b',
+                # Alcaldías/delegaciones CDMX
                 r'(?:alcaldía|delegación)\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñ\s]+)',
+                # Municipios
                 r'(?:municipio|mpio\.?)\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñ\s]+)',
-                # Colonias sin palabra clave "colonia"
+                # Colonias
                 r'(?:colonia|col\.)\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñ\s]{4,40})',
-                # Calles
+                # Calles y avenidas
                 r'(?:calle|c\.|avenida|av\.|boulevard|blvd\.)\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñ\s]{4,40})',
-                # Captura nombres de colonias populares
-                r'\b(DOCTORES|Doctores|CENTRO|Centro|CONDESA|Condesa|ROMA|Roma|POLANCO|Polanco)\b',
+                # Código postal
+                r'\b(?:C\.?P\.?|código\s+postal)\s*:?\s*(\d{5})\b',
+                # Colonias conocidas
+                r'\b(DOCTORES|Doctores|CENTRO|Centro|CONDESA|Condesa|ROMA|Roma|POLANCO|Polanco|TEPITO|Tepito|IZTAPALAPA|Iztapalapa)\b',
             ],
-            
-            # Diligencias (MÁS FLEXIBLES - captura tipos de actuaciones)
+
+            # Diligencias
             'diligencias': [
                 r'(?:se\s+ordena|se\s+acuerda|se\s+dicta)\s+([^\.]{10,80})',
                 r'(?:diligencia|actuación)\s+(?:de\s+)?([a-záéíóúñ\s]{5,50})',
-                # Tipos de actuaciones comunes
                 r'\b(Actuación\s+Ministerial|Acta\s+De\s+Hechos|Comunicado|Diligencia\s+General|Solicitud)\b',
             ],
-            
-            # Alertas MP (términos urgentes)
+
+            # Alertas MP
             'alertas': [
                 r'\b(urgente|inmediato|prioritario|violación\s+grave|flagrancia|orden\s+de\s+aprehensión)\b',
                 r'\b(plazo\s+\d+\s+(?:días|horas)|vencimiento|caducidad|prescripción)\b',
@@ -187,30 +206,52 @@ class LegalEntityExtractor:
         return entities
     
     def _normalize_date(self, match: re.Match) -> Optional[str]:
-        """Normalizar fecha al formato ISO YYYY-MM-DD"""
+        """Normalizar fecha al formato ISO YYYY-MM-DD (o YYYY-MM si no hay día)"""
         try:
             groups = match.groups()
-            
+            # Limpiar grupos None
+            groups = [g for g in groups if g is not None]
+
+            if len(groups) == 0:
+                return None
+
+            if len(groups) == 1:
+                # Solo mes en texto — devolver nombre del mes
+                mes_texto = groups[0].lower()
+                if mes_texto in self.meses:
+                    return f"(mes) {groups[0].capitalize()}"
+                return None
+
+            if len(groups) == 2:
+                # Mes + año
+                mes_texto = groups[0].lower()
+                if mes_texto in self.meses:
+                    año = int(groups[1])
+                    if 1900 <= año <= 2100:
+                        return f"{año}-{self.meses[mes_texto]:02d}"
+                return None
+
             if len(groups) == 3:
-                # Formato: "15 de marzo de 2024" o "15/03/2024"
-                dia = int(groups[0])
-                
-                if groups[1].lower() in self.meses:
-                    # Formato con mes en texto
-                    mes = self.meses[groups[1].lower()]
+                g0, g1, g2 = groups[0], groups[1], groups[2]
+
+                # Formato ISO invertido: "2024/03/15"
+                if len(str(g0)) == 4 and str(g0).isdigit():
+                    año, mes, dia = int(g0), int(g1), int(g2)
+                elif g1.lower() in self.meses:
+                    # "15 de marzo de 2024"
+                    dia, año = int(g0), int(g2)
+                    mes = self.meses[g1.lower()]
                 else:
-                    # Formato numérico
-                    mes = int(groups[1])
-                
-                año = int(groups[2])
-                
-                # Validar
+                    # "15/03/2024"
+                    dia, mes, año = int(g0), int(g1), int(g2)
+
                 if 1 <= mes <= 12 and 1 <= dia <= 31 and 1900 <= año <= 2100:
                     fecha = datetime(año, mes, dia)
                     return fecha.strftime('%Y-%m-%d')
+
         except Exception as e:
             logger.debug(f"Error normalizando fecha: {e}")
-        
+
         return None
     
     def _normalize_phone(self, phone: str) -> Optional[str]:
