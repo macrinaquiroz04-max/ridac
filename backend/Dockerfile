@@ -34,8 +34,9 @@ WORKDIR /app
 COPY requirements-production.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements-production.txt && \
-    python -m spacy download es_core_news_lg && \
-    python -m spacy download es_core_news_sm
+    pip install --no-cache-dir \
+        https://github.com/explosion/spacy-models/releases/download/es_core_news_lg-3.7.0/es_core_news_lg-3.7.0-py3-none-any.whl \
+        https://github.com/explosion/spacy-models/releases/download/es_core_news_sm-3.7.0/es_core_news_sm-3.7.0-py3-none-any.whl
 
 # ── Código fuente ──
 COPY . .
