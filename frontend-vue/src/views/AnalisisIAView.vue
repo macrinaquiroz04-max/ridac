@@ -128,73 +128,95 @@
       <div class="modal-box modal-xl">
         <div class="modal-header-grad">
           <div>
-            <h2 class="modal-titulo">📊 Análisis Completo de la Carpeta</h2>
+            <h2 class="modal-titulo">� Entidades Encontradas</h2>
             <p class="modal-subtitulo">{{ carpetaResultados?.nombre }}</p>
           </div>
           <button class="btn-close-modal white" @click="cerrarModalResultados">✕</button>
         </div>
         <div class="modal-content-scroll">
-          <!-- Stats -->
-          <div class="stats-resultados-grid" v-if="analisisResultados">
-            <div class="stat-res-card azul">
-              <div class="stat-res-num">{{ analisisResultados.total_diligencias || 0 }}</div>
-              <div class="stat-res-lbl">📋 Diligencias</div>
-            </div>
-            <div class="stat-res-card rosa">
-              <div class="stat-res-num">{{ analisisResultados.total_personas || 0 }}</div>
-              <div class="stat-res-lbl">👥 Personas</div>
-            </div>
-            <div class="stat-res-card cyan">
-              <div class="stat-res-num">{{ analisisResultados.total_lugares || 0 }}</div>
-              <div class="stat-res-lbl">📍 Lugares</div>
-            </div>
-            <div class="stat-res-card naranja">
-              <div class="stat-res-num">{{ analisisResultados.total_fechas || 0 }}</div>
-              <div class="stat-res-lbl">📅 Fechas</div>
-            </div>
-            <div class="stat-res-card rojo">
-              <div class="stat-res-num">{{ (analisisResultados.alertas_mp || []).length }}</div>
-              <div class="stat-res-lbl">⚠️ Alertas</div>
-            </div>
+
+          <!-- Cargando -->
+          <div v-if="!analisisResultados" class="loading-box">
+            <i class="fas fa-spinner fa-spin fa-2x"></i>
+            <p>Cargando entidades...</p>
           </div>
 
-          <!-- Alertas MP -->
-          <div v-if="analisisResultados?.alertas_mp?.length" class="alertas-box">
-            <h3 class="alertas-titulo">⚠️ Alertas del Ministerio Público ({{ analisisResultados.alertas_mp.length }})</h3>
-            <div v-for="(a, i) in analisisResultados.alertas_mp" :key="i" :class="['alerta-item', `alerta-prioridad-${a.prioridad}`]">
-              <div class="alerta-header">
-                <span :class="['alerta-badge', `badge-${a.prioridad}`]">{{ a.prioridad?.toUpperCase() }}</span>
-                <strong class="alerta-tipo">{{ a.titulo || a.tipo }}</strong>
-                <span v-if="a.dias_inactividad" class="alerta-dias">{{ a.dias_inactividad }} días sin actividad</span>
+          <template v-else>
+            <!-- Stats resumen -->
+            <div class="stats-resultados-grid">
+              <div class="stat-res-card rosa">
+                <div class="stat-res-num">{{ analisisResultados.personas.length }}</div>
+                <div class="stat-res-lbl">👤 Nombres</div>
               </div>
-              <p class="alerta-desc">{{ a.descripcion }}</p>
-              <span v-if="a.fecha_ultima_actuacion" class="alerta-fecha">📅 Última actuación: {{ a.fecha_ultima_actuacion }}</span>
+              <div class="stat-res-card cyan">
+                <div class="stat-res-num">{{ analisisResultados.lugares.length }}</div>
+                <div class="stat-res-lbl">📍 Lugares</div>
+              </div>
+              <div class="stat-res-card naranja">
+                <div class="stat-res-num">{{ analisisResultados.fechas.length }}</div>
+                <div class="stat-res-lbl">📅 Fechas</div>
+              </div>
             </div>
-          </div>
-          <div v-else-if="analisisResultados && !analisisResultados?.alertas_mp?.length" class="alertas-box vacio">
-            <p>✅ Sin alertas activas en esta carpeta.</p>
-          </div>
 
-          <!-- Diligencias -->
-          <div class="diligencias-seccion">
-            <h3 class="diligencias-titulo">
-              📋 Diligencias Encontradas ({{ (analisisResultados?.diligencias || []).length }})
-            </h3>
-            <div class="diligencias-scroll">
-              <div v-if="!analisisResultados?.diligencias?.length" class="empty-state sm">
-                No se encontraron diligencias.
-              </div>
-              <div v-for="(d, i) in analisisResultados?.diligencias" :key="i" class="diligencia-card">
-                <div class="dili-grid">
-                  <div class="dili-field"><span class="dili-label">Tipo:</span> {{ d.tipo_diligencia }}</div>
-                  <div class="dili-field"><span class="dili-label">Fecha:</span> {{ d.fecha }}</div>
-                  <div class="dili-field"><span class="dili-label">Responsable:</span> {{ d.responsable || d.mp_responsable }}</div>
-                  <div class="dili-field"><span class="dili-label">Oficio/Folio:</span> {{ d.numero_oficio || d.folio }}</div>
+            <!-- Aviso fuente -->
+            <div class="fuente-aviso">
+              ℹ️ Cada entrada indica la <strong>página de origen</strong> dentro del tomo. Verifica directamente en el PDF para confirmar el dato.
+            </div>
+
+            <!-- ── NOMBRES / PERSONAS ── -->
+            <div class="entidad-seccion">
+              <h3 class="entidad-titulo">👤 Nombres detectados ({{ analisisResultados.personas.length }})</h3>
+              <div v-if="!analisisResultados.personas.length" class="empty-state sm">No se encontraron nombres.</div>
+              <div v-else class="entidad-tabla">
+                <div class="entidad-fila cabecera">
+                  <span>Nombre</span><span>Rol</span><span>Menciones</span><span>Tomo</span><span class="col-pag">Pág.</span>
                 </div>
-                <p class="dili-desc">{{ d.descripcion || d.resumen || '' }}</p>
+                <div v-for="p in analisisResultados.personas" :key="p.id" class="entidad-fila">
+                  <span class="ent-nombre">{{ p.nombre }}</span>
+                  <span class="ent-tag">{{ p.rol || '—' }}</span>
+                  <span class="ent-num">{{ p.total_menciones }}</span>
+                  <span class="ent-tomo">{{ p.tomo_nombre || '—' }}</span>
+                  <span class="ent-pag">📄 {{ p.pagina_primera_mencion || '?' }}</span>
+                </div>
               </div>
             </div>
-          </div>
+
+            <!-- ── LUGARES ── -->
+            <div class="entidad-seccion">
+              <h3 class="entidad-titulo">📍 Ubicaciones detectadas ({{ analisisResultados.lugares.length }})</h3>
+              <div v-if="!analisisResultados.lugares.length" class="empty-state sm">No se encontraron ubicaciones.</div>
+              <div v-else class="entidad-tabla">
+                <div class="entidad-fila cabecera">
+                  <span>Lugar</span><span>Tipo</span><span>Municipio / Estado</span><span>Tomo</span><span class="col-pag">Pág.</span>
+                </div>
+                <div v-for="l in analisisResultados.lugares" :key="l.id" class="entidad-fila">
+                  <span class="ent-nombre">{{ l.nombre || l.direccion_completa }}</span>
+                  <span class="ent-tag">{{ l.tipo || '—' }}</span>
+                  <span class="ent-tomo">{{ [l.municipio, l.estado].filter(Boolean).join(', ') || '—' }}</span>
+                  <span class="ent-tomo">{{ l.tomo_nombre || '—' }}</span>
+                  <span class="ent-pag">📄 {{ l.pagina || '?' }}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- ── FECHAS ── -->
+            <div class="entidad-seccion">
+              <h3 class="entidad-titulo">📅 Fechas detectadas ({{ analisisResultados.fechas.length }})</h3>
+              <div v-if="!analisisResultados.fechas.length" class="empty-state sm">No se encontraron fechas.</div>
+              <div v-else class="entidad-tabla">
+                <div class="entidad-fila cabecera">
+                  <span>Fecha</span><span>Texto original</span><span>Tipo</span><span>Tomo</span><span class="col-pag">Pág.</span>
+                </div>
+                <div v-for="f in analisisResultados.fechas" :key="f.id" class="entidad-fila">
+                  <span class="ent-nombre">{{ f.fecha }}</span>
+                  <span class="ent-desc">{{ f.fecha_texto || '—' }}</span>
+                  <span class="ent-tag">{{ f.tipo || '—' }}</span>
+                  <span class="ent-tomo">{{ f.tomo_nombre || '—' }}</span>
+                  <span class="ent-pag">📄 {{ f.pagina || '?' }}</span>
+                </div>
+              </div>
+            </div>
+          </template>
         </div>
         <div class="modal-footer">
           <button class="btn-cancelar" @click="cerrarModalResultados">Cerrar</button>
@@ -328,15 +350,15 @@ async function verResultados(carpeta) {
   analisisResultados.value = null
   modalResultados.value = true
   try {
-    const [stats, diligenciasData, alertasData] = await Promise.all([
-      get(`/admin/carpetas/${carpeta.id}/estadisticas`),
-      get(`/usuario/carpetas/${carpeta.id}/diligencias`),
-      get(`/usuario/carpetas/${carpeta.id}/alertas`).catch(() => ({ alertas: [] })),
+    const [personasData, lugaresData, fechasData] = await Promise.all([
+      get(`/usuario/carpetas/${carpeta.id}/personas`, { limite: 200 }),
+      get(`/usuario/carpetas/${carpeta.id}/lugares`, { limite: 200 }),
+      get(`/usuario/carpetas/${carpeta.id}/fechas`, { limite: 500 }),
     ])
     analisisResultados.value = {
-      ...(stats.estadisticas ?? stats),
-      diligencias: Array.isArray(diligenciasData) ? diligenciasData : (diligenciasData?.diligencias ?? []),
-      alertas_mp: alertasData?.alertas ?? [],
+      personas: personasData?.personas ?? (Array.isArray(personasData) ? personasData : []),
+      lugares:  lugaresData?.lugares  ?? (Array.isArray(lugaresData)  ? lugaresData  : []),
+      fechas:   fechasData?.fechas    ?? (Array.isArray(fechasData)   ? fechasData   : []),
     }
   } catch (e) {
     showToast('Error al cargar resultados: ' + (e.message || ''), 'error')
@@ -522,17 +544,48 @@ onUnmounted(() => { if (intervalo) clearInterval(intervalo) })
 .alerta-desc { margin: 0 0 4px; font-size: 13px; color: #495057; }
 .alerta-fecha { font-size: 12px; color: #6c757d; }
 
-.diligencias-seccion {}
-.diligencias-titulo { color: #2c3e50; border-bottom: 3px solid #667eea; padding-bottom: 10px; margin-bottom: 16px; }
-.diligencias-scroll { max-height: 520px; overflow-y: auto; padding-right: 6px; display: flex; flex-direction: column; gap: 12px; }
-.diligencia-card {
-  border-left: 4px solid #667eea; padding: 14px 16px; border-radius: 0 10px 10px 0;
-  background: #f8f9fa;
+/* ── Entidades: Nombres / Lugares / Fechas ── */
+.fuente-aviso {
+  background: #e8f4fd; border-left: 4px solid #2c5aa0;
+  padding: 10px 14px; border-radius: 8px; font-size: 13px;
+  color: #1a365d; margin-bottom: 20px;
 }
-.dili-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 8px; }
-.dili-field { font-size: 13px; color: #495057; }
-.dili-label { font-weight: 700; color: #1a365d; }
-.dili-desc { margin: 0; font-size: 13px; color: #6c757d; font-style: italic; line-height: 1.6; white-space: pre-wrap; }
+.entidad-seccion { margin-bottom: 28px; }
+.entidad-titulo {
+  color: #1a365d; border-bottom: 3px solid #667eea;
+  padding-bottom: 10px; margin-bottom: 14px; font-size: 15px;
+}
+.entidad-tabla { border-radius: 10px; overflow: hidden; border: 1px solid #e9ecef; }
+.entidad-fila {
+  display: grid;
+  grid-template-columns: 2fr 1fr 2fr 2fr 80px;
+  gap: 0;
+  padding: 9px 14px;
+  font-size: 13px;
+  border-bottom: 1px solid #f0f0f0;
+  align-items: center;
+}
+.entidad-fila.cabecera {
+  background: linear-gradient(135deg, #1a365d, #2c5aa0);
+  color: white; font-weight: 700; font-size: 12px;
+  text-transform: uppercase; letter-spacing: .5px;
+}
+.entidad-fila:not(.cabecera):nth-child(even) { background: #f8f9fa; }
+.entidad-fila:not(.cabecera):hover { background: #e8f4fd; }
+.ent-nombre { font-weight: 600; color: #1a365d; }
+.ent-tag {
+  display: inline-block; background: rgba(44,90,160,0.1);
+  color: #2c5aa0; border-radius: 20px; padding: 2px 8px;
+  font-size: 11px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ent-num { text-align: center; font-weight: 700; color: #28a745; }
+.ent-tomo { color: #6c757d; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ent-desc { color: #6c757d; font-style: italic; font-size: 12px; }
+.ent-pag {
+  text-align: center; font-weight: 700; color: #2c5aa0;
+  background: #e8f4fd; border-radius: 6px; padding: 2px 6px; font-size: 12px;
+}
+.col-pag { text-align: center; }
 
 .btn-analizar-tomos {
   padding: 12px 24px; background: linear-gradient(135deg, #28a745, #20c997);
