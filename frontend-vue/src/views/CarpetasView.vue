@@ -519,8 +519,11 @@ async function subirTomo() {
     await postFormData('/tomos/subir', fd)
     progresoPct.value = 100
     showToast('Tomo subido. El OCR se procesará en segundo plano.', 'success')
-    cerrarModalTomo()
+    // Cerrar modal directamente (subiendoTomo aún es true aquí)
+    modalTomo.value = false
     await cargarTomos(carpetaActual.value.id)
+    // Arrancar polling de progreso si algún tomo está procesando
+    iniciarFastRefresh()
   } catch (e) {
     errorTomo.value = e.message
     progresoPct.value = 0

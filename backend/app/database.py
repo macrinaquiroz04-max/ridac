@@ -94,6 +94,9 @@ def init_db():
                     logger.error(f"Error creando tabla {table.name}: {e_tbl}")
         logger.info(f"Tablas: {created} creadas, {skipped} ya existían")
 
+        # --- Migración: añadir columnas nuevas si no existen (idempotente) ---
+        _run_migrations()
+
         # --- Seed inicial: roles y usuario admin ---
         _seed_initial_data()
 
@@ -101,6 +104,22 @@ def init_db():
     except Exception as e:
         logger.error(f"Error inicializando base de datos: {e}")
         return False
+
+
+def _run_migrations():
+    """Aplica migraciones incrementales (añade columnas nuevas con IF NOT EXISTS)."""
+    migrations = [
+        "ALTER TABLE tomos ADD COLUMN IF NOT EXISTS progreso_ocr INTEGER DEFAULT 0",
+        "ALTER TABLE tomos ADD COLUMN IF NOT EXISTS estado_ocr VARCHAR(50)",
+    ]
+    with engine.connect() as conn:
+        for sql in migrations:
+            try:
+                conn.execute(text(sql))
+            except Exception as e:
+                logger.warning(f"Migración omitida ({sql[:60]}): {e}")
+        conn.commit()
+    logger.info("✅ Migraciones de columnas verificadas")
 
 
 def _seed_initial_data():

@@ -22,6 +22,8 @@ class Tomo(Base):
     numero_paginas = Column(Integer)
     hash_sha256 = Column(String(64), index=True)  # Hash del archivo para verificar integridad
     estado = Column(String(50), default='pendiente', index=True)  # pendiente, procesando, completado, error
+    progreso_ocr = Column(Integer, default=0)          # 0-100
+    estado_ocr = Column(String(50), default=None)      # procesando, completado, cancelado, error
     fecha_subida = Column(DateTime(timezone=True), server_default=func.now())
     fecha_procesamiento = Column(DateTime(timezone=True))
     usuario_subida_id = Column(Integer, ForeignKey("usuarios.id"))
