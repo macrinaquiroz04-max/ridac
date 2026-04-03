@@ -62,6 +62,9 @@ slowapi==0.1.9
 # Métricas (opcional, liviano)
 prometheus-client==0.19.0
 
+# Auditoría de seguridad de dependencias
+pip-audit==2.7.3
+
 # ============================================================
 # EXCLUIDOS (instalar localmente si se necesitan):
 #   sentence-transformers  — requiere torch (~2 GB build)
