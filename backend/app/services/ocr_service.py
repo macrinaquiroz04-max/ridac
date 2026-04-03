@@ -173,7 +173,7 @@ class OCRService:
                 for future in as_completed(futures):
                     pagina_num = futures[future]
                     try:
-                        resultado = future.result()
+                        resultado = future.result(timeout=90)  # máx 90s por página
                         resultados_paginas.append(resultado)
                         
                         # Actualizar progreso
@@ -183,6 +183,15 @@ class OCRService:
                         
                         logger.info(f"  ✓ Página {pagina_num + 1}/{total_paginas} completada ({progreso}%)")
                         
+                    except TimeoutError:
+                        logger.warning(f"  ⏱ Página {pagina_num + 1} superó 90s — omitida")
+                        resultados_paginas.append({
+                            'numero_pagina': pagina_num + 1,
+                            'texto_extraido': '[TIEMPO EXCEDIDO — página omitida automáticamente]',
+                            'confianza': 0.0,
+                            'motor_usado': 'timeout',
+                            'error': 'timeout'
+                        })
                     except Exception as e:
                         logger.error(f"  ✗ Error en página {pagina_num + 1}: {e}")
                         resultados_paginas.append({
@@ -325,6 +334,21 @@ class OCRService:
         }
         db.commit()
 
+    def _es_pagina_en_blanco(self, page) -> bool:
+        """Detección rápida de páginas en blanco a baja resolución (72 DPI)."""
+        try:
+            import numpy as np
+            import cv2
+            pix = page.get_pixmap(matrix=fitz.Matrix(1, 1))  # 72 DPI – rápido
+            img_data = pix.tobytes("png")
+            img = Image.open(io.BytesIO(img_data))
+            arr = np.array(img.convert('L'))
+            media = float(arr.mean())
+            desv = float(arr.std())
+            return media > 245 and desv < 8
+        except Exception:
+            return False
+
     def _procesar_pagina_paralela(self, doc, pagina_num: int, total_paginas: int) -> Dict:
         """
         Procesar una página individual (ejecutado en thread paralelo)
@@ -335,6 +359,18 @@ class OCRService:
         try:
             # Extraer página
             page = doc[pagina_num]
+
+            # ── Detección rápida de página en blanco ──────────────────────────
+            if self._es_pagina_en_blanco(page):
+                return {
+                    'numero_pagina': pagina_num + 1,
+                    'texto_extraido': '[PÁGINA EN BLANCO]',
+                    'confianza': 100.0,
+                    'motor_usado': 'blank_detection',
+                    'es_texto_directo': True,
+                    'es_pagina_en_blanco': True,
+                    'datos_adicionales': {'motor_usado': 'blank_detection', 'correcciones_aplicadas': False}
+                }
 
             # Intentar extraer texto directamente (si es PDF con texto)
             texto_directo = page.get_text()
@@ -438,8 +474,9 @@ class OCRService:
         clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
         gray = clahe.apply(gray)
 
-        # Reducción de ruido (manchas/puntos del escáner)
-        gray = cv2.fastNlMeansDenoising(gray, h=12, templateWindowSize=7, searchWindowSize=21)
+        # Reducción de ruido rápida — medianBlur es ~100x más rápido que
+        # fastNlMeansDenoising y suficientemente buena para documentos escaneados
+        gray = cv2.medianBlur(gray, 3)
 
         # Umbral Otsu — se adapta al nivel del papel
         _, binarized = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
@@ -459,8 +496,9 @@ class OCRService:
             import pytesseract, statistics as _stats
 
             mejor = {'texto': '', 'confianza': 0, 'motor': 'tesseract_scan'}
-            # PSM 6=bloque uniforme, 4=columna única, 3=auto, 11=disperso
-            for psm in (6, 4, 3, 11):
+            # Solo PSM 6 (bloque uniforme) y PSM 3 (auto) — suficiente para la
+            # mayoría de documentos y 2x más rápido que probar 4 modos.
+            for psm in (6, 3):
                 try:
                     cfg = f'--psm {psm} --oem 3'
                     data = pytesseract.image_to_data(
@@ -477,7 +515,7 @@ class OCRService:
                             'confianza': min(99.0, conf * 1.1),
                             'motor': f'tesseract_scan_psm{psm}'
                         }
-                    if conf >= 85:
+                    if conf >= 65:  # umbral bajado: 1 intento suele ser suficiente
                         break
                 except Exception:
                     continue
