@@ -142,9 +142,10 @@ class OCRService:
                 self._save_cached_results(tomo, cached_result, db)
                 return
 
-            # Abrir PDF
-            doc = fitz.open(str(pdf_path))
-            total_paginas = len(doc)
+            # Abrir PDF sólo para contar páginas; cada worker abrirá su propia
+            # instancia para evitar problemas de thread-safety de PyMuPDF.
+            with fitz.open(str(pdf_path)) as _tmp:
+                total_paginas = len(_tmp)
 
             logger.info(f"📄 Total de páginas: {total_paginas}")
 
@@ -152,6 +153,8 @@ class OCRService:
             tomo.total_paginas = total_paginas
             tomo.estado_ocr = 'procesando'
             db.commit()
+
+            pdf_path_str = str(pdf_path)  # se pasa a los workers
 
             # Estadísticas de procesamiento
             stats = {
@@ -173,11 +176,13 @@ class OCRService:
             resultados_paginas = []
             
             with ThreadPoolExecutor(max_workers=max_workers) as executor:
-                # Enviar todas las páginas a procesar en paralelo
+                # Enviar todas las páginas a procesar en paralelo.
+                # IMPORTANTE: se pasa pdf_path_str (string), NO el objeto fitz.Document,
+                # porque PyMuPDF no es thread-safe con un documento compartido entre hilos.
                 futures = {
                     executor.submit(
                         self._procesar_pagina_paralela, 
-                        doc, 
+                        pdf_path_str, 
                         pagina_num,
                         total_paginas
                     ): pagina_num 
@@ -195,7 +200,6 @@ class OCRService:
                         tomo.progreso_ocr = 0
                         db.commit()
                         limpiar_cancelacion(tomo.id)
-                        doc.close()
                         return
 
                     pagina_num = futures[future]
@@ -228,8 +232,6 @@ class OCRService:
                             'motor_usado': 'error',
                             'error': str(e)
                         })
-
-            doc.close()
 
             # Ordenar resultados por número de página
             resultados_paginas.sort(key=lambda x: x['numero_pagina'])
@@ -376,15 +378,18 @@ class OCRService:
         except Exception:
             return False
 
-    def _procesar_pagina_paralela(self, doc, pagina_num: int, total_paginas: int) -> Dict:
+    def _procesar_pagina_paralela(self, pdf_path: str, pagina_num: int, total_paginas: int) -> Dict:
         """
-        Procesar una página individual (ejecutado en thread paralelo)
+        Procesar una página individual (ejecutado en thread paralelo).
+        Cada invocación abre su propio fitz.Document para garantizar thread-safety.
         
         Returns:
             Diccionario con resultado del procesamiento
         """
+        doc = None
         try:
-            # Extraer página
+            # Cada worker abre su propia instancia del documento (thread-safe)
+            doc = fitz.open(pdf_path)
             page = doc[pagina_num]
 
             # ── Detección rápida de página en blanco ──────────────────────────
@@ -439,6 +444,12 @@ class OCRService:
                 'es_texto_directo': False,
                 'error': str(e)
             }
+        finally:
+            if doc is not None:
+                try:
+                    doc.close()
+                except Exception:
+                    pass
 
     def _is_text_extractable(self, texto: str) -> bool:
         """Determina si el texto extraído directamente es suficientemente bueno"""
