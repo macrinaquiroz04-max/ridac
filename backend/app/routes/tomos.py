@@ -10,6 +10,8 @@ from datetime import datetime
 import os
 import shutil
 import hashlib
+import threading
+from pathlib import Path
 
 # Almacenamiento persistente: /data/uploads en HF Spaces, uploads/ en local
 # Se evalúa en tiempo de ejecución (no de importación) para garantizar
@@ -68,6 +70,8 @@ class TomoDetailResponse(BaseModel):
     fecha_procesamiento: Optional[str]
     carpeta_id: int
     usuario_subida: Optional[str]
+    progreso_ocr: Optional[int] = 0
+    estado_ocr: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -109,7 +113,9 @@ async def listar_todos_los_tomos(
                 fecha_subida=t.fecha_subida.isoformat() if t.fecha_subida else "",
                 fecha_procesamiento=t.fecha_procesamiento.isoformat() if t.fecha_procesamiento else None,
                 carpeta_id=t.carpeta_id,
-                usuario_subida=t.usuario_subida.username if t.usuario_subida else None
+                usuario_subida=t.usuario_subida.username if t.usuario_subida else None,
+                progreso_ocr=getattr(t, 'progreso_ocr', 0) or 0,
+                estado_ocr=getattr(t, 'estado_ocr', None),
             )
             for t in tomos
         ]
@@ -169,7 +175,9 @@ async def listar_tomos_carpeta(
             fecha_subida=t.fecha_subida.isoformat() if t.fecha_subida else "",
             fecha_procesamiento=t.fecha_procesamiento.isoformat() if t.fecha_procesamiento else None,
             carpeta_id=t.carpeta_id,
-            usuario_subida=t.usuario_subida.username if t.usuario_subida else None
+            usuario_subida=t.usuario_subida.username if t.usuario_subida else None,
+            progreso_ocr=getattr(t, 'progreso_ocr', 0) or 0,
+            estado_ocr=getattr(t, 'estado_ocr', None),
         )
         for t in tomos
     ]
@@ -449,73 +457,77 @@ async def reanalizar_tomo(
         tomo.fecha_procesamiento = datetime.now()
         db.commit()
 
-        # 5. RE-PROCESAR OCR COMPLETO CON CORRECCIONES AUTOMÁTICAS
-        logger.info(f"🚀 Iniciando OCR COMPLETO con correcciones automáticas...")
-        ocr_service = OCRService()
-        
-        # Procesar en background pero esperar resultado
-        import asyncio
-        await asyncio.to_thread(
-            ocr_service.procesar_pdf,
-            tomo,
-            Path(tomo.ruta_archivo),
-            db
+        # 5. LANZAR OCR EN HILO INDEPENDIENTE (no bloquea la petición HTTP)
+        logger.info(f"🚀 Lanzando OCR en segundo plano para tomo {tomo_id}...")
+
+        ruta_archivo = tomo.ruta_archivo  # capturar antes de cerrar sesión
+        carpeta_id_cache = tomo.carpeta_id
+        nombre_archivo = tomo.nombre_archivo
+
+        def _ocr_background(t_id: int, ruta: str, c_id: int):
+            """Hilo daemon: crea su propia sesión BD y ejecuta OCR completo."""
+            from app.database import SessionLocal as _SL
+            from app.services.ocr_service import OCRService as _OCR
+            bg_db = _SL()
+            try:
+                bg_tomo = bg_db.query(Tomo).filter(Tomo.id == t_id).first()
+                if not bg_tomo:
+                    return
+                _OCR().procesar_pdf(bg_tomo, Path(ruta), bg_db)
+                bg_tomo.estado = "completado"
+                bg_db.commit()
+                cache_service.delete(f"tomos:carpeta:{c_id}")
+                cache_service.delete("tomos:todos")
+                logger.info(f"✅ OCR background completado: tomo {t_id}")
+            except Exception as exc:
+                logger.error(f"✗ OCR background error (tomo {t_id}): {exc}")
+                try:
+                    bg_tomo = bg_db.query(Tomo).filter(Tomo.id == t_id).first()
+                    if bg_tomo:
+                        bg_tomo.estado = "error"
+                        bg_db.commit()
+                except Exception:
+                    pass
+            finally:
+                bg_db.close()
+
+        hilo = threading.Thread(
+            target=_ocr_background,
+            args=(tomo_id, ruta_archivo, carpeta_id_cache),
+            daemon=True,
+            name=f"ocr-tomo-{tomo_id}"
         )
+        hilo.start()
 
-        # 6. ACTUALIZAR ESTADO FINAL
-        tomo.estado = "completado" if validacion["es_valido"] and pdf_info["numero_paginas"] > 0 else "error"
-        db.commit()
-        db.refresh(tomo)
-
-        # 7. INVALIDAR CACHÉ
-        cache_service.delete(f"tomos:carpeta:{tomo.carpeta_id}")
-        cache_service.delete("tomos:todos")
-        cache_service.delete(f"ocr:tomo:{tomo_id}")
-        logger.info(f"🔄 Caché invalidado")
-
-        # 8. CONTAR DILIGENCIAS EXTRAÍDAS
-        total_diligencias = db.query(Diligencia).filter(
-            Diligencia.tomo_id == tomo_id
-        ).count()
-
-        logger.info(f"✅ Tomo reanalizado COMPLETO: {tomo.nombre_archivo}")
-        logger.info(f"  📄 {pdf_info['numero_paginas']} páginas procesadas")
-        logger.info(f"  📋 {total_diligencias} diligencias extraídas y corregidas")
-
-        # Registrar auditoría
         registrar_auditoria(
             usuario_id=current_user.id,
             accion="PROCESAR_OCR",
             request=request,
-            
             tabla_afectada="tomos",
             registro_id=tomo_id,
             valores_nuevos={
-                "nombre_archivo": tomo.nombre_archivo,
+                "nombre_archivo": nombre_archivo,
                 "numero_paginas": pdf_info["numero_paginas"],
-                "diligencias_extraidas": total_diligencias,
-                "estado": tomo.estado,
-                "tipo_proceso": "reanalisis_completo"
+                "estado": "procesando",
+                "tipo_proceso": "reanalisis_background"
             }
         )
 
         return {
-            "message": "Tomo reanalizado COMPLETAMENTE con correcciones automáticas",
+            "message": "OCR iniciado en segundo plano",
             "tomo_id": tomo_id,
             "numero_paginas": pdf_info["numero_paginas"],
-            "diligencias_extraidas": total_diligencias,
-            "estado": tomo.estado,
-            "advertencias": validacion.get("advertencias", []),
-            "info": "OCR re-procesado con correcciones legales + diligencias automáticas"
+            "estado": "procesando",
+            "info": "El OCR corre en background. Sigue usando la app con normalidad."
         }
 
     except Exception as e:
-        logger.error(f"Error al reanalizar tomo {tomo_id}: {str(e)}")
+        logger.error(f"Error al iniciar OCR de tomo {tomo_id}: {str(e)}")
         tomo.estado = "error"
         db.commit()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error al reanalizar tomo: {str(e)}"
+            detail=f"Error al iniciar OCR: {str(e)}"
         )
 
 
