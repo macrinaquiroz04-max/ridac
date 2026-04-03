@@ -145,6 +145,9 @@
                   <div class="ocr-bar-fill" :style="{ width: (t.progreso_ocr || 0) + '%' }"></div>
                   <span class="ocr-bar-label">Procesando OCR...</span>
                 </div>
+                <div class="ocr-actions-row">
+                  <button class="btn-stop-ocr" @click="detenerOCR(t)">⏹ Detener</button>
+                </div>
               </div>
             </transition>
           </li>
@@ -371,6 +374,18 @@ async function procesarOCR(tomo) {
     showToast('OCR iniciado. Procesando en segundo plano...', 'success')
     await cargarTomos(carpetaActual.value.id)
     iniciarFastRefresh()
+  } catch (e) {
+    showToast(e.message, 'error')
+  }
+}
+
+async function detenerOCR(tomo) {
+  if (!confirm(`¿Detener el OCR del tomo "${tomo.nombre_archivo || tomo.nombre}"?`)) return
+  try {
+    await del(`/tomos/${tomo.id}/cancelar-ocr`)
+    showToast('OCR detenido. El tomo volvió a estado pendiente.', 'success')
+    clearFastRefresh()
+    await cargarTomos(carpetaActual.value.id)
   } catch (e) {
     showToast(e.message, 'error')
   }
@@ -817,4 +832,26 @@ function estadoTexto(e) { return { completado: 'Completado', procesado: 'Procesa
 .ocr-expand-leave-to { max-height: 0; opacity: 0; margin-top: 0; padding: 0 20px; }
 .ocr-expand-enter-to,
 .ocr-expand-leave-from { max-height: 200px; opacity: 1; }
+
+/* Botón detener OCR */
+.ocr-actions-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 10px;
+}
+.btn-stop-ocr {
+  background: none;
+  border: 1px solid #dc3545;
+  color: #dc3545;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+.btn-stop-ocr:hover {
+  background: #dc3545;
+  color: #fff;
+}
 </style>

@@ -531,6 +531,32 @@ async def reanalizar_tomo(
         )
 
 
+@router.delete("/{tomo_id}/cancelar-ocr")
+async def cancelar_ocr_tomo(
+    tomo_id: int,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_active_user)
+):
+    """
+    DELETE /tomos/{tomo_id}/cancelar-ocr
+    Señala al hilo OCR en curso que debe detenerse.
+    """
+    from app.services.ocr_service import cancelar_ocr as _cancelar
+
+    tomo = db.query(Tomo).filter(Tomo.id == tomo_id).first()
+    if not tomo:
+        raise HTTPException(status_code=404, detail="Tomo no encontrado")
+
+    _cancelar(tomo_id)
+    tomo.estado = "pendiente"
+    tomo.estado_ocr = "cancelado"
+    tomo.progreso_ocr = 0
+    db.commit()
+    cache_service.delete(f"tomos:carpeta:{tomo.carpeta_id}")
+    cache_service.delete("tomos:todos")
+    return {"message": "Cancelación solicitada", "tomo_id": tomo_id}
+
+
 @router.put("/carpeta/{carpeta_id}/reanalizar-todos")
 async def reanalizar_todos_tomos_carpeta(
     carpeta_id: int,

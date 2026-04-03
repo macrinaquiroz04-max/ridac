@@ -22,6 +22,18 @@ from app.services.legal_corrector_service import legal_corrector
 from app.services.legal_entity_extractor import entity_extractor
 from app.services.cache_service import cache_service
 
+# IDs de tomos cuyo OCR ha sido cancelado por el usuario.
+# El set se vive en memoria del proceso; el hilo de OCR lo chequea en cada página.
+_ocr_cancelados: set[int] = set()
+
+def cancelar_ocr(tomo_id: int) -> None:
+    """Marca un tomo para que su OCR se detenga lo antes posible."""
+    _ocr_cancelados.add(tomo_id)
+
+def limpiar_cancelacion(tomo_id: int) -> None:
+    """Quita la marca de cancelación (se llama al iniciar o al terminar)."""
+    _ocr_cancelados.discard(tomo_id)
+
 class OCRService:
     """Servicio de OCR multi-motor mejorado con preprocesamiento inteligente"""
 
@@ -120,6 +132,9 @@ class OCRService:
             # OPTIMIZACIÓN 1: Verificar cache de OCR por hash del archivo
             pdf_hash = self._get_file_hash(pdf_path)
             cache_key = f"ocr:pdf:{pdf_hash}"
+
+            # Limpiar cancelación previa al iniciar
+            limpiar_cancelacion(tomo.id)
             
             cached_result = cache_service.get(cache_key)
             if cached_result:
@@ -171,6 +186,18 @@ class OCRService:
                 
                 # Recolectar resultados conforme se completan
                 for future in as_completed(futures):
+                    # —— Cheque de cancelación ——
+                    if tomo.id in _ocr_cancelados:
+                        logger.info(f"⏹️ OCR cancelado por usuario: tomo {tomo.id}")
+                        executor.shutdown(wait=False, cancel_futures=True)
+                        tomo.estado_ocr = 'cancelado'
+                        tomo.estado = 'pendiente'
+                        tomo.progreso_ocr = 0
+                        db.commit()
+                        limpiar_cancelacion(tomo.id)
+                        doc.close()
+                        return
+
                     pagina_num = futures[future]
                     try:
                         resultado = future.result(timeout=90)  # máx 90s por página
