@@ -1,3 +1,12 @@
+---
+title: RIDAC Backend
+emoji: 📄
+colorFrom: blue
+colorTo: indigo
+sdk: docker
+pinned: false
+---
+
 # RIDAC — Sistema OCR de Análisis Jurídico
 
 Sistema de digitalización, extracción OCR y análisis jurídico de documentos para la
