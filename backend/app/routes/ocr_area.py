@@ -235,16 +235,12 @@ async def ocr_area_tomo_almacenado(
     current_user: Usuario = Depends(get_current_user)
 ):
     """
-    Extrae texto de un área (o página completa) de un tomo almacenado.
-    Usa el mismo pipeline avanzado que el OCR batch: CLAHE + bilateral +
-    unsharp + huella dactilar + bleed-through + multi-binarización (Otsu +
-    Adaptive + Niblack) × 3 PSMs + entity correction.
-
-    Las coordenadas son porcentajes (0.0-1.0) del ancho/alto de la página.
-    Para página completa, enviar x=0, y=0, w=1, h=1.
+    Extrae texto de un área seleccionada de una página de un tomo almacenado.
+    Renderiza a 400 DPI, aplica preprocesamiento adaptado al tamaño del recorte,
+    y prueba múltiples binarizaciones + PSMs para maximizar la extracción.
     """
     from app.models.tomo import Tomo
-    import fitz
+    import re
 
     # Validar porcentajes
     if not (0 <= body.x_pct <= 1 and 0 <= body.y_pct <= 1 and
@@ -260,211 +256,149 @@ async def ocr_area_tomo_almacenado(
     try:
         logger.info(f"OCR área tomo={tomo_id} pág={pagina} x={body.x_pct:.2f} y={body.y_pct:.2f} w={body.w_pct:.2f} h={body.h_pct:.2f}")
 
-        # ── 1. Renderizar con PyMuPDF a 400 DPI ──────────────────────────────
-        doc = fitz.open(tomo.ruta_archivo)
-        if pagina < 1 or pagina > len(doc):
-            doc.close()
-            raise HTTPException(status_code=404, detail=f"Página {pagina} no existe (total: {len(doc)})")
-
-        page = doc[pagina - 1]  # fitz es 0-indexed
-        # 400 DPI = 400/72 ≈ 5.56
-        mat = fitz.Matrix(5.56, 5.56)
-
-        # Si es un área parcial, definir clip en coordenadas de la página
-        page_rect = page.rect
-        clip = fitz.Rect(
-            page_rect.x0 + body.x_pct * page_rect.width,
-            page_rect.y0 + body.y_pct * page_rect.height,
-            page_rect.x0 + (body.x_pct + body.w_pct) * page_rect.width,
-            page_rect.y0 + (body.y_pct + body.h_pct) * page_rect.height,
+        # ── 1. Renderizar página completa a 400 DPI con pdf2image ─────────────
+        imagenes = convert_from_path(
+            tomo.ruta_archivo,
+            first_page=pagina,
+            last_page=pagina,
+            dpi=400
         )
-        # Margen de 3% para no cortar texto en bordes
-        margin_x = clip.width * 0.03
-        margin_y = clip.height * 0.03
-        clip = fitz.Rect(
-            max(page_rect.x0, clip.x0 - margin_x),
-            max(page_rect.y0, clip.y0 - margin_y),
-            min(page_rect.x1, clip.x1 + margin_x),
-            min(page_rect.y1, clip.y1 + margin_y),
-        )
+        if not imagenes:
+            raise HTTPException(status_code=404, detail=f"No se pudo renderizar la página {pagina}")
 
-        pix = page.get_pixmap(matrix=mat, clip=clip)
-        img_data = pix.tobytes("png")
-        doc.close()
+        img_full = imagenes[0]
+        iw, ih = img_full.size
 
-        img = Image.open(io.BytesIO(img_data))
+        # ── 2. Recortar el área seleccionada con margen ───────────────────────
+        px = int(body.x_pct * iw)
+        py = int(body.y_pct * ih)
+        pw = int(body.w_pct * iw)
+        ph = int(body.h_pct * ih)
 
-        # ── 2. Pipeline avanzado (mismo que ocr_service) ─────────────────────
-        arr = np.array(img.convert('RGB'))
+        margin_x = max(10, int(pw * 0.05))
+        margin_y = max(10, int(ph * 0.05))
+        left   = max(0, px - margin_x)
+        top    = max(0, py - margin_y)
+        right  = min(iw, px + pw + margin_x)
+        bottom = min(ih, py + ph + margin_y)
+
+        recorte = img_full.crop((left, top, right, bottom))
+        arr = np.array(recorte.convert('RGB'))
         gray = cv2.cvtColor(arr, cv2.COLOR_RGB2GRAY)
 
-        # Eliminación de sombras por iluminación no uniforme
+        # ── 3. Preprocesamiento suave (NO destructivo) ────────────────────────
+        # Shadow removal
         bg = cv2.dilate(gray, np.ones((21, 21), np.uint8))
         bg = cv2.GaussianBlur(bg, (21, 21), 0)
         enhanced = cv2.divide(gray, bg, scale=255.0).astype(np.uint8)
 
-        # CLAHE con clipLimit 3.5 para documentos envejecidos
-        clahe = cv2.createCLAHE(clipLimit=3.5, tileGridSize=(8, 8))
+        # CLAHE
+        clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
         enhanced = clahe.apply(enhanced)
 
-        # Bilateral filter: suaviza grano de copia-de-copia preservando bordes
-        enhanced = cv2.bilateralFilter(enhanced, d=5, sigmaColor=30, sigmaSpace=30)
+        # Bilateral (suave)
+        enhanced = cv2.bilateralFilter(enhanced, d=5, sigmaColor=25, sigmaSpace=25)
 
-        # Unsharp mask: recupera bordes de letras desdibujadas
-        _blur = cv2.GaussianBlur(enhanced, (0, 0), sigmaX=2)
-        enhanced = cv2.addWeighted(enhanced, 1.6, _blur, -0.6, 0).astype(np.uint8)
+        # Unsharp mask (suave)
+        _blur = cv2.GaussianBlur(enhanced, (0, 0), sigmaX=1.5)
+        enhanced = cv2.addWeighted(enhanced, 1.4, _blur, -0.4, 0).astype(np.uint8)
 
-        # Escalar si el recorte es pequeño
+        # Escalar si es muy pequeño
         rh, rw = enhanced.shape[:2]
-        if rw < 800 or rh < 400:
-            factor = max(2, int(np.ceil(800 / max(rw, 1))))
+        if rw < 600:
+            factor = max(2, 600 // max(rw, 1))
             enhanced = cv2.resize(enhanced, (rw * factor, rh * factor),
                                   interpolation=cv2.INTER_CUBIC)
-            # Re-aplicar bilateral + unsharp tras escalar
-            enhanced = cv2.bilateralFilter(enhanced, d=3, sigmaColor=20, sigmaSpace=20)
-            _blur2 = cv2.GaussianBlur(enhanced, (0, 0), sigmaX=1.5)
-            enhanced = cv2.addWeighted(enhanced, 1.4, _blur2, -0.4, 0).astype(np.uint8)
 
-        # ── 2b. Eliminar líneas horizontales y verticales de formularios ──────
-        # Los formularios PGR tienen líneas gruesas que Tesseract lee como |, -, etc.
-        # Detectamos las líneas con kernels morfológicos largos y las quitamos.
-        rh, rw = enhanced.shape[:2]
-
-        # Binarización temporal para detectar líneas
-        _, _bin_temp = cv2.threshold(enhanced, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
-
-        # Detectar líneas horizontales (kernel ancho, bajo)
-        h_kernel_len = max(40, rw // 15)
-        h_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (h_kernel_len, 1))
-        h_lines = cv2.morphologyEx(_bin_temp, cv2.MORPH_OPEN, h_kernel, iterations=1)
-
-        # Detectar líneas verticales (kernel alto, angosto)
-        v_kernel_len = max(40, rh // 15)
-        v_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1, v_kernel_len))
-        v_lines = cv2.morphologyEx(_bin_temp, cv2.MORPH_OPEN, v_kernel, iterations=1)
-
-        # Combinar líneas detectadas
-        all_lines = cv2.add(h_lines, v_lines)
-
-        # Dilatar un poco las líneas para cubrir bordes difusos
-        all_lines = cv2.dilate(all_lines, cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3)), iterations=1)
-
-        # Quitar las líneas: donde hay línea → poner blanco (255 en la imagen enhanced)
-        enhanced = np.where(all_lines > 0, 255, enhanced).astype(np.uint8)
-
-        # ── 3. Triple binarización ────────────────────────────────────────────
-        # Candidato A: Otsu
+        # ── 4. Binarización: Otsu + Adaptiva (sin Niblack para velocidad) ────
         _, bin_otsu = cv2.threshold(enhanced, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
         if np.mean(bin_otsu) < 127:
             bin_otsu = cv2.bitwise_not(bin_otsu)
 
-        # Candidato B: Adaptivo Gaussiano
+        blk = min(51, max(3, (min(enhanced.shape[:2]) // 4) * 2 + 1))
         bin_local = cv2.adaptiveThreshold(
             enhanced, 255,
             cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
             cv2.THRESH_BINARY,
-            blockSize=51, C=15
+            blockSize=blk, C=12
         )
         if np.mean(bin_local) < 127:
             bin_local = cv2.bitwise_not(bin_local)
 
-        # Candidato C: Niblack simplificado (media + k*std local)
-        try:
-            win = 51
-            if enhanced.shape[0] < win or enhanced.shape[1] < win:
-                win = max(3, min(enhanced.shape[0], enhanced.shape[1]) // 2 * 2 + 1)
-            mean_local = cv2.blur(enhanced.astype(np.float32), (win, win))
-            mean_sq = cv2.blur((enhanced.astype(np.float32)) ** 2, (win, win))
-            std_local = np.sqrt(np.maximum(mean_sq - mean_local ** 2, 0))
-            k_niblack = -0.2
-            threshold_map = mean_local + k_niblack * std_local
-            bin_niblack = np.where(enhanced > threshold_map, 255, 0).astype(np.uint8)
-            if np.mean(bin_niblack) < 127:
-                bin_niblack = cv2.bitwise_not(bin_niblack)
-        except Exception:
-            bin_niblack = bin_otsu.copy()
+        # Cierre morfológico mínimo
+        kern = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 1))
+        bin_otsu  = cv2.morphologyEx(bin_otsu,  cv2.MORPH_CLOSE, kern)
+        bin_local = cv2.morphologyEx(bin_local, cv2.MORPH_CLOSE, kern)
 
-        # Cierre morfológico para reconectar trazos rotos
-        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 1))
-        bin_otsu = cv2.morphologyEx(bin_otsu, cv2.MORPH_CLOSE, kernel)
-        bin_local = cv2.morphologyEx(bin_local, cv2.MORPH_CLOSE, kernel)
-        bin_niblack = cv2.morphologyEx(bin_niblack, cv2.MORPH_CLOSE, kernel)
-
-        # ── 4. Tesseract: 3 binarizaciones × 3 PSMs → mejor confianza ────────
+        # ── 5. Tesseract: probar ambas binarizaciones × PSMs ─────────────────
         mejor = {'texto': '', 'confianza': 0}
 
-        for img_bin, nombre in ((bin_otsu, 'otsu'), (bin_local, 'local'), (bin_niblack, 'niblack')):
+        for img_bin, nombre in ((bin_otsu, 'otsu'), (bin_local, 'local')):
             img_pil = Image.fromarray(img_bin)
             for psm in (6, 4, 3):
                 try:
                     cfg = f'--psm {psm} --oem 1'
+                    texto = pytesseract.image_to_string(
+                        img_pil, lang='spa', config=cfg
+                    ).strip()
                     data = pytesseract.image_to_data(
                         img_pil, lang='spa', config=cfg,
                         output_type=pytesseract.Output.DICT
                     )
                     confs = [int(c) for c in data['conf']
                              if str(c).lstrip('-').isdigit() and int(c) >= 0]
-                    texto = pytesseract.image_to_string(
-                        img_pil, lang='spa', config=cfg
-                    ).strip()
                     conf = int(statistics.mean(confs)) if confs else 0
+
                     if conf > mejor['confianza'] or (not mejor['texto'] and texto):
                         mejor = {'texto': texto, 'confianza': conf}
-                    if conf >= 80:
+                    if conf >= 75:
                         break
                 except Exception:
                     continue
-            if mejor['confianza'] >= 80:
+            if mejor['confianza'] >= 75:
                 break
 
-        # ── 5. Rescue: si confianza < 40, intentar con imagen invertida ───────
-        if mejor['confianza'] < 40:
+        # ── 6. También probar con la imagen gris directa (sin binarizar) ─────
+        # A veces Tesseract funciona mejor con grises que con binario
+        if mejor['confianza'] < 60:
             try:
-                inv = cv2.bitwise_not(enhanced)
-                clahe_inv = cv2.createCLAHE(clipLimit=4.0, tileGridSize=(4, 4))
-                inv = clahe_inv.apply(inv)
-                _, bin_inv = cv2.threshold(inv, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-                if np.mean(bin_inv) < 127:
-                    bin_inv = cv2.bitwise_not(bin_inv)
-                for psm_r in (6, 4):
-                    cfg_r = f'--psm {psm_r} --oem 1'
-                    data_r = pytesseract.image_to_data(
-                        Image.fromarray(bin_inv), lang='spa', config=cfg_r,
+                img_gray_pil = Image.fromarray(enhanced)
+                for psm_g in (6, 3):
+                    cfg_g = f'--psm {psm_g} --oem 1'
+                    texto_g = pytesseract.image_to_string(
+                        img_gray_pil, lang='spa', config=cfg_g
+                    ).strip()
+                    data_g = pytesseract.image_to_data(
+                        img_gray_pil, lang='spa', config=cfg_g,
                         output_type=pytesseract.Output.DICT
                     )
-                    confs_r = [int(c) for c in data_r['conf']
+                    confs_g = [int(c) for c in data_g['conf']
                                if str(c).lstrip('-').isdigit() and int(c) >= 0]
-                    texto_r = pytesseract.image_to_string(
-                        Image.fromarray(bin_inv), lang='spa', config=cfg_r
-                    ).strip()
-                    conf_r = int(statistics.mean(confs_r)) if confs_r else 0
-                    if conf_r > mejor['confianza']:
-                        mejor = {'texto': texto_r, 'confianza': conf_r}
+                    conf_g = int(statistics.mean(confs_g)) if confs_g else 0
+                    if conf_g > mejor['confianza']:
+                        mejor = {'texto': texto_g, 'confianza': conf_g}
             except Exception:
                 pass
 
-        # ── 6. Post-procesamiento y corrección de entidades ───────────────────
+        # ── 7. Limpieza de texto ──────────────────────────────────────────────
         texto_final = mejor['texto']
 
-        # Limpiar líneas basura y restos de líneas de formulario
-        import re
         lineas = texto_final.split('\n')
         lineas_ok = []
         for linea in lineas:
-            # Quitar caracteres típicos de líneas mal leídas: |, _, ─, —, ., solo guiones
+            # Quitar líneas que son solo símbolos de formulario
             linea_limpia = re.sub(r'^[\s|_\-─—.•·=~]+$', '', linea)
-            # Quitar | al inicio y final de líneas (bordes de tabla)
+            # Quitar | sueltos al inicio/final
             linea_limpia = re.sub(r'^\s*\|+\s*', '', linea_limpia)
             linea_limpia = re.sub(r'\s*\|+\s*$', '', linea_limpia)
-            # Quitar secuencias de puntos/guiones sueltos (relleno de formulario)
+            # Quitar relleno de formulario (muchos puntos/guiones seguidos)
             linea_limpia = re.sub(r'[._\-]{5,}', ' ', linea_limpia)
-            # Solo conservar líneas con al menos 2 chars alfanuméricos
-            alfa = re.sub(r'[^a-záéíóúñA-ZÁÉÍÓÚÑ0-9]', '', linea_limpia)
-            if len(alfa) >= 2:
-                lineas_ok.append(linea_limpia.strip())
+            linea_limpia = linea_limpia.strip()
+            if linea_limpia:
+                lineas_ok.append(linea_limpia)
         texto_final = '\n'.join(lineas_ok)
 
-        # Entity correction (fechas, nombres, ubicaciones)
+        # Entity correction
         try:
             from app.services.entity_correction_service import entity_correction
             texto_final = entity_correction.corregir_todo(texto_final)
