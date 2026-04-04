@@ -519,6 +519,126 @@ class OCRService:
 
         return result
 
+    def _eliminar_huella_dactilar(self, gray_arr) -> "np.ndarray":
+        """
+        Detecta y elimina huellas dactilares superpuestas sobre texto.
+
+        Las huellas tienen crestas paralelas con frecuencia espacial característica
+        (≈ 5-15 px entre crestas @ 400 DPI). Usamos Gabor filters en múltiples
+        orientaciones para detectar regiones con patrón de crestas de huella,
+        y reemplazamos esas zonas con el fondo estimado para recuperar texto.
+
+        Funciona incluso con huellas parciales, tinta desvanecida, y sobre texto.
+        """
+        import numpy as np
+        import cv2
+
+        result = gray_arr.copy()
+        h, w = gray_arr.shape[:2]
+
+        # ── 1. Banco de filtros Gabor para detectar crestas de huella ─────────
+        # Las crestas de huella @ 400 DPI tienen periodo ≈ 8-14 px
+        # Probamos varias orientaciones (0° a 170° en pasos de 10°)
+        gabor_responses = []
+        for theta_deg in range(0, 180, 15):
+            theta = theta_deg * np.pi / 180.0
+            for lambd in (9, 12):  # wavelengths comunes para crestas
+                kern = cv2.getGaborKernel(
+                    ksize=(21, 21), sigma=3.0, theta=theta,
+                    lambd=lambd, gamma=0.5, psi=0
+                )
+                resp = cv2.filter2D(gray_arr, cv2.CV_64F, kern)
+                gabor_responses.append(np.abs(resp))
+
+        # Promedio de todas las respuestas Gabor → mapa de "intensidad de crestas"
+        gabor_stack = np.stack(gabor_responses, axis=0)
+        gabor_mean = np.mean(gabor_stack, axis=0)
+
+        # ── 2. Detectar regiones con respuesta Gabor inusualmente alta ────────
+        # Normalizar a 0-255
+        gabor_norm = ((gabor_mean - gabor_mean.min()) /
+                      (gabor_mean.max() - gabor_mean.min() + 1e-6) * 255).astype(np.uint8)
+
+        # Umbral: zonas con respuesta > percentil 80 son candidatas a huella
+        threshold = float(np.percentile(gabor_norm, 80))
+        _, huella_mask = cv2.threshold(gabor_norm, int(threshold), 255, cv2.THRESH_BINARY)
+
+        # ── 3. Filtrar: solo regiones grandes y ovaladas son huellas ──────────
+        # (no queremos eliminar texto que también responde a Gabor)
+        kernel_close = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (25, 25))
+        huella_mask = cv2.morphologyEx(huella_mask, cv2.MORPH_CLOSE, kernel_close)
+        huella_mask = cv2.morphologyEx(huella_mask, cv2.MORPH_OPEN,
+                                       cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (15, 15)))
+
+        contours, _ = cv2.findContours(huella_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+        area_total = h * w
+        huella_encontrada = False
+
+        for cnt in contours:
+            area = cv2.contourArea(cnt)
+            if area < area_total * 0.01:
+                # Muy pequeño para ser huella
+                continue
+
+            # Verificar forma: las huellas son ovaladas (compacidad alta)
+            perimeter = cv2.arcLength(cnt, True)
+            if perimeter == 0:
+                continue
+            circularity = 4 * np.pi * area / (perimeter ** 2)
+
+            # Las huellas tienen circularidad > 0.2 (ovaladas/redondas)
+            # Los bloques de texto rectangulares tienen circularidad baja
+            if circularity < 0.15:
+                continue
+
+            # Verificar que dentro del contorno hay patrón de crestas periódicas
+            # (varianza alta de la respuesta Gabor dentro del contorno)
+            mask_cnt = np.zeros((h, w), dtype=np.uint8)
+            cv2.drawContours(mask_cnt, [cnt], -1, 255, -1)
+            gabor_in_cnt = gabor_norm[mask_cnt > 0]
+            std_gabor = float(np.std(gabor_in_cnt)) if gabor_in_cnt.size > 0 else 0
+
+            if std_gabor < 15:
+                # Poca variación = zona uniforme, no es huella
+                continue
+
+            # ── 4. Reemplazar zona de huella con fondo estimado ───────────────
+            # En vez de blanco puro, estimamos el fondo local con dilate+blur
+            # para que el texto debajo se "recupere" parcialmente.
+            x, y, bw, bh = cv2.boundingRect(cnt)
+            region = gray_arr[y:y + bh, x:x + bw]
+            mask_region = mask_cnt[y:y + bh, x:x + bw]
+
+            # Estimar fondo: dilatar (expande lo claro) + blur grande
+            bg_est = cv2.dilate(region, np.ones((15, 15), np.uint8))
+            bg_est = cv2.GaussianBlur(bg_est, (31, 31), 0)
+
+            # Mezclar: donde hay huella, usar fondo estimado; el resto queda igual
+            region_clean = region.copy()
+            region_clean[mask_region > 0] = bg_est[mask_region > 0]
+
+            # Aplicar CLAHE local para mejorar contraste del texto recuperado
+            clahe_local = cv2.createCLAHE(clipLimit=4.0, tileGridSize=(4, 4))
+            region_clean = clahe_local.apply(region_clean)
+
+            result[y:y + bh, x:x + bw] = np.where(
+                mask_region[:, :, None] if mask_region.ndim < result[y:y+bh, x:x+bw].ndim else mask_region > 0,
+                region_clean,
+                result[y:y + bh, x:x + bw]
+            ) if result.ndim > 2 else np.where(mask_region > 0, region_clean, result[y:y + bh, x:x + bw])
+
+            huella_encontrada = True
+            logger.debug(
+                f"  🖐️ Huella dactilar eliminada: ({x},{y}) {bw}x{bh}px "
+                f"circ={circularity:.2f} std_gabor={std_gabor:.0f}"
+            )
+
+        if not huella_encontrada:
+            return gray_arr
+
+        return result
+
     def _eliminar_firmas_ruido(self, binarized: "np.ndarray") -> "np.ndarray":
         """
         Elimina firmas y ruido visual sobre la imagen binarizada (texto negro/fondo blanco).
@@ -1260,6 +1380,9 @@ class OCRService:
 
         # ── Enmascarar bloques de fotografías incrustadas ─────────────────────
         shadow_free = self._enmascarar_bloques_foto(shadow_free)
+
+        # ── Eliminar huellas dactilares superpuestas sobre texto ──────────────
+        shadow_free = self._eliminar_huella_dactilar(shadow_free)
 
         # ── Supresión de bleed-through (texto del reverso en copias de copias) ─
         shadow_free = self._suprimir_bleedthrough(shadow_free)
