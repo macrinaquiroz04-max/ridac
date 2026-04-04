@@ -815,6 +815,210 @@ class OCRService:
 
         return sharpened
 
+    # ══════════════════════════════════════════════════════════════════════════
+    # SUPER-RESOLUCIÓN POR SOFTWARE (copias tan borrosas que 400 DPI no basta)
+    # ══════════════════════════════════════════════════════════════════════════
+
+    def _super_resolution_software(self, gray_arr: "np.ndarray") -> "np.ndarray":
+        """
+        Super-resolución por software: escala 2× con interpolación cúbica y
+        re-afila los bordes.  Es la diferencia entre leer y no leer texto de
+        fotocopias de 3ª generación donde las letras miden < 10 px de alto.
+
+        NO usa redes neuronales (ESRGAN/Real-ESRGAN) para mantener la
+        compatibilidad sin GPU.  En su lugar:
+        1. Upscale 2× bicúbico
+        2. Bilateral filter (preserva bordes, elimina artefactos de upscale)
+        3. Unsharp mask agresivo para que Tesseract vea letras nítidas
+        """
+        import numpy as np
+        import cv2
+
+        h, w = gray_arr.shape[:2]
+
+        # Upscale 2× — equivale a pasar de 400 a 800 DPI efectivos
+        upscaled = cv2.resize(
+            gray_arr, (w * 2, h * 2), interpolation=cv2.INTER_CUBIC
+        )
+
+        # Bilateral: suaviza artefactos del upscale SIN borrar bordes de letras
+        smooth = cv2.bilateralFilter(upscaled, d=7, sigmaColor=40, sigmaSpace=40)
+
+        # Unsharp mask con σ=2.5 para re-afilar
+        blur = cv2.GaussianBlur(smooth, (0, 0), sigmaX=2.5)
+        sharp = cv2.addWeighted(smooth, 2.0, blur, -1.0, 0).clip(0, 255).astype(np.uint8)
+
+        return sharp
+
+    def _binarizacion_niblack_wolf(
+        self, gray_arr: "np.ndarray", k: float = -0.2, window: int = 0
+    ) -> "np.ndarray":
+        """
+        Binarización tipo Niblack/Wolf: el MEJOR método para fondos sucios,
+        manchas de café, gris heterogéneo de fotocopiado.
+
+        La fórmula clásica de Niblack es:
+            T(x,y) = mean(x,y) + k * std(x,y)
+        Con k negativo (-0.2) se obtiene un umbral agresivo que conserva texto
+        débil contra fondos grises.
+
+        Se implementa con filtros de caja (boxFilter) para velocidad O(1) por pixel.
+        """
+        import numpy as np
+        import cv2
+
+        h, w = gray_arr.shape[:2]
+        if window == 0:
+            # Por defecto: window_size proporcional al texto (~25 px @ 400 DPI)
+            window = max(15, min(h, w) // 40)
+            if window % 2 == 0:
+                window += 1  # debe ser impar
+
+        gray_f = gray_arr.astype(np.float64)
+
+        # Media local y desviación estándar local con box filter O(1)
+        mean_local = cv2.boxFilter(gray_f, ddepth=-1, ksize=(window, window))
+        sq_mean = cv2.boxFilter(gray_f ** 2, ddepth=-1, ksize=(window, window))
+        std_local = np.sqrt(np.maximum(sq_mean - mean_local ** 2, 0))
+
+        # Umbral Niblack: T = mean + k * std
+        threshold = mean_local + k * std_local
+
+        binary = np.where(gray_f > threshold, 255, 0).astype(np.uint8)
+
+        return binary
+
+    def _reconectar_trazos_agresivo(self, bin_arr: "np.ndarray") -> "np.ndarray":
+        """
+        Reconecta trazos rotos de texto mecanografiado en documentos muy
+        deteriorados.  El kernel (2,1) del flujo normal no basta cuando las
+        fotocopias rompen los trazos verticales de letras como l, t, f, d.
+
+        Estrategia: cierre morfológico en 2 orientaciones (horizontal y vertical)
+        con kernels delgados para no fusionar líneas de texto adyacentes.
+        """
+        import numpy as np
+        import cv2
+
+        result = bin_arr.copy()
+
+        # Cierre horizontal: reconectar partes izquierda-derecha de letras
+        kh = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 1))
+        result = cv2.morphologyEx(result, cv2.MORPH_CLOSE, kh)
+
+        # Cierre vertical: reconectar trazos superiores-inferiores (l, t, f)
+        kv = cv2.getStructuringElement(cv2.MORPH_RECT, (1, 3))
+        result = cv2.morphologyEx(result, cv2.MORPH_CLOSE, kv)
+
+        return result
+
+    def _ocr_con_binarizacion(
+        self, bin_img: "np.ndarray", nombre: str, psm_list: tuple = (6, 4, 3)
+    ) -> Dict:
+        """
+        Helper: ejecuta Tesseract sobre una imagen ya binarizada y devuelve
+        el mejor resultado entre los PSM dados.
+        """
+        import statistics as _st
+
+        if not self.tesseract_available:
+            return {'texto': '', 'confianza': 0, 'motor': nombre}
+
+        import pytesseract
+
+        mejor = {'texto': '', 'confianza': 0, 'motor': nombre}
+        pil_img = Image.fromarray(bin_img)
+
+        for psm in psm_list:
+            try:
+                cfg = f'--psm {psm} --oem 1'
+                data = pytesseract.image_to_data(
+                    pil_img, lang='spa', config=cfg,
+                    output_type=pytesseract.Output.DICT,
+                )
+                confs = [
+                    int(c) for c in data['conf']
+                    if str(c).lstrip('-').isdigit() and int(c) >= 0
+                ]
+                texto = pytesseract.image_to_string(pil_img, lang='spa', config=cfg)
+                conf = int(_st.mean(confs)) if confs else 0
+                if conf > mejor['confianza'] or (not mejor['texto'] and texto.strip()):
+                    mejor = {
+                        'texto': self._post_process_text(texto),
+                        'confianza': min(99.0, conf * 1.1),
+                        'motor': f'{nombre}_psm{psm}',
+                    }
+                if conf >= 70:
+                    break
+            except Exception:
+                continue
+        return mejor
+
+    def _ocr_multi_resolucion(self, page) -> Dict:
+        """
+        Ejecuta OCR a 3 resoluciones distintas (300, 400, 600 DPI) y elige el
+        resultado con mayor confianza.
+
+        ¿Por qué funciona?
+        - A 300 DPI: letras grandes se leen mejor (carátulas, títulos)
+        - A 400 DPI: balance general
+        - A 600 DPI: texto muy pequeño o desgastado se lee mejor
+
+        En copias de copias, ciertas zonas se recuperan a una resolución y no
+        a otra. El voting asegura que siempre ganemos la mejor.
+        """
+        import numpy as np
+        import cv2
+
+        dpis = [
+            (300, 300 / 72),   # factor ≈ 4.17
+            (400, 400 / 72),   # factor ≈ 5.56
+            (600, 600 / 72),   # factor ≈ 8.33
+        ]
+
+        mejor_global = {'texto': '', 'confianza': 0, 'motor': 'multi_dpi'}
+
+        for dpi_val, factor in dpis:
+            try:
+                matrix = fitz.Matrix(factor, factor)
+                pix = page.get_pixmap(matrix=matrix)
+                img_data = pix.tobytes("png")
+                img = Image.open(io.BytesIO(img_data))
+
+                arr = np.array(img.convert('RGB'))
+                gray = cv2.cvtColor(arr, cv2.COLOR_RGB2GRAY)
+
+                # Sombras + CLAHE + bilateral + unsharp (pipeline estándar)
+                bg = cv2.dilate(gray, np.ones((21, 21), np.uint8))
+                bg = cv2.GaussianBlur(bg, (21, 21), 0)
+                sf = cv2.divide(gray, bg, scale=255.0).astype(np.uint8)
+                clahe = cv2.createCLAHE(clipLimit=3.5, tileGridSize=(8, 8))
+                sf = clahe.apply(sf)
+                sf = cv2.bilateralFilter(sf, d=5, sigmaColor=30, sigmaSpace=30)
+                _b = cv2.GaussianBlur(sf, (0, 0), sigmaX=2)
+                sf = cv2.addWeighted(sf, 1.6, _b, -0.6, 0).astype(np.uint8)
+
+                # Niblack (la mejor para fondos sucios)
+                bin_niblack = self._binarizacion_niblack_wolf(sf)
+                bin_niblack = self._reconectar_trazos_agresivo(bin_niblack)
+                bin_niblack = self._eliminar_firmas_ruido(bin_niblack)
+
+                resultado = self._ocr_con_binarizacion(
+                    bin_niblack, f'niblack_{dpi_val}dpi'
+                )
+
+                if resultado['confianza'] > mejor_global['confianza']:
+                    mejor_global = resultado
+
+                # Si ya tenemos confianza alta, no seguir probando DPIs
+                if mejor_global['confianza'] >= 72:
+                    break
+            except Exception as e:
+                logger.debug(f"  multi-DPI {dpi_val}: error {e}")
+                continue
+
+        return mejor_global
+
     def _procesar_pagina_paralela(self, pdf_path: str, pagina_num: int, total_paginas: int) -> Dict:
         """
         Procesar una página individual (ejecutado en thread paralelo).
@@ -1000,8 +1204,19 @@ class OCRService:
             )
             shadow_free = self._pipeline_alta_degradacion(shadow_free)
 
+        # ── Super-resolución por software para texto ultra-borroso ────────────
+        # Si el foco (laplaciano) es muy bajo, las letras miden < 10 px y
+        # Tesseract no puede leerlas. Escalamos 2× para darle más píxeles.
+        _lap_var = float(cv2.Laplacian(shadow_free, cv2.CV_64F).var())
+        usar_superres = _lap_var < 120 or nivel_degradacion > 0.70
+        if usar_superres:
+            logger.debug(f"  🔎 Aplicando super-resolución (laplacian_var={_lap_var:.0f})")
+            shadow_free_hr = self._super_resolution_software(shadow_free)
+        else:
+            shadow_free_hr = shadow_free
+
         # ── Candidato A: Otsu (umbral global) ────────────────────────────────
-        _, bin_otsu = cv2.threshold(shadow_free, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        _, bin_otsu = cv2.threshold(shadow_free_hr, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
         if np.mean(bin_otsu) < 127:
             bin_otsu = cv2.bitwise_not(bin_otsu)
 
@@ -1009,7 +1224,7 @@ class OCRService:
         # Mucho mejor que Otsu en fondos con iluminación dispareja o gris sucio.
         # window_size 51 px @ 400 DPI ≈ 3.2 mm — cubre una letra con contexto.
         bin_local = cv2.adaptiveThreshold(
-            shadow_free, 255,
+            shadow_free_hr, 255,
             cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
             cv2.THRESH_BINARY,
             blockSize=51, C=15
@@ -1017,16 +1232,27 @@ class OCRService:
         if np.mean(bin_local) < 127:
             bin_local = cv2.bitwise_not(bin_local)
 
+        # ── Candidato C: Niblack/Wolf — la mejor para copias de copias ────────
+        # La binarización Niblack usa umbral local basado en media+k*std que
+        # rescata texto tenue que Otsu y Adaptivo pierden completamente.
+        bin_niblack = self._binarizacion_niblack_wolf(shadow_free_hr, k=-0.2)
+        if np.mean(bin_niblack) < 127:
+            bin_niblack = cv2.bitwise_not(bin_niblack)
+
         # Cierre morfológico para reconectar trazos rotos en texto mecanografiado
         kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 1))
         bin_otsu  = cv2.morphologyEx(bin_otsu,  cv2.MORPH_CLOSE, kernel)
         bin_local = cv2.morphologyEx(bin_local, cv2.MORPH_CLOSE, kernel)
 
-        # ── Eliminar firmas y ruido visual en ambos candidatos ────────────────
-        bin_otsu  = self._eliminar_firmas_ruido(bin_otsu)
-        bin_local = self._eliminar_firmas_ruido(bin_local)
+        # Reconexión más agresiva para Niblack (documentos muy deteriorados)
+        bin_niblack = self._reconectar_trazos_agresivo(bin_niblack)
 
-        # ── 4. Tesseract: probar ambas binarizaciones y elegir la mejor ───────
+        # ── Eliminar firmas y ruido visual en todos los candidatos ─────────────
+        bin_otsu    = self._eliminar_firmas_ruido(bin_otsu)
+        bin_local   = self._eliminar_firmas_ruido(bin_local)
+        bin_niblack = self._eliminar_firmas_ruido(bin_niblack)
+
+        # ── 4. Tesseract: probar las 3 binarizaciones y elegir la mejor ───────
         if self.tesseract_available:
             import pytesseract, statistics as _stats
 
@@ -1034,8 +1260,9 @@ class OCRService:
 
             # Cada candidato de imagen × cada PSM → elegir el de mayor confianza
             for img_bin, bin_nombre in (
-                (bin_otsu,  'otsu'),
-                (bin_local, 'local'),
+                (bin_otsu,    'otsu'),
+                (bin_local,   'local'),
+                (bin_niblack, 'niblack'),
             ):
                 img_candidate = Image.fromarray(img_bin)
                 for psm in (4, 6, 3):
@@ -1104,6 +1331,19 @@ class OCRService:
                         break
             except Exception:
                 pass
+
+        if mejor.get('texto'):
+            return mejor
+
+        # ── 6. Multi-resolución: último recurso antes del fallback ────────────
+        # Prueba 300, 400 y 600 DPI con Niblack desde cero — a veces una
+        # resolución distinta recupera texto que otra pierde completamente.
+        try:
+            multi_res = self._ocr_multi_resolucion(page)
+            if multi_res.get('confianza', 0) > mejor.get('confianza', 0):
+                mejor = multi_res
+        except Exception:
+            pass
 
         if mejor.get('texto'):
             return mejor
