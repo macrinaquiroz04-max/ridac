@@ -52,8 +52,10 @@ docker-compose.override.yml
 
 # Backups
 backups/*.sql
+backups/*.sql.gz
 backups/*.dump
 backups/*.backup
+backups/*.gz
 !backups/.gitkeep
 
 # Temporales
