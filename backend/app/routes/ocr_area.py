@@ -331,26 +331,39 @@ async def ocr_area_tomo_almacenado(
         bin_local = cv2.morphologyEx(bin_local, cv2.MORPH_CLOSE, kern)
 
         # ── 5. Tesseract: probar ambas binarizaciones × PSMs ─────────────────
-        mejor = {'texto': '', 'confianza': 0}
+        mejor = {'texto': '', 'confianza': 0, 'words': []}
 
         for img_bin, nombre in ((bin_otsu, 'otsu'), (bin_local, 'local')):
             img_pil = Image.fromarray(img_bin)
             for psm in (6, 4, 3):
                 try:
                     cfg = f'--psm {psm} --oem 1'
-                    texto = pytesseract.image_to_string(
-                        img_pil, lang='spa', config=cfg
-                    ).strip()
                     data = pytesseract.image_to_data(
                         img_pil, lang='spa', config=cfg,
                         output_type=pytesseract.Output.DICT
                     )
-                    confs = [int(c) for c in data['conf']
-                             if str(c).lstrip('-').isdigit() and int(c) >= 0]
-                    conf = int(statistics.mean(confs)) if confs else 0
+                    # Construir texto solo con palabras de confianza >= 40
+                    words = []
+                    confs_all = []
+                    for w, c in zip(data['text'], data['conf']):
+                        c_str = str(c).lstrip('-')
+                        if not c_str.isdigit():
+                            continue
+                        c_int = int(c)
+                        if c_int < 0:
+                            continue
+                        confs_all.append(c_int)
+                        w = str(w).strip()
+                        if not w:
+                            continue
+                        if c_int >= 40:
+                            words.append(w)
+
+                    conf = int(statistics.mean(confs_all)) if confs_all else 0
+                    texto = ' '.join(words)
 
                     if conf > mejor['confianza'] or (not mejor['texto'] and texto):
-                        mejor = {'texto': texto, 'confianza': conf}
+                        mejor = {'texto': texto, 'confianza': conf, 'words': words}
                     if conf >= 75:
                         break
                 except Exception:
@@ -359,24 +372,31 @@ async def ocr_area_tomo_almacenado(
                 break
 
         # ── 6. También probar con la imagen gris directa (sin binarizar) ─────
-        # A veces Tesseract funciona mejor con grises que con binario
         if mejor['confianza'] < 60:
             try:
                 img_gray_pil = Image.fromarray(enhanced)
                 for psm_g in (6, 3):
                     cfg_g = f'--psm {psm_g} --oem 1'
-                    texto_g = pytesseract.image_to_string(
-                        img_gray_pil, lang='spa', config=cfg_g
-                    ).strip()
                     data_g = pytesseract.image_to_data(
                         img_gray_pil, lang='spa', config=cfg_g,
                         output_type=pytesseract.Output.DICT
                     )
-                    confs_g = [int(c) for c in data_g['conf']
-                               if str(c).lstrip('-').isdigit() and int(c) >= 0]
+                    words_g = []
+                    confs_g = []
+                    for w, c in zip(data_g['text'], data_g['conf']):
+                        c_str = str(c).lstrip('-')
+                        if not c_str.isdigit():
+                            continue
+                        c_int = int(c)
+                        if c_int < 0:
+                            continue
+                        confs_g.append(c_int)
+                        w = str(w).strip()
+                        if w and c_int >= 40:
+                            words_g.append(w)
                     conf_g = int(statistics.mean(confs_g)) if confs_g else 0
                     if conf_g > mejor['confianza']:
-                        mejor = {'texto': texto_g, 'confianza': conf_g}
+                        mejor = {'texto': ' '.join(words_g), 'confianza': conf_g}
             except Exception:
                 pass
 
@@ -389,14 +409,42 @@ async def ocr_area_tomo_almacenado(
             # Quitar líneas que son solo símbolos de formulario
             linea_limpia = re.sub(r'^[\s|_\-─—.•·=~]+$', '', linea)
             # Quitar | sueltos al inicio/final
-            linea_limpia = re.sub(r'^\s*\|+\s*', '', linea_limpia)
-            linea_limpia = re.sub(r'\s*\|+\s*$', '', linea_limpia)
+            linea_limpia = re.sub(r'^\s*[|]+\s*', '', linea_limpia)
+            linea_limpia = re.sub(r'\s*[|]+\s*$', '', linea_limpia)
             # Quitar relleno de formulario (muchos puntos/guiones seguidos)
-            linea_limpia = re.sub(r'[._\-]{5,}', ' ', linea_limpia)
+            linea_limpia = re.sub(r'[._\-]{4,}', ' ', linea_limpia)
+            # Quitar puntos sueltos rodeados de espacios (artefactos de líneas)
+            linea_limpia = re.sub(r'\s+\.\s+', ' ', linea_limpia)
+            # Quitar punto al inicio de línea
+            linea_limpia = re.sub(r'^\s*\.\s+', '', linea_limpia)
             linea_limpia = linea_limpia.strip()
             if linea_limpia:
                 lineas_ok.append(linea_limpia)
         texto_final = '\n'.join(lineas_ok)
+
+        # Quitar tokens de 1-3 chars que son solo consonantes (basura de bordes)
+        # Ej: "ITA", "TÉ", "RA", "AE" — pero conservar "DE", "LA", "EN", "SI", "NO", "EL"
+        palabras_validas_cortas = {
+            'de', 'la', 'el', 'en', 'si', 'no', 'al', 'se', 'es', 'un', 'ya',
+            'le', 'su', 'me', 'te', 'lo', 'tu', 'mi', 'ni', 'yo', 'ha', 'he',
+            'del', 'las', 'los', 'una', 'uno', 'con', 'por', 'para', 'que',
+            'son', 'fue', 'ser', 'sin', 'mas', 'sus', 'nos', 'les', 'fue',
+            'art', 'ley', 'exp', 'est', 'its',
+        }
+        tokens = texto_final.split()
+        tokens_ok = []
+        for t in tokens:
+            t_lower = t.lower().rstrip('.,;:')
+            # Tokens de 1-3 chars: solo conservar si son palabras conocidas
+            if len(t_lower) <= 3:
+                if t_lower in palabras_validas_cortas:
+                    tokens_ok.append(t)
+                elif re.match(r'^[0-9]+$', t_lower):
+                    tokens_ok.append(t)  # números cortos OK
+                # else: descartar token corto sospechoso
+            else:
+                tokens_ok.append(t)
+        texto_final = ' '.join(tokens_ok)
 
         # Entity correction
         try:
