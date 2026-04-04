@@ -21,6 +21,7 @@ from app.services.text_correction_service import TextCorrectionService
 from app.services.legal_corrector_service import legal_corrector
 from app.services.legal_entity_extractor import entity_extractor
 from app.services.cache_service import cache_service
+from app.services.entity_correction_service import entity_correction
 
 # IDs de tomos cuyo OCR ha sido cancelado por el usuario.
 # El set se vive en memoria del proceso; el hilo de OCR lo chequea en cada página.
@@ -624,6 +625,196 @@ class OCRService:
 
         return '\n'.join(lineas_validas)
 
+    # ══════════════════════════════════════════════════════════════════════════
+    # MÉTODOS PARA DOCUMENTOS MUY DETERIORADOS (copias de copias)
+    # ══════════════════════════════════════════════════════════════════════════
+
+    def _detectar_nivel_degradacion(self, gray_arr: "np.ndarray") -> float:
+        """
+        Estima el nivel de degradación de una imagen en escala 0.0–1.0.
+        0.0 = imagen excelente, 1.0 = completamente ilegible.
+
+        Indicadores:
+        - Rango dinámico reducido (histograma estrecho → copia lavada)
+        - Alto nivel de ruido granular (copia-de-copia)
+        - Bajo contraste local promedio
+        """
+        import numpy as np
+        import cv2
+
+        # Rango dinámico: percentil 5 al 95
+        p5, p95 = float(np.percentile(gray_arr, 5)), float(np.percentile(gray_arr, 95))
+        rango = (p95 - p5) / 255.0          # 0 = sin contraste, 1 = máximo
+
+        # Ruido: std de la imagen original vs. imagen suavizada
+        suave = cv2.GaussianBlur(gray_arr, (3, 3), 0)
+        ruido = float(np.std(
+            gray_arr.astype(np.float32) - suave.astype(np.float32)
+        )) / 25.0
+        ruido = min(1.0, ruido)
+
+        # Bordes débiles → texto borroso
+        laplacian = cv2.Laplacian(gray_arr, cv2.CV_64F)
+        foco = float(np.var(laplacian))
+        foco_norm = min(1.0, foco / 500.0)  # alto = bien enfocado
+
+        degradacion = (1.0 - rango) * 0.50 + ruido * 0.25 + (1.0 - foco_norm) * 0.25
+        return min(1.0, max(0.0, degradacion))
+
+    def _pipeline_alta_degradacion(self, gray_arr: "np.ndarray") -> "np.ndarray":
+        """
+        Pipeline agresivo para recuperar texto de documentos extremadamente degradados
+        (copias de copias con texto casi invisible, alto grano, bajo contraste).
+
+        Pasos extras respecto al pipeline normal:
+        1. Denoising fuerte (fastNlMeans)
+        2. Gamma < 1 para realzar zonas oscuras
+        3. CLAHE muy agresivo (clipLimit 7, tile 4×4)
+        4. Unsharp mask con radio amplio para bordes de letra muy desdibujados
+        5. Top-Hat morfológico para rescatar texto en fondos grises heterogéneos
+        """
+        import numpy as np
+        import cv2
+
+        # 1. Denoising fuerte — h=20 elimina grano severo de fotocopiado
+        denoised = cv2.fastNlMeansDenoising(
+            gray_arr, h=20, templateWindowSize=7, searchWindowSize=21
+        )
+
+        # 2. Top-Hat: elimina fondos grises heterogéneos, resalta texto oscuro
+        kernel_tophat = cv2.getStructuringElement(cv2.MORPH_RECT, (25, 25))
+        tophat = cv2.morphologyEx(denoised, cv2.MORPH_TOPHAT, kernel_tophat)
+        # Combinar: realzar el contraste de borde con la imagen original
+        denoised = cv2.addWeighted(denoised, 1.0, tophat, 2.0, 0).clip(0, 255).astype(np.uint8)
+
+        # 3. CLAHE agresivo
+        clahe = cv2.createCLAHE(clipLimit=7.0, tileGridSize=(4, 4))
+        enhanced = clahe.apply(denoised)
+
+        # 4. Gamma correction (γ=0.65 ilumina zonas muy oscuras)
+        gamma = 0.65
+        lookup = np.array(
+            [((i / 255.0) ** gamma) * 255 for i in range(256)], dtype=np.uint8
+        )
+        enhanced = cv2.LUT(enhanced, lookup)
+
+        # 5. Unsharp mask con radio mayor (σ=3) para bordes borrosos
+        blur = cv2.GaussianBlur(enhanced, (0, 0), sigmaX=3)
+        sharpened = cv2.addWeighted(enhanced, 2.2, blur, -1.2, 0).clip(0, 255).astype(np.uint8)
+
+        return sharpened
+
+    def _suprimir_bleedthrough(self, gray_arr: "np.ndarray") -> "np.ndarray":
+        """
+        Suprime el texto "sangrado" del reverso de la página que aparece en
+        copias de copias como texto tenue y espejado en el fondo.
+
+        Estrategia:
+        - El bleed-through tiene diferencia de brillo 5–25 respecto al fondo.
+        - El texto real supera los 30 unidades de diferencia.
+        - Estimamos el fondo "limpio" con un cierre morfológico grande y
+          solo conservamos las diferencias fuertes (texto auténtico).
+        """
+        import numpy as np
+        import cv2
+
+        # Fondo estimado: dilatación grande + blur (sin letras, sin bleed-through)
+        bg = cv2.dilate(gray_arr, np.ones((51, 51), np.uint8))
+        bg = cv2.GaussianBlur(bg, (51, 51), 0)
+
+        diff = bg.astype(np.int16) - gray_arr.astype(np.int16)
+
+        # Preservar solo diferencias >= 22 (texto real obscuro)
+        # — zonas con diff < 22 (bleed-through tenue) → restaurar al color de fondo
+        mask_real = (diff >= 22).astype(np.uint8)
+        result = np.where(mask_real, gray_arr, bg).astype(np.uint8)
+        return result
+
+    def _enmascarar_sellos(self, gray_arr: "np.ndarray") -> "np.ndarray":
+        """
+        Detecta y enmascara sellos/timbres circulares o elípticos que solapan
+        el texto del documento.
+
+        Los sellos en documentos legales mexicanos son típicamente:
+        - Circulares o elípticos (diámetro real 3–7 cm)
+        - A 400 DPI: radio ≈ 240–550 px
+        - Densidad de píxeles oscuros dentro del círculo: 10–55%
+          (anillo + texto interior, pero no imagen sólida)
+
+        Estrategia:
+        1. HoughCircles sobre imagen Gaussian-blur (menos sensible a ruido)
+        2. Para cada círculo candidato verificar densidad de oscuros
+        3. Si es sello: rellenar con blanco para que Tesseract no lea basura
+        """
+        import numpy as np
+        import cv2
+
+        result = gray_arr.copy()
+        h, w = gray_arr.shape[:2]
+
+        # Suavizar para HoughCircles (necesita imagen sin ruido granular)
+        blurred = cv2.GaussianBlur(gray_arr, (9, 9), 2)
+
+        # Rangos de radio @400 DPI para sellos de 3–7 cm
+        min_r = max(100, min(h, w) // 14)   # ≈ 240 px para una página A4 400 DPI
+        max_r = min(600, min(h, w) // 3)    # sin superar 1/3 del lado menor
+
+        circles = cv2.HoughCircles(
+            blurred,
+            cv2.HOUGH_GRADIENT,
+            dp=1,
+            minDist=min(h, w) // 5,   # mínima distancia entre centros (evita duplicados)
+            param1=60,                 # umbral Canny
+            param2=35,                 # umbral acumulador (más bajo = detecta más)
+            minRadius=min_r,
+            maxRadius=max_r,
+        )
+
+        if circles is not None:
+            circles = np.round(circles[0, :]).astype(int)
+            for cx, cy, r in circles:
+                # Crear máscara circular para calcular densidad
+                mask = np.zeros_like(gray_arr, dtype=np.uint8)
+                cv2.circle(mask, (cx, cy), r, 255, -1)
+                pixels_en_circulo = gray_arr[mask == 255]
+                if pixels_en_circulo.size == 0:
+                    continue
+                dark_ratio = float(np.sum(pixels_en_circulo < 128)) / pixels_en_circulo.size
+                # Sello: densidad entre 8% y 58% (ni foto sólida, ni casi blanco)
+                if 0.08 <= dark_ratio <= 0.58:
+                    cv2.circle(result, (cx, cy), r, 255, -1)
+                    logger.debug(
+                        f"  🔏 Sello enmascarado: centro=({cx},{cy}) r={r}px "
+                        f"densidad_oscura={dark_ratio:.2f}"
+                    )
+
+        return result
+
+    def _pipeline_rescate_baja_confianza(
+        self, gray_arr: "np.ndarray"
+    ) -> "np.ndarray":
+        """
+        Pipeline alternativo cuando el resultado de OCR tiene confianza < 40.
+        Prueba estrategias distintas al pipeline principal:
+
+        Estrategia: inversión de color + umbral muy agresivo.
+        Algunos documentos viejos tienen fondo marrón/gris oscuro con texto claro
+        (telégrafos, documentos en papel carbón, etc.).
+        """
+        import numpy as np
+        import cv2
+
+        # Invertir la imagen y volver a normalizar
+        inverted = cv2.bitwise_not(gray_arr)
+        clahe = cv2.createCLAHE(clipLimit=4.0, tileGridSize=(8, 8))
+        enhanced = clahe.apply(inverted)
+
+        # Unsharp con σ más pequeño (letras delgadas)
+        blur = cv2.GaussianBlur(enhanced, (0, 0), sigmaX=1.5)
+        sharpened = cv2.addWeighted(enhanced, 1.8, blur, -0.8, 0).clip(0, 255).astype(np.uint8)
+
+        return sharpened
+
     def _procesar_pagina_paralela(self, pdf_path: str, pagina_num: int, total_paginas: int) -> Dict:
         """
         Procesar una página individual (ejecutado en thread paralelo).
@@ -794,6 +985,21 @@ class OCRService:
         # ── Enmascarar bloques de fotografías incrustadas ─────────────────────
         shadow_free = self._enmascarar_bloques_foto(shadow_free)
 
+        # ── Supresión de bleed-through (texto del reverso en copias de copias) ─
+        shadow_free = self._suprimir_bleedthrough(shadow_free)
+
+        # ── Enmascarar sellos/timbres circulares ──────────────────────────────
+        shadow_free = self._enmascarar_sellos(shadow_free)
+
+        # ── Pipeline especial para documentos muy degradados ──────────────────
+        nivel_degradacion = self._detectar_nivel_degradacion(shadow_free)
+        if nivel_degradacion > 0.60:
+            logger.debug(
+                f"  ⚠️ Documento degradado (nivel={nivel_degradacion:.2f}), "
+                "usando pipeline de rescate"
+            )
+            shadow_free = self._pipeline_alta_degradacion(shadow_free)
+
         # ── Candidato A: Otsu (umbral global) ────────────────────────────────
         _, bin_otsu = cv2.threshold(shadow_free, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
         if np.mean(bin_otsu) < 127:
@@ -862,6 +1068,45 @@ class OCRService:
 
             if mejor['texto']:
                 return mejor
+
+        # ── 5. Retry con pipeline "rescate invertido" si confianza < 40 ───────
+        # Algunos documentos carbón/papel marrón tienen fondo oscuro + texto claro
+        if not (self.tesseract_available) or (mejor.get('confianza', 0) < 40):
+            try:
+                import pytesseract, statistics as _stats_r
+                gray_inv = self._pipeline_rescate_baja_confianza(gray)
+                _, bin_inv = cv2.threshold(
+                    gray_inv, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU
+                )
+                if np.mean(bin_inv) < 127:
+                    bin_inv = cv2.bitwise_not(bin_inv)
+                bin_inv = self._eliminar_firmas_ruido(bin_inv)
+
+                for psm_r in (6, 4):
+                    cfg_r = f'--psm {psm_r} --oem 1'
+                    data_r = pytesseract.image_to_data(
+                        Image.fromarray(bin_inv), lang='spa', config=cfg_r,
+                        output_type=pytesseract.Output.DICT
+                    )
+                    confs_r = [int(c) for c in data_r['conf']
+                               if str(c).lstrip('-').isdigit() and int(c) >= 0]
+                    texto_r = pytesseract.image_to_string(
+                        Image.fromarray(bin_inv), lang='spa', config=cfg_r
+                    )
+                    conf_r = int(_stats_r.mean(confs_r)) if confs_r else 0
+                    if conf_r > mejor.get('confianza', 0):
+                        mejor = {
+                            'texto': self._post_process_text(texto_r),
+                            'confianza': min(99.0, conf_r * 1.1),
+                            'motor': f'tesseract_rescate_psm{psm_r}',
+                        }
+                    if conf_r >= 45:
+                        break
+            except Exception:
+                pass
+
+        if mejor.get('texto'):
+            return mejor
 
         # Fallback
         return self._fallback_ocr(img)
@@ -1056,6 +1301,10 @@ class OCRService:
 
         # ── 6. Recuperación fuzzy de palabras clave mal reconocidas ──────────
         texto = self._recuperar_palabras_clave(texto)
+
+        # ── 7. Corrección post-OCR de entidades críticas ──────────────────────
+        # Fechas, Nombres y Ubicaciones son lo más importante → se corrigen al final
+        texto = entity_correction.corregir_todo(texto)
 
         return texto.strip()
 
