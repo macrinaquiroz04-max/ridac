@@ -519,6 +519,56 @@ class OCRService:
 
         return result
 
+    def _eliminar_lineas_formulario(self, gray_arr) -> "np.ndarray":
+        """
+        Elimina líneas horizontales y verticales de formularios/tablas.
+
+        Los documentos legales (PGR, SEIDO, etc.) usan formularios con líneas
+        gruesas que Tesseract interpreta como |, -, ., _ generando basura.
+        Se detectan con kernels morfológicos largos y se reemplazan con blanco.
+        """
+        import numpy as np
+        import cv2
+
+        result = gray_arr.copy()
+        h, w = gray_arr.shape[:2]
+
+        # Binarización temporal invertida para detectar líneas (líneas = negro = 255 tras inversión)
+        _, bin_temp = cv2.threshold(gray_arr, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+
+        # ── Detectar líneas horizontales ──────────────────────────────────────
+        # Kernel ancho: solo detecta estructuras que midan al menos 1/15 del ancho
+        h_kernel_len = max(40, w // 15)
+        h_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (h_kernel_len, 1))
+        h_lines = cv2.morphologyEx(bin_temp, cv2.MORPH_OPEN, h_kernel, iterations=1)
+
+        # ── Detectar líneas verticales ────────────────────────────────────────
+        v_kernel_len = max(40, h // 15)
+        v_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1, v_kernel_len))
+        v_lines = cv2.morphologyEx(bin_temp, cv2.MORPH_OPEN, v_kernel, iterations=1)
+
+        # Combinar y dilatar un poco para cubrir bordes difusos de las líneas
+        all_lines = cv2.add(h_lines, v_lines)
+        all_lines = cv2.dilate(
+            all_lines,
+            cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3)),
+            iterations=1
+        )
+
+        # Contar cuántas líneas hay para decidir si es un formulario
+        n_line_px = int(np.sum(all_lines > 0))
+        ratio_lineas = n_line_px / (h * w)
+
+        # Solo eliminar si hay líneas significativas (> 0.5% del área)
+        # pero no demasiadas (< 15% — eso sería una imagen, no un formulario)
+        if 0.005 < ratio_lineas < 0.15:
+            result = np.where(all_lines > 0, 255, result).astype(np.uint8)
+            logger.debug(
+                f"  📏 Líneas de formulario eliminadas: {ratio_lineas:.1%} del área"
+            )
+
+        return result
+
     def _eliminar_huella_dactilar(self, gray_arr) -> "np.ndarray":
         """
         Detecta y elimina huellas dactilares superpuestas sobre texto.
@@ -1409,6 +1459,11 @@ class OCRService:
             shadow_free_hr = self._super_resolution_software(shadow_free)
         else:
             shadow_free_hr = shadow_free
+
+        # ── Eliminar líneas horizontales y verticales de formularios ──────────
+        # Formularios PGR/legales tienen líneas gruesas que Tesseract lee como
+        # basura (|, -, ., _). Las detectamos morfológicamente y las quitamos.
+        shadow_free_hr = self._eliminar_lineas_formulario(shadow_free_hr)
 
         # ── Candidato A: Otsu (umbral global) ────────────────────────────────
         _, bin_otsu = cv2.threshold(shadow_free_hr, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)

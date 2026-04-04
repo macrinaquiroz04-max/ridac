@@ -325,6 +325,33 @@ async def ocr_area_tomo_almacenado(
             _blur2 = cv2.GaussianBlur(enhanced, (0, 0), sigmaX=1.5)
             enhanced = cv2.addWeighted(enhanced, 1.4, _blur2, -0.4, 0).astype(np.uint8)
 
+        # ── 2b. Eliminar líneas horizontales y verticales de formularios ──────
+        # Los formularios PGR tienen líneas gruesas que Tesseract lee como |, -, etc.
+        # Detectamos las líneas con kernels morfológicos largos y las quitamos.
+        rh, rw = enhanced.shape[:2]
+
+        # Binarización temporal para detectar líneas
+        _, _bin_temp = cv2.threshold(enhanced, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+
+        # Detectar líneas horizontales (kernel ancho, bajo)
+        h_kernel_len = max(40, rw // 15)
+        h_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (h_kernel_len, 1))
+        h_lines = cv2.morphologyEx(_bin_temp, cv2.MORPH_OPEN, h_kernel, iterations=1)
+
+        # Detectar líneas verticales (kernel alto, angosto)
+        v_kernel_len = max(40, rh // 15)
+        v_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1, v_kernel_len))
+        v_lines = cv2.morphologyEx(_bin_temp, cv2.MORPH_OPEN, v_kernel, iterations=1)
+
+        # Combinar líneas detectadas
+        all_lines = cv2.add(h_lines, v_lines)
+
+        # Dilatar un poco las líneas para cubrir bordes difusos
+        all_lines = cv2.dilate(all_lines, cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3)), iterations=1)
+
+        # Quitar las líneas: donde hay línea → poner blanco (255 en la imagen enhanced)
+        enhanced = np.where(all_lines > 0, 255, enhanced).astype(np.uint8)
+
         # ── 3. Triple binarización ────────────────────────────────────────────
         # Candidato A: Otsu
         _, bin_otsu = cv2.threshold(enhanced, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
@@ -419,14 +446,22 @@ async def ocr_area_tomo_almacenado(
         # ── 6. Post-procesamiento y corrección de entidades ───────────────────
         texto_final = mejor['texto']
 
-        # Limpiar líneas basura (líneas con < 3 chars alfanuméricos)
-        lineas = texto_final.split('\n')
+        # Limpiar líneas basura y restos de líneas de formulario
         import re
+        lineas = texto_final.split('\n')
         lineas_ok = []
         for linea in lineas:
-            alfa = re.sub(r'[^a-záéíóúñA-ZÁÉÍÓÚÑ0-9]', '', linea)
-            if len(alfa) >= 3:
-                lineas_ok.append(linea)
+            # Quitar caracteres típicos de líneas mal leídas: |, _, ─, —, ., solo guiones
+            linea_limpia = re.sub(r'^[\s|_\-─—.•·=~]+$', '', linea)
+            # Quitar | al inicio y final de líneas (bordes de tabla)
+            linea_limpia = re.sub(r'^\s*\|+\s*', '', linea_limpia)
+            linea_limpia = re.sub(r'\s*\|+\s*$', '', linea_limpia)
+            # Quitar secuencias de puntos/guiones sueltos (relleno de formulario)
+            linea_limpia = re.sub(r'[._\-]{5,}', ' ', linea_limpia)
+            # Solo conservar líneas con al menos 2 chars alfanuméricos
+            alfa = re.sub(r'[^a-záéíóúñA-ZÁÉÍÓÚÑ0-9]', '', linea_limpia)
+            if len(alfa) >= 2:
+                lineas_ok.append(linea_limpia.strip())
         texto_final = '\n'.join(lineas_ok)
 
         # Entity correction (fechas, nombres, ubicaciones)
