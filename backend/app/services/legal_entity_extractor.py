@@ -45,10 +45,16 @@ class LegalEntityExtractor:
                 r'\b(\d{1,2})[/\-\.](\d{1,2})[/\-\.](\d{4})\b',
                 # "2024/03/15" (ISO invertido)
                 r'\b(\d{4})[/\-\.](\d{1,2})[/\-\.](\d{1,2})\b',
-                # "Ciudad de México, a 15 de marzo de 2024" — con prefijo de lugar
-                r'(?:ciudad|méxico|d\.f\.|cdmx)[,\s]+a\s+(\d{1,2})\s+de\s+(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)(?:\s+de)?\s+(\d{4})',
+                # "a 11 de noviembre del 2014" — usa "DEL" (muy común en oficio mexicano)
+                r'\b(\d{1,2})\s+de\s+(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\s+del\s+(\d{4})\b',
+                # "Ciudad de México / Campo Mil., a 15 de marzo de/del 2024"
+                r'(?:ciudad|méxico|d\.f\.|cdmx|campo\s+mil(?:itar)?)[,\.\s]+a\s+(\d{1,2})\s+de\s+(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)(?:\s+(?:de|del))?\s+(\d{4})',
+                # Cualquier lugar + ", a DD de MES de/del YEAR" (patrón de oficio)
+                r'[A-ZÁÉÍÓÚÑ][a-záéíóúñ\s,\.]+,\s+a\s+(\d{1,2})\s+de\s+(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\s+(?:de|del)\s+(\d{4})',
                 # "a los quince días del mes de marzo" — solo captura el mes+año si hay año
-                r'mes\s+de\s+(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)(?:\s+de\s+(\d{4}))?',
+                r'mes\s+de\s+(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)(?:\s+(?:de|del)\s+(\d{4}))?',
+                # "noviembre del presente año" / "del año en curso" (sin año explícito)
+                r'\b(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\s+del\s+(?:presente\s+año|año\s+en\s+curso|año\s+actual)',
             ],
 
             # ── NOMBRES ── captura nombres normales Y en MAYÚSCULAS ──────────
@@ -56,6 +62,10 @@ class LegalEntityExtractor:
                 # Con título o rol — normal y mayúsculas
                 r'(?:ciudadano|ciudadana|señor|sr\.|señora|sra\.|licenciado|lic\.|licenciada|ing\.|ingeniero|doctor|dr\.|dra\.)\s+([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ]+){1,3})',
                 r'(?:víctima|ofendido|ofendida|imputado|imputada|testigo|perito|perita|denunciante|querellante|detenido|detenida)[:.]?\s+([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ]+){1,3})',
+                # Roles militares / institucionales con nombre a continuación
+                r'(?:General|Coronel|Teniente\s+Coronel|Mayor|Capit[aá]n|Teniente|Subteniente|Sargento|Cabo|Soldado|Almirante|Comandante|Director\s+General|Subprocurador|Procurador|Agente(?:\s+del\s+Ministerio\s+P[uú]blico)?)\s+([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ]+){1,3})',
+                # Suscrito / firmante
+                r'(?:El\s+suscrito|La\s+suscrita|El\s+que\s+suscribe|quien\s+suscribe)[,\s]+([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ]+){1,3})',
                 # Etiquetas tipo formulario: "NOMBRE: JUAN GARCIA LOPEZ"
                 r'(?:NOMBRE|NOMBRE COMPLETO|DENUNCIANTE|VÍCTIMA|IMPUTADO|DECLARANTE|DE LA PERSONA)[:\s]+([A-ZÁÉÍÓÚÑ]{3,}(?:\s+[A-ZÁÉÍÓÚÑ]{2,}){1,4})',
                 # Nombres en MAYÚSCULAS (muy común en docs escaneados de PGR/FGJ)
@@ -99,6 +109,15 @@ class LegalEntityExtractor:
                 r'\b(?:C\.?P\.?|código\s+postal)\s*:?\s*(\d{5})\b',
                 # Colonias conocidas
                 r'\b(DOCTORES|Doctores|CENTRO|Centro|CONDESA|Condesa|ROMA|Roma|POLANCO|Polanco|TEPITO|Tepito|IZTAPALAPA|Iztapalapa)\b',
+                # Instalaciones militares: "Campo Militar No. 1-J", "Campo Mil. No. 1-A"
+                r'\b(Campo\s+Mil(?:itar)?\.\s+N[oú](?:m\.?)?\s+[\d\-A-Z]+)',
+                r'\b(Base\s+A[eé]rea\s+[A-ZÁÉÍÓÚÑ][\w\s]+|Zona\s+Militar\s+N[oú](?:m\.)?\s+\d+|Regi[oó]n\s+Militar\s+N[oú](?:m\.)?\s+\d+)',
+                # Predios con nombre: "Predio Reforma", "Predio Los Pinos"
+                r'\b(Predio\s+[A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ\s]{2,30})',
+                # Instituciones militares/procuradurías
+                r'\b(SEDENA|SEMAR|SEIDOC|UEIDOS|PGR|FGR|ADSC|CISEN)\b',
+                # Batallón / Regimiento
+                r'\b(\d+[oOaA]?\s+(?:Batall[oó]n|Regimiento|Escuadr[oó]n)\s+(?:de\s+)?[A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ\s]+)',
             ],
 
             # Diligencias

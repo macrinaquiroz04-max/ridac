@@ -378,6 +378,74 @@ class OCRService:
         except Exception:
             return False
 
+    def _es_pagina_mayormente_fotografia(self, page) -> bool:
+        """
+        Detecta si la página es principalmente una fotografía o imagen oscura
+        (documentos forenses, fotos sin texto relevante).
+        
+        Criterio: si más del 60% de los píxeles son muy oscuros (< 50 de brillo)
+        Y el texto extraíble es prácticamente nulo, la página es foto.
+        """
+        try:
+            import numpy as np
+            pix = page.get_pixmap(matrix=fitz.Matrix(1.5, 1.5))  # ~108 DPI — balance calidad/velocidad
+            img_data = pix.tobytes("png")
+            img = Image.open(io.BytesIO(img_data))
+            arr = np.array(img.convert('L'))
+            total_pixels = arr.size
+            pixeles_muy_oscuros = int(np.sum(arr < 50))
+            porcentaje_oscuro = pixeles_muy_oscuros / total_pixels
+            # También verificar que no haya texto nativo en el PDF
+            texto_nativo = page.get_text().strip()
+            return porcentaje_oscuro > 0.60 and len(texto_nativo) < 30
+        except Exception:
+            return False
+
+    def _enmascarar_bloques_foto(self, gray_arr) -> "np.ndarray":
+        """
+        Detecta grandes bloques rectangulares muy oscuros dentro de la imagen
+        (fotografías incrustadas en documentos legales) y los rellena con blanco
+        para que Tesseract no intente leerlos y genere basura.
+        
+        Un bloque se considera fotografía si:
+        - Su área supera el 2% del total de la imagen
+        - Su brillo promedio interno es < 80 (zona muy oscura)
+        """
+        import numpy as np
+        import cv2
+
+        result = gray_arr.copy()
+        h, w = gray_arr.shape[:2]
+        area_total = h * w
+
+        # Umbralizar: píxeles muy oscuros → negro, resto → blanco
+        _, dark_mask = cv2.threshold(gray_arr, 80, 255, cv2.THRESH_BINARY_INV)
+
+        # Dilatar para unir píxeles oscuros próximos (fotos tienen bordes difusos)
+        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (40, 40))
+        dark_dilated = cv2.dilate(dark_mask, kernel, iterations=2)
+
+        # Encontrar contornos de regiones oscuras continuas
+        contours, _ = cv2.findContours(dark_dilated, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+        for cnt in contours:
+            x, y, bw, bh = cv2.boundingRect(cnt)
+            area_bloque = bw * bh
+            if area_bloque < area_total * 0.02:
+                # Demasiado pequeño para ser foto — podría ser letra gruesa o sello
+                continue
+            # Verificar que la región sea genuinamente oscura en la imagen original
+            region = gray_arr[y:y + bh, x:x + bw]
+            if region.size == 0:
+                continue
+            brillo_medio = float(region.mean())
+            if brillo_medio < 100:
+                # Rellenar con blanco para "eliminar" la foto del OCR
+                result[y:y + bh, x:x + bw] = 255
+                logger.debug(f"  📷 Bloque foto enmascarado: ({x},{y}) {bw}x{bh}px brillo={brillo_medio:.0f}")
+
+        return result
+
     def _procesar_pagina_paralela(self, pdf_path: str, pagina_num: int, total_paginas: int) -> Dict:
         """
         Procesar una página individual (ejecutado en thread paralelo).
@@ -402,6 +470,21 @@ class OCRService:
                     'es_texto_directo': True,
                     'es_pagina_en_blanco': True,
                     'datos_adicionales': {'motor_usado': 'blank_detection', 'correcciones_aplicadas': False}
+                }
+
+            # ── Detección de página principalmente fotográfica ─────────────────
+            # Documentos como dictámenes periciales de fotografía forense tienen páginas
+            # que son casi 100% imágenes oscuras sin texto recuperable.
+            if self._es_pagina_mayormente_fotografia(page):
+                return {
+                    'numero_pagina': pagina_num + 1,
+                    'texto_extraido': '[PÁGINA CON FOTOGRAFÍA — sin texto extraíble]',
+                    'confianza': 100.0,
+                    'motor_usado': 'photo_detection',
+                    'es_texto_directo': True,
+                    'es_pagina_en_blanco': False,
+                    'es_pagina_foto': True,
+                    'datos_adicionales': {'motor_usado': 'photo_detection', 'correcciones_aplicadas': False}
                 }
 
             # Intentar extraer texto directamente (si es PDF con texto)
@@ -487,13 +570,16 @@ class OCRService:
     def _extraer_con_multiple_ocr(self, page) -> Dict[str, any]:
         """
         Extrae texto usando Tesseract con preprocesamiento optimizado para documentos escaneados.
-        300 DPI + deskew + CLAHE + Otsu + múltiples PSM = máxima precisión en nombres/fechas/lugares.
+        400 DPI + shadow removal + deskew + CLAHE + Otsu + múltiples PSM = máxima precisión
+        en nombres/fechas/lugares para documentos a máquina de escribir y sellos.
         """
         import numpy as np
         import cv2
 
-        # ── 1. Renderizar a ~300 DPI (72 * 4.17 ≈ 300) ───────────────────────
-        matrix = fitz.Matrix(4.17, 4.17)
+        # ── 1. Renderizar a ~400 DPI (72 * 5.56 ≈ 400) ───────────────────────
+        # 400 DPI mejora significativamente el reconocimiento de texto mecanografiado
+        # y caracteres con bordes irregulares típicos de documentos viejos escaneados.
+        matrix = fitz.Matrix(5.56, 5.56)
         pix = page.get_pixmap(matrix=matrix)
         img_data = pix.tobytes("png")
         img = Image.open(io.BytesIO(img_data))
@@ -508,23 +594,35 @@ class OCRService:
         arr = np.array(img.convert('RGB'))
         gray = cv2.cvtColor(arr, cv2.COLOR_RGB2GRAY)
 
-        # CLAHE: mejora contraste local (no destruye zonas claras ni oscuras)
-        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-        gray = clahe.apply(gray)
+        # Eliminación de sombras por iluminación no uniforme (documentos envejecidos).
+        # Se estima el fondo con un blur grande y se normaliza contra él.
+        bg = cv2.dilate(gray, np.ones((21, 21), np.uint8))
+        bg = cv2.GaussianBlur(bg, (21, 21), 0)
+        shadow_free = cv2.divide(gray, bg, scale=255.0).astype(np.uint8)
+
+        # CLAHE con clipLimit 3.5 para documentos envejecidos con bajo contraste
+        clahe = cv2.createCLAHE(clipLimit=3.5, tileGridSize=(8, 8))
+        shadow_free = clahe.apply(shadow_free)
 
         # Reducción de ruido rápida — medianBlur es ~100x más rápido que
         # fastNlMeansDenoising y suficientemente buena para documentos escaneados
-        gray = cv2.medianBlur(gray, 3)
+        shadow_free = cv2.medianBlur(shadow_free, 3)
+
+        # ── Enmascarar bloques de fotografías incrustadas ─────────────────────
+        # Documentos mixtos (texto + fotos forenses) tienen rectángulos muy oscuros
+        # que corrompen la salida de Tesseract. Los rellenamos con blanco ANTES
+        # de binarizar para que el motor no intente leerlos.
+        shadow_free = self._enmascarar_bloques_foto(shadow_free)
 
         # Umbral Otsu — se adapta al nivel del papel
-        _, binarized = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        _, binarized = cv2.threshold(shadow_free, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
 
         # Invertir si el fondo salió negro
         if np.mean(binarized) < 127:
             binarized = cv2.bitwise_not(binarized)
 
-        # Cierre morfológico mínimo para letras rotas por el escáner
-        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1, 1))
+        # Cierre morfológico para reconectar trazos rotos en texto mecanografiado
+        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 1))
         binarized = cv2.morphologyEx(binarized, cv2.MORPH_CLOSE, kernel)
 
         img_processed = Image.fromarray(binarized)
@@ -534,11 +632,12 @@ class OCRService:
             import pytesseract, statistics as _stats
 
             mejor = {'texto': '', 'confianza': 0, 'motor': 'tesseract_scan'}
-            # Solo PSM 6 (bloque uniforme) y PSM 3 (auto) — suficiente para la
-            # mayoría de documentos y 2x más rápido que probar 4 modos.
-            for psm in (6, 3):
+            # PSM 4 = columna única de texto (ideal para oficios/documentos legales)
+            # PSM 6 = bloque uniforme
+            # PSM 3 = auto (fallback)
+            for psm in (4, 6, 3):
                 try:
-                    cfg = f'--psm {psm} --oem 3'
+                    cfg = f'--psm {psm} --oem 1'  # oem 1 = solo LSTM (más preciso)
                     data = pytesseract.image_to_data(
                         img_processed, lang='spa', config=cfg,
                         output_type=pytesseract.Output.DICT
@@ -553,7 +652,7 @@ class OCRService:
                             'confianza': min(99.0, conf * 1.1),
                             'motor': f'tesseract_scan_psm{psm}'
                         }
-                    if conf >= 65:  # umbral bajado: 1 intento suele ser suficiente
+                    if conf >= 68:
                         break
                 except Exception:
                     continue
