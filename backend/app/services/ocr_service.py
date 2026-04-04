@@ -508,6 +508,79 @@ class OCRService:
 
         return result
 
+    def _recuperar_palabras_clave(self, texto: str) -> str:
+        """
+        Corrección fuzzy de palabras críticas que Tesseract deforma en copias
+        de baja calidad. Opera a nivel de token individual comparando contra
+        vocabularios cerrados (meses, días ordinales, términos legales frecuentes).
+
+        Solo corrige tokens donde Levenshtein-ratio >= 0.80 para evitar
+        sustituir palabras válidas pero poco comunes.
+        """
+        import re
+        from difflib import SequenceMatcher
+
+        # ── Vocabularios cerrados de alta prioridad ────────────────────────────
+        MESES = [
+            'enero','febrero','marzo','abril','mayo','junio',
+            'julio','agosto','septiembre','octubre','noviembre','diciembre'
+        ]
+        ORDINALES = [
+            'primero','segundo','tercero','cuarto','quinto',
+            'sexto','séptimo','octavo','noveno','décimo',
+            'undécimo','duodécimo','decimotercero','decimocuarto',
+            'decimoquinto','decimosexto','decimoséptimo','decimoctavo',
+            'decimonoveno','vigésimo','trigésimo'
+        ]
+        TERMINOS = [
+            'noviembre','septiembre','averiguación','investigación',
+            'ministerio','procuraduría','federación','constitución',
+            'folio','oficio','página','artículo','fracción',
+            'diligencia','declaración','actuación','resolución',
+            'sentencia','expediente','carpeta','dependencia',
+            'secretaría','coordinación','dirección','sección',
+            'batallón','regimiento','coronel','teniente',
+            'general','soldado','comandante','subprocurador',
+        ]
+        vocabulario = MESES + ORDINALES + TERMINOS
+
+        def _ratio(a: str, b: str) -> float:
+            return SequenceMatcher(None, a, b).ratio()
+
+        def _corregir_token(token: str) -> str:
+            t_lower = token.lower()
+            # No tocar tokens < 4 letras, números o ya correctos
+            if len(t_lower) < 4 or not t_lower.isalpha():
+                return token
+            if t_lower in vocabulario:
+                return token
+            # Buscar el candidato más parecido
+            mejor_ratio = 0.0
+            mejor_candidato = None
+            for candidato in vocabulario:
+                if abs(len(candidato) - len(t_lower)) > 3:
+                    continue  # diferencia de longitud muy grande → saltar
+                r = _ratio(t_lower, candidato)
+                if r > mejor_ratio:
+                    mejor_ratio = r
+                    mejor_candidato = candidato
+            if mejor_ratio >= 0.82 and mejor_candidato:
+                # Preservar capitalización original
+                if token[0].isupper():
+                    return mejor_candidato.capitalize()
+                return mejor_candidato
+            return token
+
+        # Tokenizar conservando separadores
+        partes = re.split(r'(\s+|[,;:\.\-\(\)])', texto)
+        resultado = []
+        for parte in partes:
+            if re.match(r'[A-Za-záéíóúüñÁÉÍÓÚÜÑ]{4,}', parte):
+                resultado.append(_corregir_token(parte))
+            else:
+                resultado.append(parte)
+        return ''.join(resultado)
+
     def _filtrar_lineas_basura(self, texto: str) -> str:
         """
         Filtra las líneas de texto que Tesseract generó al intentar leer
@@ -709,63 +782,83 @@ class OCRService:
         clahe = cv2.createCLAHE(clipLimit=3.5, tileGridSize=(8, 8))
         shadow_free = clahe.apply(shadow_free)
 
-        # Reducción de ruido rápida — medianBlur es ~100x más rápido que
-        # fastNlMeansDenoising y suficientemente buena para documentos escaneados
-        shadow_free = cv2.medianBlur(shadow_free, 3)
+        # Filtro bilateral: suaviza el grano de copia-de-copia PRESERVANDO bordes
+        # de letras. Mejor que medianBlur para texto borroso.
+        shadow_free = cv2.bilateralFilter(shadow_free, d=5, sigmaColor=30, sigmaSpace=30)
+
+        # Unsharp mask — recupera bordes de letras desdibujadas por generaciones
+        # de fotocopia. Fórmula: sharpened = original + alpha*(original - blur)
+        _blur = cv2.GaussianBlur(shadow_free, (0, 0), sigmaX=2)
+        shadow_free = cv2.addWeighted(shadow_free, 1.6, _blur, -0.6, 0).astype(np.uint8)
 
         # ── Enmascarar bloques de fotografías incrustadas ─────────────────────
-        # Documentos mixtos (texto + fotos forenses) tienen rectángulos muy oscuros
-        # que corrompen la salida de Tesseract. Los rellenamos con blanco ANTES
-        # de binarizar para que el motor no intente leerlos.
         shadow_free = self._enmascarar_bloques_foto(shadow_free)
 
-        # Umbral Otsu — se adapta al nivel del papel
-        _, binarized = cv2.threshold(shadow_free, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        # ── Candidato A: Otsu (umbral global) ────────────────────────────────
+        _, bin_otsu = cv2.threshold(shadow_free, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        if np.mean(bin_otsu) < 127:
+            bin_otsu = cv2.bitwise_not(bin_otsu)
 
-        # Invertir si el fondo salió negro
-        if np.mean(binarized) < 127:
-            binarized = cv2.bitwise_not(binarized)
+        # ── Candidato B: Binarización adaptativa local (tipo Sauvola) ─────────
+        # Mucho mejor que Otsu en fondos con iluminación dispareja o gris sucio.
+        # window_size 51 px @ 400 DPI ≈ 3.2 mm — cubre una letra con contexto.
+        bin_local = cv2.adaptiveThreshold(
+            shadow_free, 255,
+            cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+            cv2.THRESH_BINARY,
+            blockSize=51, C=15
+        )
+        if np.mean(bin_local) < 127:
+            bin_local = cv2.bitwise_not(bin_local)
 
         # Cierre morfológico para reconectar trazos rotos en texto mecanografiado
         kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 1))
-        binarized = cv2.morphologyEx(binarized, cv2.MORPH_CLOSE, kernel)
+        bin_otsu  = cv2.morphologyEx(bin_otsu,  cv2.MORPH_CLOSE, kernel)
+        bin_local = cv2.morphologyEx(bin_local, cv2.MORPH_CLOSE, kernel)
 
-        # ── Eliminar firmas y ruido visual ────────────────────────────────────
-        # Tras binarizar, los trazos de firma son componentes grandes pero con
-        # muy poca densidad de píxeles. Se eliminan antes de pasar a Tesseract.
-        binarized = self._eliminar_firmas_ruido(binarized)
+        # ── Eliminar firmas y ruido visual en ambos candidatos ────────────────
+        bin_otsu  = self._eliminar_firmas_ruido(bin_otsu)
+        bin_local = self._eliminar_firmas_ruido(bin_local)
 
-        img_processed = Image.fromarray(binarized)
-
-        # ── 4. Tesseract con múltiples PSM (elige el de mayor confianza) ──────
+        # ── 4. Tesseract: probar ambas binarizaciones y elegir la mejor ───────
         if self.tesseract_available:
             import pytesseract, statistics as _stats
 
             mejor = {'texto': '', 'confianza': 0, 'motor': 'tesseract_scan'}
-            # PSM 4 = columna única de texto (ideal para oficios/documentos legales)
-            # PSM 6 = bloque uniforme
-            # PSM 3 = auto (fallback)
-            for psm in (4, 6, 3):
-                try:
-                    cfg = f'--psm {psm} --oem 1'  # oem 1 = solo LSTM (más preciso)
-                    data = pytesseract.image_to_data(
-                        img_processed, lang='spa', config=cfg,
-                        output_type=pytesseract.Output.DICT
-                    )
-                    confs = [int(c) for c in data['conf']
-                             if str(c).lstrip('-').isdigit() and int(c) >= 0]
-                    texto = pytesseract.image_to_string(img_processed, lang='spa', config=cfg)
-                    conf = int(_stats.mean(confs)) if confs else 0
-                    if conf > mejor['confianza'] or (not mejor['texto'] and texto.strip()):
-                        mejor = {
-                            'texto': self._post_process_text(texto),
-                            'confianza': min(99.0, conf * 1.1),
-                            'motor': f'tesseract_scan_psm{psm}'
-                        }
-                    if conf >= 68:
-                        break
-                except Exception:
-                    continue
+
+            # Cada candidato de imagen × cada PSM → elegir el de mayor confianza
+            for img_bin, bin_nombre in (
+                (bin_otsu,  'otsu'),
+                (bin_local, 'local'),
+            ):
+                img_candidate = Image.fromarray(img_bin)
+                for psm in (4, 6, 3):
+                    try:
+                        cfg = f'--psm {psm} --oem 1'
+                        data = pytesseract.image_to_data(
+                            img_candidate, lang='spa', config=cfg,
+                            output_type=pytesseract.Output.DICT
+                        )
+                        confs = [int(c) for c in data['conf']
+                                 if str(c).lstrip('-').isdigit() and int(c) >= 0]
+                        texto = pytesseract.image_to_string(
+                            img_candidate, lang='spa', config=cfg
+                        )
+                        conf = int(_stats.mean(confs)) if confs else 0
+                        if conf > mejor['confianza'] or (not mejor['texto'] and texto.strip()):
+                            mejor = {
+                                'texto': self._post_process_text(texto),
+                                'confianza': min(99.0, conf * 1.1),
+                                'motor': f'tesseract_{bin_nombre}_psm{psm}'
+                            }
+                        # Si ya es suficientemente bueno no seguimos probando
+                        if conf >= 72:
+                            break
+                    except Exception:
+                        continue
+                # Si con otsu ya tenemos confianza alta, no probamos local
+                if mejor['confianza'] >= 72:
+                    break
 
             if mejor['texto']:
                 return mejor
@@ -960,6 +1053,9 @@ class OCRService:
 
         # ── 5. Filtrar líneas basura generadas por sellos/manchas/firmas ──────
         texto = self._filtrar_lineas_basura(texto)
+
+        # ── 6. Recuperación fuzzy de palabras clave mal reconocidas ──────────
+        texto = self._recuperar_palabras_clave(texto)
 
         return texto.strip()
 
