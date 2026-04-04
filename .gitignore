@@ -81,3 +81,5 @@ uploads/
 # Archivos de limpieza
 ARCHIVOS_ELIMINADOS_*.txt
 ARCHIVOS_A_ELIMINAR.txt
+
+backups/
