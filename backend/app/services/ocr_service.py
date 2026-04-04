@@ -381,36 +381,102 @@ class OCRService:
 
     def _es_pagina_mayormente_fotografia(self, page) -> bool:
         """
-        Detecta si la página es principalmente una fotografía o imagen oscura
-        (documentos forenses, fotos sin texto relevante).
-        
-        Criterio: si más del 60% de los píxeles son muy oscuros (< 50 de brillo)
-        Y el texto extraíble es prácticamente nulo, la página es foto.
+        Detecta si la página es principalmente fotografías (forenses, periciales,
+        evidencia fotográfica) con poco o nada de texto útil.
+
+        FUNCIONA CON:
+        - Fotos oscuras (escenas nocturnas, carbón, forenses)
+        - Fotos de exteriores con brillo variado (terrenos, casas, autos)
+        - Páginas con 1–3 fotos grandes + solo encabezado/pie de página
+
+        Estrategia:
+        1. Detectar bloques grandes con alta variación de textura (= foto)
+           Las fotos tienen gradientes suaves y continuos; el texto tiene
+           bordes duros y repetitivos con poco gradiente interior.
+        2. Si la suma de bloques-foto cubre > 45% del área de la página
+           Y el texto nativo es escaso → es página de fotografía.
+        3. También mantiene el criterio original (>60% píxeles muy oscuros)
+           como fallback para fotos completamente oscuras.
         """
         try:
             import numpy as np
-            pix = page.get_pixmap(matrix=fitz.Matrix(1.5, 1.5))  # ~108 DPI — balance calidad/velocidad
+            import cv2
+
+            pix = page.get_pixmap(matrix=fitz.Matrix(1.5, 1.5))  # ~108 DPI
             img_data = pix.tobytes("png")
             img = Image.open(io.BytesIO(img_data))
             arr = np.array(img.convert('L'))
-            total_pixels = arr.size
-            pixeles_muy_oscuros = int(np.sum(arr < 50))
-            porcentaje_oscuro = pixeles_muy_oscuros / total_pixels
-            # También verificar que no haya texto nativo en el PDF
+            h, w = arr.shape[:2]
+            area_total = h * w
+
+            # ── Criterio original: página muy oscura ──────────────────────────
+            pixeles_oscuros = int(np.sum(arr < 50))
             texto_nativo = page.get_text().strip()
-            return porcentaje_oscuro > 0.60 and len(texto_nativo) < 30
+            if (pixeles_oscuros / area_total) > 0.60 and len(texto_nativo) < 30:
+                return True
+
+            # ── Criterio nuevo: detección de bloques de fotografía por textura ─
+            # Las fotografías tienen alta desviación estándar LOCAL (gradientes,
+            # colores variados) pero bajo contraste de BORDES tipo texto.
+            # El texto tiene alta densidad de bordes Canny en patrones regulares.
+
+            # 1. Dividir la imagen en bloques de ~60×60 px
+            block_size = max(30, min(h, w) // 12)
+            foto_area = 0
+
+            for by in range(0, h - block_size, block_size):
+                for bx in range(0, w - block_size, block_size):
+                    bloque = arr[by:by + block_size, bx:bx + block_size]
+                    std_local = float(np.std(bloque))
+                    mean_local = float(np.mean(bloque))
+
+                    # Bordes Canny dentro del bloque
+                    edges = cv2.Canny(bloque, 30, 100)
+                    edge_density = float(np.sum(edges > 0)) / bloque.size
+
+                    # Un bloque de FOTO tiene:
+                    # - std alta (colores variados, gradientes) → std > 25
+                    # - densidad de bordes moderada-baja (gradientes suaves,
+                    #   no bordes duros de letras) → edge < 0.15
+                    # - NO es blanco puro (media < 240)
+                    es_foto = (
+                        std_local > 25
+                        and edge_density < 0.15
+                        and mean_local < 240
+                    )
+
+                    # Un bloque de FOTO OSCURA (escena nocturna, interior):
+                    # - Media muy baja (< 80) con algo de variación (std > 10)
+                    es_foto_oscura = mean_local < 80 and std_local > 10
+
+                    if es_foto or es_foto_oscura:
+                        foto_area += block_size * block_size
+
+            ratio_foto = foto_area / area_total
+
+            # Si > 45% del área es fotografía Y hay poco texto nativo → descartar
+            # Nota: el encabezado "PGR / FOLIO / AP:" cuenta como texto nativo
+            # pero son < 100 chars en esas páginas.
+            texto_significativo = len(texto_nativo) > 200  # > 200 chars = hay párrafos
+            if ratio_foto > 0.45 and not texto_significativo:
+                logger.debug(
+                    f"  📷 Página foto detectada: {ratio_foto:.0%} fotografía, "
+                    f"{len(texto_nativo)} chars texto nativo"
+                )
+                return True
+
+            return False
         except Exception:
             return False
 
     def _enmascarar_bloques_foto(self, gray_arr) -> "np.ndarray":
         """
-        Detecta grandes bloques rectangulares muy oscuros dentro de la imagen
-        (fotografías incrustadas en documentos legales) y los rellena con blanco
-        para que Tesseract no intente leerlos y genere basura.
+        Detecta grandes bloques de FOTOGRAFÍA dentro de una página de documento
+        y los rellena con blanco para que Tesseract no intente leerlos.
         
-        Un bloque se considera fotografía si:
-        - Su área supera el 2% del total de la imagen
-        - Su brillo promedio interno es < 80 (zona muy oscura)
+        Detecta fotos oscuras Y fotos de exteriores/claras usando:
+        - Varianza local alta + baja densidad de bordes tipo texto = foto
+        - Brillo medio bajo en bloques grandes = foto oscura (criterio original)
         """
         import numpy as np
         import cv2
@@ -419,31 +485,37 @@ class OCRService:
         h, w = gray_arr.shape[:2]
         area_total = h * w
 
-        # Umbralizar: píxeles muy oscuros → negro, resto → blanco
-        _, dark_mask = cv2.threshold(gray_arr, 80, 255, cv2.THRESH_BINARY_INV)
+        # ── Método 1: máscara por textura (fotos claras y oscuras) ────────
+        block_sz = max(40, min(h, w) // 10)
+        foto_mask = np.zeros((h, w), dtype=np.uint8)
 
-        # Dilatar para unir píxeles oscuros próximos (fotos tienen bordes difusos)
-        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (40, 40))
-        dark_dilated = cv2.dilate(dark_mask, kernel, iterations=2)
+        for by in range(0, h - block_sz, block_sz // 2):
+            for bx in range(0, w - block_sz, block_sz // 2):
+                bloque = gray_arr[by:by + block_sz, bx:bx + block_sz]
+                std_local = float(np.std(bloque))
+                mean_local = float(np.mean(bloque))
+                edges = cv2.Canny(bloque, 30, 100)
+                edge_density = float(np.sum(edges > 0)) / bloque.size
 
-        # Encontrar contornos de regiones oscuras continuas
-        contours, _ = cv2.findContours(dark_dilated, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                es_foto = (std_local > 25 and edge_density < 0.15 and mean_local < 240)
+                es_foto_oscura = (mean_local < 80 and std_local > 10)
 
+                if es_foto or es_foto_oscura:
+                    foto_mask[by:by + block_sz, bx:bx + block_sz] = 255
+
+        # Dilatar para unir bloques de foto cercanos
+        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (block_sz, block_sz))
+        foto_mask = cv2.dilate(foto_mask, kernel, iterations=1)
+
+        # Buscar contornos de regiones foto
+        contours, _ = cv2.findContours(foto_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         for cnt in contours:
             x, y, bw, bh = cv2.boundingRect(cnt)
             area_bloque = bw * bh
             if area_bloque < area_total * 0.02:
-                # Demasiado pequeño para ser foto — podría ser letra gruesa o sello
                 continue
-            # Verificar que la región sea genuinamente oscura en la imagen original
-            region = gray_arr[y:y + bh, x:x + bw]
-            if region.size == 0:
-                continue
-            brillo_medio = float(region.mean())
-            if brillo_medio < 100:
-                # Rellenar con blanco para "eliminar" la foto del OCR
-                result[y:y + bh, x:x + bw] = 255
-                logger.debug(f"  📷 Bloque foto enmascarado: ({x},{y}) {bw}x{bh}px brillo={brillo_medio:.0f}")
+            result[y:y + bh, x:x + bw] = 255
+            logger.debug(f"  📷 Bloque foto enmascarado: ({x},{y}) {bw}x{bh}px")
 
         return result
 
