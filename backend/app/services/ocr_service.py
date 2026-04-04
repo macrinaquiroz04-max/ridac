@@ -446,6 +446,111 @@ class OCRService:
 
         return result
 
+    def _eliminar_firmas_ruido(self, binarized: "np.ndarray") -> "np.ndarray":
+        """
+        Elimina firmas y ruido visual sobre la imagen binarizada (texto negro/fondo blanco).
+
+        Lógica:
+        - Firma: componente conectado cuyo bounding box es grande PERO su densidad
+          de píxeles es baja (trazo fino que recorre mucho espacio = rúbrica).
+        - Ruido: componentes de 1-5 píxeles aislados que no pueden ser letras.
+        - Los sellos con TEXTO (LFTAIPG, escudo, etc.) se conservan porque sus
+          letras individuales son componentes pequeños normales.
+        """
+        import numpy as np
+        import cv2
+
+        result = binarized.copy()
+        h, w = binarized.shape[:2]
+
+        # connectedComponents espera texto BLANCO sobre fondo NEGRO
+        if np.mean(binarized) > 127:
+            working = cv2.bitwise_not(binarized)
+        else:
+            working = binarized.copy()
+
+        num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(
+            working, connectivity=8
+        )
+
+        # A 400 DPI una letra minúscula mide ≈ 20-60 px de alto.
+        # Umbral mínimo de área para considerar "posible letra".
+        min_px = max(15, (h // 300) ** 2)
+
+        # Umbral de ancho y alto para considerar "demasiado grande para ser letra"
+        max_char_h = h // 10       # más alto que el 10% de la página = no es una letra
+        max_char_w = w // 4        # más ancho que el 25% de la página = probable firma
+
+        for i in range(1, num_labels):
+            area  = int(stats[i, cv2.CC_STAT_AREA])
+            c_w   = int(stats[i, cv2.CC_STAT_WIDTH])
+            c_h   = int(stats[i, cv2.CC_STAT_HEIGHT])
+
+            # ── Ruido aislado ────────────────────────────────────────────────
+            if area < min_px:
+                result[labels == i] = 255
+                continue
+
+            bbox_area = c_w * c_h
+            fill_ratio = area / bbox_area if bbox_area > 0 else 1.0
+
+            # ── Firma: componente grande + densidad baja ─────────────────────
+            # Una rúbrica tiene trazos finos que cubren mucho espacio → fill < 0.18
+            # Una letra normal llena ≥ 25-30% de su bounding box.
+            es_grande = (c_w > max_char_w) or (c_h > max_char_h)
+            es_esparso = fill_ratio < 0.18
+
+            if es_grande and es_esparso:
+                result[labels == i] = 255
+                logger.debug(
+                    f"  ✏️ Firma/garabato eliminado: {c_w}x{c_h}px fill={fill_ratio:.2f}"
+                )
+
+        return result
+
+    def _filtrar_lineas_basura(self, texto: str) -> str:
+        """
+        Filtra las líneas de texto que Tesseract generó al intentar leer
+        sellos, manchas o restos de firma — no contienen palabras reales.
+
+        Criterio de basura (se elimina la línea):
+        - Menos del 40% de sus caracteres son alfanuméricos/puntuación común
+          Y tiene menos de 2 palabras reales (≥2 letras consecutivas).
+        - O bien la línea es muy corta (≤ 8 chars) y no contiene ninguna
+          palabra real (probable carácter suelto de sello).
+        """
+        import re
+
+        lineas_validas = []
+        for linea in texto.splitlines():
+            stripped = linea.strip()
+            if not stripped:
+                lineas_validas.append(linea)
+                continue
+
+            # Caracteres "legibles": letras, dígitos, espacios, puntuación básica
+            legibles = sum(
+                1 for c in stripped
+                if c.isalpha() or c.isdigit() or c in ' .,;:-()/\'"°'
+            )
+            ratio_legible = legibles / len(stripped)
+
+            # Palabras reales: secuencias de ≥ 2 letras
+            palabras_reales = len(re.findall(r'[A-Za-záéíóúüñÁÉÍÓÚÜÑ]{2,}', stripped))
+
+            # Regla 1: Demasiado ruido y pocas palabras
+            if ratio_legible < 0.40 and palabras_reales < 2:
+                logger.debug(f"  🗑️ Línea basura filtrada: {stripped[:50]!r}")
+                continue
+
+            # Regla 2: Cadena muy corta sin palabras (carácter saltado de sello)
+            if len(stripped) <= 8 and palabras_reales == 0:
+                continue
+
+            lineas_validas.append(linea)
+
+        return '\n'.join(lineas_validas)
+
     def _procesar_pagina_paralela(self, pdf_path: str, pagina_num: int, total_paginas: int) -> Dict:
         """
         Procesar una página individual (ejecutado en thread paralelo).
@@ -624,6 +729,11 @@ class OCRService:
         # Cierre morfológico para reconectar trazos rotos en texto mecanografiado
         kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 1))
         binarized = cv2.morphologyEx(binarized, cv2.MORPH_CLOSE, kernel)
+
+        # ── Eliminar firmas y ruido visual ────────────────────────────────────
+        # Tras binarizar, los trazos de firma son componentes grandes pero con
+        # muy poca densidad de píxeles. Se eliminan antes de pasar a Tesseract.
+        binarized = self._eliminar_firmas_ruido(binarized)
 
         img_processed = Image.fromarray(binarized)
 
@@ -847,6 +957,9 @@ class OCRService:
         # ── 4. Limpiar caracteres extraños pero conservar los legales ─────────
         # Conserva: alfanuméricos, tildes, ñ, signos de puntuación, /, \, °, @, #, $, %
         texto = re.sub(r'[^\w\s\.,;:!?\-\(\)\"\'\/\\°ª²³ñÑáéíóúÁÉÍÓÚü@#$%&\n]', '', texto)
+
+        # ── 5. Filtrar líneas basura generadas por sellos/manchas/firmas ──────
+        texto = self._filtrar_lineas_basura(texto)
 
         return texto.strip()
 
