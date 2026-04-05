@@ -296,10 +296,32 @@ async def ocr_area_tomo_almacenado(
         except Exception as e:
             logger.warning(f"Extracción nativa falló, usando OCR: {e}")
 
-        # ── 1. Google Cloud Vision API (motor de Google Lens) ─────────────
+        # ── 1. APIs de OCR en la nube (OCR.space o Google Vision) ─────────
         from app.config import settings as app_settings
+        ocr_space_key = app_settings.OCR_SPACE_API_KEY
         vision_key = app_settings.GOOGLE_VISION_API_KEY
-        logger.info(f"Google Vision API key configurada: {'SÍ' if vision_key else 'NO'}")
+        logger.info(f"OCR.space key: {'SÍ' if ocr_space_key else 'NO'} | Google Vision key: {'SÍ' if vision_key else 'NO'}")
+
+        # 1a. OCR.space (gratis, sin tarjeta)
+        if ocr_space_key:
+            try:
+                texto_cloud = await _ocrspace_ocr(
+                    tomo.ruta_archivo, pagina,
+                    body.x_pct, body.y_pct, body.w_pct, body.h_pct,
+                    ocr_space_key
+                )
+                if texto_cloud and len(texto_cloud.strip()) > 3:
+                    logger.info(f"OCR.space extrajo: {len(texto_cloud)} chars")
+                    return {
+                        "success": True,
+                        "texto": texto_cloud.strip(),
+                        "confianza": 97,
+                        "metodo": "ocr_space"
+                    }
+            except Exception as e:
+                logger.warning(f"OCR.space falló: {e}")
+
+        # 1b. Google Vision (si tiene billing habilitado)
         if vision_key:
             try:
                 texto_vision = await _google_vision_ocr(
@@ -316,7 +338,7 @@ async def ocr_area_tomo_almacenado(
                         "metodo": "google_vision"
                     }
             except Exception as e:
-                logger.warning(f"Google Vision falló, cayendo a Tesseract: {e}")
+                logger.warning(f"Google Vision falló: {e}")
 
         # ── 2. Renderizar página completa a 400 DPI con pdf2image ─────────────
         imagenes = convert_from_path(
@@ -593,4 +615,70 @@ async def _google_vision_ocr(
     annotation = responses[0].get("fullTextAnnotation", {})
     texto = annotation.get("text", "").strip()
 
+    return texto
+
+
+# ── OCR.space API (gratis, sin tarjeta de crédito) ─────────────────────────
+async def _ocrspace_ocr(
+    pdf_path: str,
+    pagina: int,
+    x_pct: float,
+    y_pct: float,
+    w_pct: float,
+    h_pct: float,
+    api_key: str
+) -> str:
+    """
+    Usa OCR.space API para extraer texto del área seleccionada.
+    Gratis: 25,000 requests/mes. Sin tarjeta de crédito.
+    """
+    from pdf2image import convert_from_path as _convert
+
+    # Renderizar página a 300 DPI
+    imgs = _convert(pdf_path, first_page=pagina, last_page=pagina, dpi=300)
+    if not imgs:
+        return ""
+
+    img = imgs[0]
+    iw, ih = img.size
+
+    # Recortar al área seleccionada
+    left   = max(0, int(x_pct * iw) - 5)
+    top    = max(0, int(y_pct * ih) - 5)
+    right  = min(iw, int((x_pct + w_pct) * iw) + 5)
+    bottom = min(ih, int((y_pct + h_pct) * ih) + 5)
+    recorte = img.crop((left, top, right, bottom))
+
+    # Convertir a PNG en memoria
+    buf = io.BytesIO()
+    recorte.save(buf, format="PNG")
+    img_b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
+
+    # Llamar a OCR.space API
+    url = "https://api.ocr.space/parse/image"
+    payload = {
+        "base64Image": f"data:image/png;base64,{img_b64}",
+        "language": "spa",
+        "isOverlayRequired": False,
+        "OCREngine": 2,  # Engine 2 es mejor para documentos
+        "scale": True,
+        "isTable": True,
+    }
+    headers = {"apikey": api_key}
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        resp = await client.post(url, data=payload, headers=headers)
+        resp.raise_for_status()
+
+    result = resp.json()
+
+    if result.get("IsErroredOnProcessing"):
+        error_msg = result.get("ErrorMessage", ["Unknown error"])
+        raise Exception(f"OCR.space error: {error_msg}")
+
+    parsed = result.get("ParsedResults", [])
+    if not parsed:
+        return ""
+
+    texto = parsed[0].get("ParsedText", "").strip()
     return texto

@@ -47,9 +47,14 @@ class Settings(BaseSettings):
     OCR_ENABLE_PADDLEOCR: bool = False
     OCR_ENABLE_TROCR: bool = False
 
+    # OCR.space API (gratis, sin tarjeta)
+    # Obtener en: https://ocr.space/ocrapi/freekey
+    # Gratis: 25,000 requests/mes
+    OCR_SPACE_API_KEY: Optional[str] = None
+
     # Google Cloud Vision API (motor de Google Lens)
     # Obtener en: https://console.cloud.google.com/apis/credentials
-    # Habilitar: Cloud Vision API
+    # Habilitar: Cloud Vision API (requiere billing)
     # Gratis: 1000 requests/mes
     GOOGLE_VISION_API_KEY: Optional[str] = None
     
