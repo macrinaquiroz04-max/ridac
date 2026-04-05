@@ -297,14 +297,15 @@ async def ocr_area_tomo_almacenado(
             logger.warning(f"Extracción nativa falló, usando OCR: {e}")
 
         # ── 1. Google Cloud Vision API (motor de Google Lens) ─────────────
-        from app.config import Settings
-        settings = Settings()
-        if settings.GOOGLE_VISION_API_KEY:
+        from app.config import settings as app_settings
+        vision_key = app_settings.GOOGLE_VISION_API_KEY
+        logger.info(f"Google Vision API key configurada: {'SÍ' if vision_key else 'NO'}")
+        if vision_key:
             try:
                 texto_vision = await _google_vision_ocr(
                     tomo.ruta_archivo, pagina,
                     body.x_pct, body.y_pct, body.w_pct, body.h_pct,
-                    settings.GOOGLE_VISION_API_KEY
+                    vision_key
                 )
                 if texto_vision and len(texto_vision.strip()) > 3:
                     logger.info(f"Google Vision extrajo: {len(texto_vision)} chars")
