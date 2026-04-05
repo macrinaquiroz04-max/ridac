@@ -521,7 +521,8 @@ async def ocr_area_tomo_almacenado(
         return {
             "success": True,
             "texto": texto_final,
-            "confianza": confianza_final
+            "confianza": confianza_final,
+            "metodo": "tesseract"
         }
 
     except HTTPException:
