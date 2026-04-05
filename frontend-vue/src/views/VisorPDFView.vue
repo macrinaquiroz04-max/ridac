@@ -483,8 +483,7 @@ async function extraerTextoArea(x, y, w, h) {
       lensResult.text = limpiarTextoOCR(texto)
       lensResult.confidence = confianza
       lensResult.visible = true
-      const etiqueta = metodo === 'google_vision' ? '🔍 Google Vision'
-                     : metodo === 'ocr_space' ? '🌐 OCR Cloud'
+      const etiqueta = metodo === 'ocr_space' ? '🌐 OCR Cloud'
                      : metodo === 'texto_nativo' || metodo === 'pdf_nativo' ? '📄 Texto nativo'
                      : '🤖 OCR'
       showToast(`✅ Texto extraído con ${etiqueta} (${confianza}%)`, 'success')
