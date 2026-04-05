@@ -46,6 +46,12 @@ class Settings(BaseSettings):
     OCR_ENABLE_EASYOCR: bool = False
     OCR_ENABLE_PADDLEOCR: bool = False
     OCR_ENABLE_TROCR: bool = False
+
+    # Google Cloud Vision API (motor de Google Lens)
+    # Obtener en: https://console.cloud.google.com/apis/credentials
+    # Habilitar: Cloud Vision API
+    # Gratis: 1000 requests/mes
+    GOOGLE_VISION_API_KEY: Optional[str] = None
     
     # Configuraciones OCR mejoradas
     OCR_MAX_IMAGE_SIZE: int = 4000  # Tamaño máximo de imagen para OCR

@@ -12,12 +12,15 @@ from pydantic import BaseModel
 import io
 import os
 import statistics
+import base64
+import json
 import numpy as np
 import cv2
 from PIL import Image, ImageEnhance, ImageFilter, ImageOps
 import pytesseract
 from pdf2image import convert_from_path
 import tempfile
+import httpx
 
 from app.database import get_db
 from app.models.usuario import Usuario
@@ -293,7 +296,28 @@ async def ocr_area_tomo_almacenado(
         except Exception as e:
             logger.warning(f"Extracción nativa falló, usando OCR: {e}")
 
-        # ── 1. Renderizar página completa a 400 DPI con pdf2image ─────────────
+        # ── 1. Google Cloud Vision API (motor de Google Lens) ─────────────
+        from app.config import Settings
+        settings = Settings()
+        if settings.GOOGLE_VISION_API_KEY:
+            try:
+                texto_vision = await _google_vision_ocr(
+                    tomo.ruta_archivo, pagina,
+                    body.x_pct, body.y_pct, body.w_pct, body.h_pct,
+                    settings.GOOGLE_VISION_API_KEY
+                )
+                if texto_vision and len(texto_vision.strip()) > 3:
+                    logger.info(f"Google Vision extrajo: {len(texto_vision)} chars")
+                    return {
+                        "success": True,
+                        "texto": texto_vision.strip(),
+                        "confianza": 98,
+                        "metodo": "google_vision"
+                    }
+            except Exception as e:
+                logger.warning(f"Google Vision falló, cayendo a Tesseract: {e}")
+
+        # ── 2. Renderizar página completa a 400 DPI con pdf2image ─────────────
         imagenes = convert_from_path(
             tomo.ruta_archivo,
             first_page=pagina,
@@ -505,3 +529,66 @@ async def ocr_area_tomo_almacenado(
     except Exception as e:
         logger.error(f"Error en OCR de área: {e}")
         raise HTTPException(status_code=500, detail=f"Error al procesar OCR: {str(e)}")
+
+
+# ── Google Cloud Vision API (motor de Google Lens) ──────────────────────────
+async def _google_vision_ocr(
+    pdf_path: str,
+    pagina: int,
+    x_pct: float,
+    y_pct: float,
+    w_pct: float,
+    h_pct: float,
+    api_key: str
+) -> str:
+    """
+    Usa Google Cloud Vision API (DOCUMENT_TEXT_DETECTION) para OCR
+    del área seleccionada. Es el mismo motor que usa Google Lens.
+    """
+    from pdf2image import convert_from_path as _convert
+
+    # Renderizar página a 300 DPI (suficiente para Vision)
+    imgs = _convert(pdf_path, first_page=pagina, last_page=pagina, dpi=300)
+    if not imgs:
+        return ""
+
+    img = imgs[0]
+    iw, ih = img.size
+
+    # Recortar al área seleccionada
+    left   = max(0, int(x_pct * iw) - 5)
+    top    = max(0, int(y_pct * ih) - 5)
+    right  = min(iw, int((x_pct + w_pct) * iw) + 5)
+    bottom = min(ih, int((y_pct + h_pct) * ih) + 5)
+    recorte = img.crop((left, top, right, bottom))
+
+    # Convertir a PNG en memoria
+    buf = io.BytesIO()
+    recorte.save(buf, format="PNG")
+    img_b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
+
+    # Llamar a la API de Vision
+    url = f"https://vision.googleapis.com/v1/images:annotate?key={api_key}"
+    payload = {
+        "requests": [{
+            "image": {"content": img_b64},
+            "features": [{"type": "DOCUMENT_TEXT_DETECTION"}],
+            "imageContext": {
+                "languageHints": ["es", "en"]
+            }
+        }]
+    }
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        resp = await client.post(url, json=payload)
+        resp.raise_for_status()
+
+    result = resp.json()
+    responses = result.get("responses", [])
+    if not responses:
+        return ""
+
+    annotation = responses[0].get("fullTextAnnotation", {})
+    texto = annotation.get("text", "").strip()
+
+    return texto

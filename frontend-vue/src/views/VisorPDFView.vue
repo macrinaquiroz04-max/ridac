@@ -420,11 +420,13 @@ async function extraerTextoArea(x, y, w, h) {
   try {
     let texto = ''
     let confianza = 0
+    let metodo = ''
 
     // ── 1. PRIORIDAD: capa de texto PDF.js (texto nativo = 100% preciso) ────
     texto = extraerTextoCapa(x, y, w, h)
     if (texto && texto.trim().length > 3) {
       confianza = 99
+      metodo = 'pdf_nativo'
     } else {
       texto = ''  // resetear si era muy corto
 
@@ -454,6 +456,7 @@ async function extraerTextoArea(x, y, w, h) {
           if (data.texto) {
             texto = data.texto
             confianza = data.confianza ?? 95
+            metodo = data.metodo || 'tesseract'
           }
         }
       } catch (backendErr) {
@@ -480,7 +483,10 @@ async function extraerTextoArea(x, y, w, h) {
       lensResult.text = limpiarTextoOCR(texto)
       lensResult.confidence = confianza
       lensResult.visible = true
-      showToast(`✅ Texto extraído (${confianza}% confianza)`, 'success')
+      const etiqueta = metodo === 'google_vision' ? '🔍 Google Vision'
+                     : metodo === 'texto_nativo' || metodo === 'pdf_nativo' ? '📄 Texto nativo'
+                     : '🤖 OCR'
+      showToast(`✅ Texto extraído con ${etiqueta} (${confianza}%)`, 'success')
     } else {
       showToast('⚠️ No se detectó texto en el área seleccionada', 'warning')
     }
