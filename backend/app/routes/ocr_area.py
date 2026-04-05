@@ -256,6 +256,43 @@ async def ocr_area_tomo_almacenado(
     try:
         logger.info(f"OCR área tomo={tomo_id} pág={pagina} x={body.x_pct:.2f} y={body.y_pct:.2f} w={body.w_pct:.2f} h={body.h_pct:.2f}")
 
+        # ── 0. PRIORIDAD: Intentar texto nativo del PDF (PyMuPDF) ────────────
+        # Si el PDF tiene texto embebido (digital o post-OCR), extraerlo directamente
+        # da 100% de precisión sin necesidad de Tesseract.
+        try:
+            import fitz  # PyMuPDF
+            doc_fitz = fitz.open(tomo.ruta_archivo)
+            page_fitz = doc_fitz[pagina - 1]
+            page_rect = page_fitz.rect  # dimensiones reales de la página
+
+            # Convertir porcentajes a coordenadas absolutas del PDF
+            clip_x0 = body.x_pct * page_rect.width
+            clip_y0 = body.y_pct * page_rect.height
+            clip_x1 = (body.x_pct + body.w_pct) * page_rect.width
+            clip_y1 = (body.y_pct + body.h_pct) * page_rect.height
+            clip = fitz.Rect(clip_x0, clip_y0, clip_x1, clip_y1)
+
+            texto_nativo = page_fitz.get_text("text", clip=clip).strip()
+            doc_fitz.close()
+
+            if len(texto_nativo) > 3:
+                # Limpiar espacios múltiples y líneas vacías
+                texto_nativo = re.sub(r'[ \t]+', ' ', texto_nativo)
+                texto_nativo = re.sub(r'\n{3,}', '\n\n', texto_nativo)
+                texto_nativo = texto_nativo.strip()
+
+                logger.info(f"Texto nativo extraído: {len(texto_nativo)} chars (sin OCR)")
+                return {
+                    "success": True,
+                    "texto": texto_nativo,
+                    "confianza": 99,
+                    "metodo": "texto_nativo"
+                }
+            else:
+                logger.info("Sin texto nativo en el área, cayendo a OCR...")
+        except Exception as e:
+            logger.warning(f"Extracción nativa falló, usando OCR: {e}")
+
         # ── 1. Renderizar página completa a 400 DPI con pdf2image ─────────────
         imagenes = convert_from_path(
             tomo.ruta_archivo,

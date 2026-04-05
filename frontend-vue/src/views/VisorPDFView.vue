@@ -415,63 +415,65 @@ async function extraerTextoArea(x, y, w, h) {
   const canvas = canvasEl.value
   if (!canvas) return
 
-  showToast('🔍 Analizando texto con OCR...', 'info', 30000)
+  showToast('🔍 Analizando texto...', 'info', 30000)
 
   try {
     let texto = ''
     let confianza = 0
 
-    // ── 1. Backend OCR (pytesseract 300 DPI) — máxima precisión ─────────────
-    try {
-      const x_pct = x / canvas.width
-      const y_pct = y / canvas.height
-      const w_pct = w / canvas.width
-      const h_pct = h / canvas.height
+    // ── 1. PRIORIDAD: capa de texto PDF.js (texto nativo = 100% preciso) ────
+    texto = extraerTextoCapa(x, y, w, h)
+    if (texto && texto.trim().length > 3) {
+      confianza = 99
+    } else {
+      texto = ''  // resetear si era muy corto
 
-      const backendHeaders = {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${auth.token}`
-      }
-      if (ACCESS_TOKEN) backendHeaders['X-Access-Token'] = ACCESS_TOKEN
+      // ── 2. Backend OCR (pytesseract + PyMuPDF nativo como prioridad) ──────
+      try {
+        const x_pct = x / canvas.width
+        const y_pct = y / canvas.height
+        const w_pct = w / canvas.width
+        const h_pct = h / canvas.height
 
-      const res = await fetch(
-        `${API_BASE}/ocr/tomo/${tomoId.value}/pagina/${pageNum.value}/area`,
-        {
-          method: 'POST',
-          headers: backendHeaders,
-          body: JSON.stringify({ x_pct, y_pct, w_pct, h_pct })
+        const backendHeaders = {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${auth.token}`
         }
-      )
-      if (res.ok) {
-        const data = await res.json()
-        if (data.texto) {
-          texto = data.texto
-          confianza = data.confianza ?? 95
+        if (ACCESS_TOKEN) backendHeaders['X-Access-Token'] = ACCESS_TOKEN
+
+        const res = await fetch(
+          `${API_BASE}/ocr/tomo/${tomoId.value}/pagina/${pageNum.value}/area`,
+          {
+            method: 'POST',
+            headers: backendHeaders,
+            body: JSON.stringify({ x_pct, y_pct, w_pct, h_pct })
+          }
+        )
+        if (res.ok) {
+          const data = await res.json()
+          if (data.texto) {
+            texto = data.texto
+            confianza = data.confianza ?? 95
+          }
         }
+      } catch (backendErr) {
+        console.warn('Backend OCR falló, usando Tesseract.js:', backendErr)
       }
-    } catch (backendErr) {
-      console.warn('Backend OCR falló, usando Tesseract.js:', backendErr)
-    }
 
-    // ── 2. Fallback: Tesseract.js del navegador ───────────────────────────────
-    if (!texto && tesseractWorker) {
-      const tempCanvas = document.createElement('canvas')
-      tempCanvas.width  = w * 4
-      tempCanvas.height = h * 4
-      const tempCtx = tempCanvas.getContext('2d')
-      tempCtx.imageSmoothingEnabled = false
-      tempCtx.drawImage(canvas, x, y, w, h, 0, 0, tempCanvas.width, tempCanvas.height)
-      mejorarContraste(tempCtx, tempCanvas.width, tempCanvas.height)
+      // ── 3. Último fallback: Tesseract.js del navegador ──────────────────────
+      if (!texto && tesseractWorker) {
+        const tempCanvas = document.createElement('canvas')
+        tempCanvas.width  = w * 4
+        tempCanvas.height = h * 4
+        const tempCtx = tempCanvas.getContext('2d')
+        tempCtx.imageSmoothingEnabled = false
+        tempCtx.drawImage(canvas, x, y, w, h, 0, 0, tempCanvas.width, tempCanvas.height)
+        mejorarContraste(tempCtx, tempCanvas.width, tempCanvas.height)
 
-      const result = await tesseractWorker.recognize(tempCanvas)
-      texto = result.data.text.trim()
-      confianza = Math.round(result.data.confidence)
-    }
-
-    // ── 3. Fallback: capa de texto PDF.js ────────────────────────────────────
-    if (!texto) {
-      texto = extraerTextoCapa(x, y, w, h)
-      confianza = texto ? 90 : 0
+        const result = await tesseractWorker.recognize(tempCanvas)
+        texto = result.data.text.trim()
+        confianza = Math.round(result.data.confidence)
+      }
     }
 
     if (texto) {
