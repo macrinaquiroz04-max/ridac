@@ -8,9 +8,11 @@ from typing import Optional, List, Dict, Tuple
 import fitz  # PyMuPDF
 from PIL import Image
 import io
+import os
 import json
 import time
 import hashlib
+import base64
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from sqlalchemy.orm import Session
 from app.models.tomo import Tomo, ContenidoOCR
@@ -172,8 +174,7 @@ class OCRService:
             # OPTIMIZACIÓN 2: Procesamiento PARALELO de páginas
             # Usar ThreadPoolExecutor para procesar múltiples páginas simultáneamente
             # En HuggingFace Spaces free tier, limitar a 2 workers para no saturar RAM/CPU
-            import os as _os
-            is_hf = bool(_os.environ.get("SPACE_ID"))
+            is_hf = bool(os.environ.get("SPACE_ID"))
             max_workers = min(2 if is_hf else 8, total_paginas)
             logger.info(f"🔄 Procesando {total_paginas} páginas con {max_workers} workers paralelos")
             
@@ -1385,19 +1386,86 @@ class OCRService:
         
         return texto.strip()
 
+    def _ocrspace_page_ocr(self, page) -> Optional[Dict]:
+        """
+        Intenta OCR.space API para la página completa (sync, para threads).
+        Mucho más rápido que el pipeline completo de Tesseract.
+        Retorna dict con texto/confianza o None si falla.
+        """
+        api_key = settings.OCR_SPACE_API_KEY
+        if not api_key:
+            return None
+        try:
+            import httpx
+            # Renderizar a 200 DPI JPEG para mantener < 1MB (límite free tier)
+            matrix = fitz.Matrix(200 / 72, 200 / 72)
+            pix = page.get_pixmap(matrix=matrix)
+            img_data = pix.tobytes("png")
+            # Convertir a JPEG para reducir tamaño
+            img_pil = Image.open(io.BytesIO(img_data))
+            buf = io.BytesIO()
+            img_pil.convert("RGB").save(buf, format="JPEG", quality=80)
+            img_b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
+
+            payload = {
+                "base64Image": f"data:image/jpeg;base64,{img_b64}",
+                "language": "spa",
+                "isOverlayRequired": False,
+                "OCREngine": 2,
+                "scale": True,
+                "isTable": True,
+            }
+            headers = {"apikey": api_key}
+
+            with httpx.Client(timeout=25.0) as client:
+                resp = client.post(
+                    "https://api.ocr.space/parse/image",
+                    data=payload,
+                    headers=headers,
+                )
+                resp.raise_for_status()
+
+            result = resp.json()
+            if result.get("IsErroredOnProcessing"):
+                return None
+
+            parsed = result.get("ParsedResults", [])
+            if parsed:
+                text = parsed[0].get("ParsedText", "").strip()
+                if len(text) > 50:
+                    # Aplicar post-procesamiento legal
+                    text = self._post_process_text(text)
+                    logger.debug(f"  🌐 OCR.space extrajo {len(text)} chars")
+                    return {
+                        "texto": text,
+                        "confianza": 85.0,
+                        "motor": "ocrspace_cloud",
+                    }
+            return None
+        except Exception as e:
+            logger.debug(f"  OCR.space page error: {e}")
+            return None
+
     def _extraer_con_multiple_ocr(self, page) -> Dict[str, any]:
         """
         Extrae texto usando Tesseract con preprocesamiento optimizado para documentos escaneados.
-        400 DPI + shadow removal + deskew + CLAHE + Otsu + múltiples PSM = máxima precisión
-        en nombres/fechas/lugares para documentos a máquina de escribir y sellos.
+        En HF: fast path (OCR.space → Tesseract simplificado).
+        Local: pipeline completo.
         """
         import numpy as np
         import cv2
 
-        # ── 1. Renderizar a ~400 DPI (72 * 5.56 ≈ 400) ───────────────────────
-        # 400 DPI mejora significativamente el reconocimiento de texto mecanografiado
-        # y caracteres con bordes irregulares típicos de documentos viejos escaneados.
-        matrix = fitz.Matrix(5.56, 5.56)
+        is_hf = bool(os.environ.get("SPACE_ID"))
+
+        # ── 0. Fast path: OCR.space cloud (mucho más rápido que Tesseract) ────
+        cloud_result = self._ocrspace_page_ocr(page)
+        if cloud_result:
+            return cloud_result
+
+        # ── 1. Renderizar ─────────────────────────────────────────────────────
+        # HF: 300 DPI (más rápido, menos RAM) / Local: 400 DPI (máxima calidad)
+        dpi_factor = 300 / 72 if is_hf else 400 / 72
+        matrix = fitz.Matrix(dpi_factor, dpi_factor)
         pix = page.get_pixmap(matrix=matrix)
         img_data = pix.tobytes("png")
         img = Image.open(io.BytesIO(img_data))
@@ -1431,17 +1499,12 @@ class OCRService:
         _blur = cv2.GaussianBlur(shadow_free, (0, 0), sigmaX=2)
         shadow_free = cv2.addWeighted(shadow_free, 1.6, _blur, -0.6, 0).astype(np.uint8)
 
-        # ── Enmascarar bloques de fotografías incrustadas ─────────────────────
-        shadow_free = self._enmascarar_bloques_foto(shadow_free)
-
-        # ── Eliminar huellas dactilares superpuestas sobre texto ──────────────
-        shadow_free = self._eliminar_huella_dactilar(shadow_free)
-
-        # ── Supresión de bleed-through (texto del reverso en copias de copias) ─
-        shadow_free = self._suprimir_bleedthrough(shadow_free)
-
-        # ── Enmascarar sellos/timbres circulares ──────────────────────────────
-        shadow_free = self._enmascarar_sellos(shadow_free)
+        # ── Preprocesamiento costoso: solo en local (no en HF) ────────────────
+        if not is_hf:
+            shadow_free = self._enmascarar_bloques_foto(shadow_free)
+            shadow_free = self._eliminar_huella_dactilar(shadow_free)
+            shadow_free = self._suprimir_bleedthrough(shadow_free)
+            shadow_free = self._enmascarar_sellos(shadow_free)
 
         # ── Pipeline especial para documentos muy degradados ──────────────────
         nivel_degradacion = self._detectar_nivel_degradacion(shadow_free)
@@ -1452,21 +1515,64 @@ class OCRService:
             )
             shadow_free = self._pipeline_alta_degradacion(shadow_free)
 
-        # ── Super-resolución por software para texto ultra-borroso ────────────
-        # Si el foco (laplaciano) es muy bajo, las letras miden < 10 px y
-        # Tesseract no puede leerlas. Escalamos 2× para darle más píxeles.
-        _lap_var = float(cv2.Laplacian(shadow_free, cv2.CV_64F).var())
-        usar_superres = _lap_var < 120 or nivel_degradacion > 0.70
-        if usar_superres:
-            logger.debug(f"  🔎 Aplicando super-resolución (laplacian_var={_lap_var:.0f})")
-            shadow_free_hr = self._super_resolution_software(shadow_free)
+        # ── Super-resolución: solo local (duplica tamaño → muy lento en HF) ──
+        if not is_hf:
+            _lap_var = float(cv2.Laplacian(shadow_free, cv2.CV_64F).var())
+            usar_superres = _lap_var < 120 or nivel_degradacion > 0.70
+            if usar_superres:
+                logger.debug(f"  🔎 Aplicando super-resolución (laplacian_var={_lap_var:.0f})")
+                shadow_free_hr = self._super_resolution_software(shadow_free)
+            else:
+                shadow_free_hr = shadow_free
         else:
             shadow_free_hr = shadow_free
 
         # ── Eliminar líneas horizontales y verticales de formularios ──────────
-        # Formularios PGR/legales tienen líneas gruesas que Tesseract lee como
-        # basura (|, -, ., _). Las detectamos morfológicamente y las quitamos.
         shadow_free_hr = self._eliminar_lineas_formulario(shadow_free_hr)
+
+        # ══════════════════════════════════════════════════════════════════════
+        # FAST PATH (HF): Niblack + 1 Tesseract call, Otsu como respaldo
+        # ══════════════════════════════════════════════════════════════════════
+        if is_hf and self.tesseract_available:
+            import pytesseract, statistics as _stats_hf
+
+            # Niblack (la mejor para estos documentos)
+            bin_niblack = self._binarizacion_niblack_wolf(shadow_free_hr, k=-0.2)
+            if np.mean(bin_niblack) < 127:
+                bin_niblack = cv2.bitwise_not(bin_niblack)
+            bin_niblack = self._reconectar_trazos_agresivo(bin_niblack)
+            bin_niblack = self._eliminar_firmas_ruido(bin_niblack)
+
+            mejor_hf = self._ocr_con_binarizacion(bin_niblack, 'niblack', psm_list=(6,))
+
+            # Si confianza baja, probar Otsu como respaldo rápido
+            if mejor_hf['confianza'] < 40:
+                _, bin_otsu = cv2.threshold(
+                    shadow_free_hr, 0, 255,
+                    cv2.THRESH_BINARY + cv2.THRESH_OTSU
+                )
+                if np.mean(bin_otsu) < 127:
+                    bin_otsu = cv2.bitwise_not(bin_otsu)
+                kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 1))
+                bin_otsu = cv2.morphologyEx(bin_otsu, cv2.MORPH_CLOSE, kernel)
+                bin_otsu = self._eliminar_firmas_ruido(bin_otsu)
+
+                res_otsu = self._ocr_con_binarizacion(bin_otsu, 'otsu', psm_list=(6,))
+                if res_otsu['confianza'] > mejor_hf['confianza']:
+                    mejor_hf = res_otsu
+
+            if mejor_hf['texto']:
+                return {
+                    'texto': mejor_hf['texto'],
+                    'confianza': mejor_hf['confianza'],
+                    'motor': mejor_hf['motor'],
+                }
+
+            return self._fallback_ocr(img)
+
+        # ══════════════════════════════════════════════════════════════════════
+        # FULL PATH (local): 3 binarizaciones × múltiples PSM
+        # ══════════════════════════════════════════════════════════════════════
 
         # ── Candidato A: Otsu (umbral global) ────────────────────────────────
         _, bin_otsu = cv2.threshold(shadow_free_hr, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
@@ -1474,8 +1580,6 @@ class OCRService:
             bin_otsu = cv2.bitwise_not(bin_otsu)
 
         # ── Candidato B: Binarización adaptativa local (tipo Sauvola) ─────────
-        # Mucho mejor que Otsu en fondos con iluminación dispareja o gris sucio.
-        # window_size 51 px @ 400 DPI ≈ 3.2 mm — cubre una letra con contexto.
         bin_local = cv2.adaptiveThreshold(
             shadow_free_hr, 255,
             cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
@@ -1485,22 +1589,17 @@ class OCRService:
         if np.mean(bin_local) < 127:
             bin_local = cv2.bitwise_not(bin_local)
 
-        # ── Candidato C: Niblack/Wolf — la mejor para copias de copias ────────
-        # La binarización Niblack usa umbral local basado en media+k*std que
-        # rescata texto tenue que Otsu y Adaptivo pierden completamente.
+        # ── Candidato C: Niblack/Wolf ─────────────────────────────────────────
         bin_niblack = self._binarizacion_niblack_wolf(shadow_free_hr, k=-0.2)
         if np.mean(bin_niblack) < 127:
             bin_niblack = cv2.bitwise_not(bin_niblack)
 
-        # Cierre morfológico para reconectar trazos rotos en texto mecanografiado
+        # Cierre morfológico para reconectar trazos rotos
         kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 1))
         bin_otsu  = cv2.morphologyEx(bin_otsu,  cv2.MORPH_CLOSE, kernel)
         bin_local = cv2.morphologyEx(bin_local, cv2.MORPH_CLOSE, kernel)
-
-        # Reconexión más agresiva para Niblack (documentos muy deteriorados)
         bin_niblack = self._reconectar_trazos_agresivo(bin_niblack)
 
-        # ── Eliminar firmas y ruido visual en todos los candidatos ─────────────
         bin_otsu    = self._eliminar_firmas_ruido(bin_otsu)
         bin_local   = self._eliminar_firmas_ruido(bin_local)
         bin_niblack = self._eliminar_firmas_ruido(bin_niblack)
