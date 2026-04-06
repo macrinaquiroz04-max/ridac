@@ -70,24 +70,7 @@ class LegalEntityExtractor:
         
         # Patrones de expresiones regulares para entidades
         self.patterns = {
-            # Carpetas de investigación / Averiguaciones previas
-            'carpetas': [
-                r'(?:carpeta|C\.?I\.?|CI)\s*(?:de\s*investigación\s*)?(?:núm\.?|número|no\.?|N°)?\s*:?\s*([A-Z]{2,4}[-/][A-Z]{2,5}[-/][A-Z0-9]{1,4}[-/][A-Z0-9]{1,6}[-/]\d{2,6})',
-                r'(?:averiguación\s*previa|A\.?P\.?|AP)\s*(?:núm\.?|número|no\.?)?\s*:?\s*([A-Z]{2,4}[-/]\d{1,2}[-/]\d{4,6})',
-                r'\b(CI-[A-Z]{3}/[A-Z]{2}/[A-Z0-9-]{2,15}/\d{2,6})\b',
-            ],
 
-            # Oficios
-            'oficios': [
-                r'(?:oficio|circular|memorándum)\s*(?:núm\.?|número|no\.?|N°)?\s*:?\s*([A-Z]{2,6}[-/][A-Z]{2,6}[-/]\d{2,6}[-/]?\d{0,4})',
-                r'\b(FGJ-?CDMX-?\d{4}-?\d{3,6})\b',
-            ],
-
-            # Teléfonos
-            'telefonos': [
-                r'\b(?:\+?52\s*)?(?:\d{2}[-\s]?)?\d{4}[-\s]?\d{4}\b',
-                r'\b(?:tel\.?|teléfono|cel\.?|celular)[:.]?\s*(\d{2,4}[-\s]?\d{4}[-\s]?\d{4})\b',
-            ],
 
             # ── FECHAS ── máxima cobertura ───────────────────────────────────
             'fechas': [
@@ -107,6 +90,10 @@ class LegalEntityExtractor:
                 r'mes\s+de\s+(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)(?:\s+(?:de|del)\s+(\d{4}))?',
                 # "noviembre del presente año" / "del año en curso" (sin año explícito)
                 r'\b(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\s+del\s+(?:presente\s+año|año\s+en\s+curso|año\s+actual)',
+                # Abreviaturas militares/notariales: "15-MAR-2024", "15/ENE/2024", "01 ENE 2024"
+                r'\b(\d{1,2})[/\-\s](ENE|FEB|MAR|ABR|MAY|JUN|JUL|AGO|SEP|OCT|NOV|DIC)[/\-\s](\d{4})\b',
+                # Solo mes+año: "octubre de 2014", "mes de octubre de 2014"
+                r'(?:mes\s+de\s+)?(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\s+(?:de|del)\s+(\d{4})\b',
             ],
 
             # ── NOMBRES ── captura nombres normales Y en MAYÚSCULAS ──────────
@@ -124,20 +111,7 @@ class LegalEntityExtractor:
                 r'\b([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+\s+(?:de\s+(?:la|los|las)\s+)?[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+){0,2})\b(?:\s+(?:Fecha|Número|CI-|Página))',
             ],
 
-            # Direcciones
-            'direcciones': [
-                # Prefijo de calle REQUERIDO (sin el ?, evita falsos positivos)
-                r'(?:domicilio|calle|avenida|av\.|boulevard|blvd\.)[^\S\n]+([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:[^\S\n]+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+){0,4})[^\S\n]+(?:núm\.?|número|no\.?|#)[^\S\n]*(\d+[A-Z]?)',
-                r'(?:colonia|col\.)[^\S\n]+([A-ZÁÉÍÓÚÑ][a-záéíóúñ 	]+),\s*(?:alcaldía|delegación|municipio)[^\S\n]+([A-ZÁÉÍÓÚÑ][a-záéíóúñ 	]+)',
-            ],
-
-            # Delitos
-            'delitos': [
-                r'(?:delito|delitos)\s+(?:de\s+)?([a-záéíóúñ\s,y]+?)(?:\s+previsto|\s+contemplado|\s+sancionado|,|\.|;)',
-                r'(?:probable\s+responsabilidad|responsable)\s+(?:del?\s+)?(?:delito\s+de\s+)?([A-ZÁÉÍÓÚÑ][a-záéíóúñ\s]+)',
-            ],
-
-            # ── LUGARES ── incluye estados y municipios de México ─────────────
+            # ── LUGARES ── estados, municipios, colonias, calles ─────────────
             'lugares': [
                 # Ciudad de México
                 r'(?:ciudad\s+de\s+méxico|cdmx|d\.f\.|distrito\s+federal)',
@@ -147,41 +121,35 @@ class LegalEntityExtractor:
                 r'Estado\s+de\s+México|Michoacán|Morelos|Nayarit|Nuevo\s+León|Oaxaca|'
                 r'Puebla|Querétaro|Quintana\s+Roo|San\s+Luis\s+Potosí|Sinaloa|Sonora|'
                 r'Tabasco|Tamaulipas|Tlaxcala|Veracruz|Yucatán|Zacatecas)\b',
-                # Alcaldías/delegaciones CDMX
-                r'(?:alcaldía|delegación)\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñ\s]+)',
+                # Alcaldías/delegaciones CDMX  ([^\S\n] = espacio o tab, no salto de línea)
+                r'(?:alcaldía|delegación)[^\S\n]+([A-ZÁÉÍÓÚÑ][a-záéíóúñ \t]{3,30})',
                 # Municipios
-                r'(?:municipio|mpio\.?)\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñ\s]+)',
+                r'(?:municipio|mpio\.?)[^\S\n]+([A-ZÁÉÍÓÚÑ][a-záéíóúñ \t]{3,30})',
                 # Colonias
-                r'(?:colonia|col\.)[^\S\n]+([A-ZÁÉÍÓÚÑ][a-záéíóúñ \t]{4,35})',
-                # Calles y avenidas ([ \t] en vez de \s para no cruzar líneas)
-                r'(?:calle|c\.|avenida|av\.|boulevard|blvd\.)[^\S\n]+([A-ZÁÉÍÓÚÑ][a-záéíóúñ \t]{4,35})',
+                r'(?:colonia|col\.)[^\S\n]+([A-ZÁÉÍÓÚÑ][a-záéíóúñA-ZÁÉÍÓÚÑ \t]{3,35})',
+                # CALLES/AVENIDAS — acepta cualquier nombre (persona, fecha, estado, número)
+                # Se captura incl. el prefijo para distinguir "Calle Guerrero" del estado "Guerrero"
+                r'((?:calle|c\.|avenida|av\.|boulevard|blvd\.|calzada|privada|andador|'
+                r'cerrada|retorno|paseo|prol(?:ongaci[oó]n|\.)?|circuito|vía)[^\S\n]+'
+                r'[A-ZÁÉÍÓÚÑ0-9][^\n,;:]{2,42})',
+                # Dirección completa: calle + número
+                r'(?:domicilio|calle|avenida|av\.|boulevard|blvd\.)[^\S\n]+([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:[^\S\n]+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+){0,4})[^\S\n]+(?:núm\.?|número|no\.?|#)[^\S\n]*(\d+[A-Z]?)',
+                # Colonia + alcaldía/delegación
+                r'(?:colonia|col\.)[^\S\n]+([A-ZÁÉÍÓÚÑ][a-záéíóúñ \t]+),\s*(?:alcaldía|delegación|municipio)[^\S\n]+([A-ZÁÉÍÓÚÑ][a-záéíóúñ \t]+)',
                 # Código postal
                 r'\b(?:C\.?P\.?|código\s+postal)\s*:?\s*(\d{5})\b',
-                # Colonias conocidas
+                # Colonias conocidas (hardcoded)
                 r'\b(DOCTORES|Doctores|CENTRO|Centro|CONDESA|Condesa|ROMA|Roma|POLANCO|Polanco|TEPITO|Tepito|IZTAPALAPA|Iztapalapa)\b',
-                # Instalaciones militares: "Campo Militar No. 1-J", "Campo Mil. No. 1-A"
+                # Instalaciones militares
                 r'\b(Campo\s+Mil(?:itar)?\.\s+N[oú](?:m\.?)?\s+[\d\-A-Z]+)',
-                r'\b(Base\s+A[eé]rea\s+[A-ZÁÉÍÓÚÑ][\w \t]+|Zona\s+Militar\s+N[oú](?:m\.)?\s+\d+|Regi[oó]n\s+Militar\s+N[oú](?:m\.)?\s+\d+)',
-                # Predios con nombre: "Predio Reforma", "Predio Los Pinos"
+                r'\b(Base\s+A[eé]rea\s+[A-ZÁÉÍÓÚÑ][\w \t]{2,30}|Zona\s+Militar\s+N[oú](?:m\.)?\s+\d+|Regi[oó]n\s+Militar\s+N[oú](?:m\.)?\s+\d+)',
+                # Predios
                 r'\b(Predio\s+[A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ \t]{2,30})',
-                # Instituciones militares/procuradurías
+                # Instituciones
                 r'\b(SEDENA|SEMAR|SEIDOC|UEIDOS|PGR|FGR|ADSC|CISEN)\b',
                 # Batallón / Regimiento
-                r'\b(\d+[oOaA]?\s+(?:Batall[oó]n|Regimiento|Escuadr[oó]n)\s+(?:de\s+)?[A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ \t]+)',
+                r'\b(\d+[oOaA]?\s+(?:Batall[oó]n|Regimiento|Escuadr[oó]n)\s+(?:de\s+)?[A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ \t]{2,30})',
             ],
-
-            # Diligencias
-            'diligencias': [
-                r'(?:se\s+ordena|se\s+acuerda|se\s+dicta)[^\S\n]+([^\n\.]{10,80})',
-                r'(?:diligencia|actuación)[^\S\n]+(?:de[^\S\n]+)?([a-záéíóúñ \t]{5,40})',
-                r'\b(Actuación\s+Ministerial|Acta\s+De\s+Hechos|Comunicado|Diligencia\s+General|Solicitud)\b',
-            ],
-
-            # Alertas MP
-            'alertas': [
-                r'\b(urgente|inmediato|prioritario|violación\s+grave|flagrancia|orden\s+de\s+aprehensión)\b',
-                r'\b(plazo\s+\d+\s+(?:días|horas)|vencimiento|caducidad|prescripción)\b',
-            ]
         }
         
         # Meses en español
@@ -189,6 +157,12 @@ class LegalEntityExtractor:
             'enero': 1, 'febrero': 2, 'marzo': 3, 'abril': 4,
             'mayo': 5, 'junio': 6, 'julio': 7, 'agosto': 8,
             'septiembre': 9, 'octubre': 10, 'noviembre': 11, 'diciembre': 12
+        }
+
+        # Abreviaturas de mes (documentos militares, notariales, PGR)
+        self._abrev_meses = {
+            'ENE': 1, 'FEB': 2, 'MAR': 3, 'ABR': 4, 'MAY': 5, 'JUN': 6,
+            'JUL': 7, 'AGO': 8, 'SEP': 9, 'OCT': 10, 'NOV': 11, 'DIC': 12,
         }
     
     def extract_all(self, text: str) -> Dict[str, List[str]]:
@@ -205,16 +179,9 @@ class LegalEntityExtractor:
             return {}
         
         entities = {
-            'carpetas': [],
-            'oficios': [],
-            'telefonos': [],
             'fechas': [],
             'nombres': [],
-            'direcciones': [],
-            'delitos': [],
             'lugares': [],
-            'diligencias': [],
-            'alertas': []
         }
         
         for entity_type, patterns in self.patterns.items():
@@ -225,54 +192,29 @@ class LegalEntityExtractor:
                 
                 for match in matches:
                     if entity_type == 'fechas':
-                        # Normalizar fechas al formato ISO
                         fecha = self._normalize_date(match)
                         if fecha:
                             found.add(fecha)
-                    elif entity_type == 'telefonos':
-                        # Normalizar teléfonos
-                        tel = self._normalize_phone(match.group(0))
-                        if tel:
-                            found.add(tel)
                     elif entity_type == 'nombres':
-                        # Limpiar nombres y CORREGIR AGRESIVAMENTE
                         if match.lastindex and match.lastindex >= 1:
                             nombre = match.group(1).strip()
                             if self._is_valid_name(nombre):
-                                # Aplicar corrección agresiva al nombre
                                 nombre_corregido = self.corrector.correct_field_aggressive(nombre, 'persona')
                                 found.add(nombre_corregido.title())
-                    elif entity_type == 'direcciones':
-                        # Combinar partes de dirección y CORREGIR
-                        direccion = match.group(0).strip()
-                        if not self._is_valid_location(direccion):
-                            continue
-                        direccion_corregida = self.corrector.correct_field_aggressive(direccion, 'lugar')
-                        found.add(direccion_corregida)
                     elif entity_type == 'lugares':
-                        # CORRECCIÓN AGRESIVA para lugares
-                        lugar = match.group(0).strip() if not match.lastindex else match.group(1).strip()
+                        # Combinar grupos múltiples (ej: nombre_calle + número, colonia + delegación)
+                        if match.lastindex and match.lastindex >= 2:
+                            partes = [match.group(i).strip() for i in range(1, match.lastindex + 1) if match.group(i)]
+                            lugar = ' '.join(partes)
+                        elif match.lastindex == 1:
+                            lugar = match.group(1).strip()
+                        else:
+                            lugar = match.group(0).strip()
+                        lugar = lugar.strip()
                         if not self._is_valid_location(lugar):
                             continue
                         lugar_corregido = self.corrector.correct_field_aggressive(lugar, 'lugar')
                         found.add(lugar_corregido)
-                    elif entity_type == 'diligencias':
-                        # CORRECCIÓN AGRESIVA para diligencias
-                        diligencia = match.group(0).strip() if not match.lastindex else match.group(1).strip()
-                        diligencia_corregida = self.corrector.correct_field_aggressive(diligencia, 'tipo')
-                        found.add(diligencia_corregida)
-                    else:
-                        # Otras entidades - TAMBIÉN con corrección agresiva
-                        if match.lastindex and match.lastindex >= 1:
-                            value = match.group(1).strip()
-                        else:
-                            value = match.group(0).strip()
-                        
-                        # Aplicar corrección agresiva
-                        value_corregido = self.corrector.correct_field_aggressive(value, entity_type)
-                        
-                        if len(value_corregido) > 3:  # Filtrar muy cortos
-                            found.add(value_corregido)
             
             entities[entity_type] = sorted(list(found))
         
@@ -314,6 +256,10 @@ class LegalEntityExtractor:
                     # "15 de marzo de 2024"
                     dia, año = int(g0), int(g2)
                     mes = self.meses[g1.lower()]
+                elif g1.upper() in self._abrev_meses:
+                    # "15-MAR-2024" (abreviatura militar/notarial)
+                    dia, año = int(g0), int(g2)
+                    mes = self._abrev_meses[g1.upper()]
                 else:
                     # "15/03/2024"
                     dia, mes, año = int(g0), int(g1), int(g2)
@@ -466,16 +412,9 @@ class LegalEntityExtractor:
             if values:
                 count = len(values)
                 label = {
-                    'carpetas': 'Carpetas/APs',
-                    'oficios': 'Oficios',
-                    'telefonos': 'Teléfonos',
                     'fechas': 'Fechas',
                     'nombres': 'Nombres',
-                    'direcciones': 'Direcciones',
-                    'delitos': 'Delitos',
                     'lugares': 'Lugares',
-                    'diligencias': 'Diligencias',
-                    'alertas': 'Alertas'
                 }.get(entity_type, entity_type.title())
                 
                 summary_parts.append(f"{label}: {count}")
