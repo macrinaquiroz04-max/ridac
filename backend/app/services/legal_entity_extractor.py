@@ -120,17 +120,15 @@ class LegalEntityExtractor:
                 r'(?:El\s+suscrito|La\s+suscrita|El\s+que\s+suscribe|quien\s+suscribe)[,\s]+([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ]+){1,3})',
                 # Etiquetas tipo formulario: "NOMBRE: JUAN GARCIA LOPEZ"
                 r'(?:NOMBRE|NOMBRE COMPLETO|DENUNCIANTE|VÍCTIMA|IMPUTADO|DECLARANTE|DE LA PERSONA)[:\s]+([A-ZÁÉÍÓÚÑ]{3,}(?:\s+[A-ZÁÉÍÓÚÑ]{2,}){1,4})',
-                # Nombres en MAYÚSCULAS (muy común en docs escaneados de PGR/FGJ)
-                r'\b([A-ZÁÉÍÓÚÑ]{3,20}\s+[A-ZÁÉÍÓÚÑ]{3,20}(?:\s+[A-ZÁÉÍÓÚÑ]{2,20}){0,2})\b(?=\s*(?:,|\n|\.|\s+(?:nació|de|con|cuyo|quien|comparece|manifiesta|declara)))',
-                # Con apellidos compuestos: "DE LA ROSA", "DEL TORO"
+                # Con apellidos compuestos anclados a campos conocidos: "DE LA ROSA", "DEL TORO"
                 r'\b([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+\s+(?:de\s+(?:la|los|las)\s+)?[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+){0,2})\b(?:\s+(?:Fecha|Número|CI-|Página))',
-                r'(?:Por|De|Del)\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñ]{3,15}\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]{3,15}(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]{3,15})?)',
             ],
 
             # Direcciones
             'direcciones': [
-                r'(?:domicilio|calle|avenida|av\.|boulevard|blvd\.)?\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+){0,4})\s+(?:núm\.?|número|no\.?|#)\s*(\d+[A-Z]?)',
-                r'(?:colonia|col\.)\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñ\s]+),\s*(?:alcaldía|delegación|municipio)\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñ\s]+)',
+                # Prefijo de calle REQUERIDO (sin el ?, evita falsos positivos)
+                r'(?:domicilio|calle|avenida|av\.|boulevard|blvd\.)[^\S\n]+([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:[^\S\n]+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+){0,4})[^\S\n]+(?:núm\.?|número|no\.?|#)[^\S\n]*(\d+[A-Z]?)',
+                r'(?:colonia|col\.)[^\S\n]+([A-ZÁÉÍÓÚÑ][a-záéíóúñ 	]+),\s*(?:alcaldía|delegación|municipio)[^\S\n]+([A-ZÁÉÍÓÚÑ][a-záéíóúñ 	]+)',
             ],
 
             # Delitos
@@ -154,28 +152,28 @@ class LegalEntityExtractor:
                 # Municipios
                 r'(?:municipio|mpio\.?)\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñ\s]+)',
                 # Colonias
-                r'(?:colonia|col\.)\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñ\s]{4,40})',
-                # Calles y avenidas
-                r'(?:calle|c\.|avenida|av\.|boulevard|blvd\.)\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñ\s]{4,40})',
+                r'(?:colonia|col\.)[^\S\n]+([A-ZÁÉÍÓÚÑ][a-záéíóúñ \t]{4,35})',
+                # Calles y avenidas ([ \t] en vez de \s para no cruzar líneas)
+                r'(?:calle|c\.|avenida|av\.|boulevard|blvd\.)[^\S\n]+([A-ZÁÉÍÓÚÑ][a-záéíóúñ \t]{4,35})',
                 # Código postal
                 r'\b(?:C\.?P\.?|código\s+postal)\s*:?\s*(\d{5})\b',
                 # Colonias conocidas
                 r'\b(DOCTORES|Doctores|CENTRO|Centro|CONDESA|Condesa|ROMA|Roma|POLANCO|Polanco|TEPITO|Tepito|IZTAPALAPA|Iztapalapa)\b',
                 # Instalaciones militares: "Campo Militar No. 1-J", "Campo Mil. No. 1-A"
                 r'\b(Campo\s+Mil(?:itar)?\.\s+N[oú](?:m\.?)?\s+[\d\-A-Z]+)',
-                r'\b(Base\s+A[eé]rea\s+[A-ZÁÉÍÓÚÑ][\w\s]+|Zona\s+Militar\s+N[oú](?:m\.)?\s+\d+|Regi[oó]n\s+Militar\s+N[oú](?:m\.)?\s+\d+)',
+                r'\b(Base\s+A[eé]rea\s+[A-ZÁÉÍÓÚÑ][\w \t]+|Zona\s+Militar\s+N[oú](?:m\.)?\s+\d+|Regi[oó]n\s+Militar\s+N[oú](?:m\.)?\s+\d+)',
                 # Predios con nombre: "Predio Reforma", "Predio Los Pinos"
-                r'\b(Predio\s+[A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ\s]{2,30})',
+                r'\b(Predio\s+[A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ \t]{2,30})',
                 # Instituciones militares/procuradurías
                 r'\b(SEDENA|SEMAR|SEIDOC|UEIDOS|PGR|FGR|ADSC|CISEN)\b',
                 # Batallón / Regimiento
-                r'\b(\d+[oOaA]?\s+(?:Batall[oó]n|Regimiento|Escuadr[oó]n)\s+(?:de\s+)?[A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ\s]+)',
+                r'\b(\d+[oOaA]?\s+(?:Batall[oó]n|Regimiento|Escuadr[oó]n)\s+(?:de\s+)?[A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ \t]+)',
             ],
 
             # Diligencias
             'diligencias': [
-                r'(?:se\s+ordena|se\s+acuerda|se\s+dicta)\s+([^\.]{10,80})',
-                r'(?:diligencia|actuación)\s+(?:de\s+)?([a-záéíóúñ\s]{5,50})',
+                r'(?:se\s+ordena|se\s+acuerda|se\s+dicta)[^\S\n]+([^\n\.]{10,80})',
+                r'(?:diligencia|actuación)[^\S\n]+(?:de[^\S\n]+)?([a-záéíóúñ \t]{5,40})',
                 r'\b(Actuación\s+Ministerial|Acta\s+De\s+Hechos|Comunicado|Diligencia\s+General|Solicitud)\b',
             ],
 
