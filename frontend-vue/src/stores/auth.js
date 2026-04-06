@@ -38,7 +38,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   function startAutoRefresh() {
     stopAutoRefresh()
-    // Refrescar token cada 14 minutos (expira en 15 min por defecto en dev)
+    // Refrescar token cada 8 minutos (margen amplio antes de los 480 min de expiración)
     refreshTimer = setInterval(async () => {
       try {
         const refreshToken = localStorage.getItem('refresh_token')
@@ -62,13 +62,16 @@ export const useAuthStore = defineStore('auth', () => {
             user.value = data.user
             localStorage.setItem('usuario', JSON.stringify(data.user))
           }
-        } else {
+        } else if (res.status === 401) {
+          // refresh_token inválido/expirado: limpiar sesión
+          localStorage.removeItem('refresh_token')
           clearSession()
         }
+        // Para otros errores (503, red, etc.) NO borrar la sesión — silencioso
       } catch {
-        // Silencioso: si falla el refresh, la próxima petición fallará con 401
+        // Error de red — NO borrar la sesión, la próxima petición usará fetchWithRetry
       }
-    }, 14 * 60 * 1000)
+    }, 8 * 60 * 1000)
   }
 
   function stopAutoRefresh() {

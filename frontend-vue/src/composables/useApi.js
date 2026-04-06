@@ -72,6 +72,8 @@ async function tryRefreshToken() {
         }
         return true
       }
+      // refresh_token expirado/inválido: limpiar para que no se reintente
+      localStorage.removeItem('refresh_token')
       return false
     } catch { return false }
     finally { isRefreshing = false }
@@ -81,31 +83,39 @@ async function tryRefreshToken() {
 
 async function fetchWithRetry(url, options = {}) {
   let res = await fetch(url, options)
-  if (res.status === 401) {
-    const refreshed = await tryRefreshToken()
-    if (refreshed) {
-      // Reintentar con nuevo token
-      const newHeaders = { ...options.headers }
-      const auth = useAuthStore()
-      if (auth.token) newHeaders['Authorization'] = `Bearer ${auth.token}`
-      res = await fetch(url, { ...options, headers: newHeaders })
-    }
+  if (res.status !== 401) return res
+
+  // Intentar renovar el token
+  const refreshed = await tryRefreshToken()
+  if (!refreshed) {
+    // Refresh falló — señalizar que la sesión expiró de verdad
+    const err = new Error('Sesión expirada. Por favor inicie sesión nuevamente.')
+    err.status = 401
+    err.isAuthFailed = true
+    throw err
   }
-  return res
+
+  // Reintentar con el nuevo token
+  const newHeaders = { ...options.headers }
+  const auth = useAuthStore()
+  if (auth.token) newHeaders['Authorization'] = `Bearer ${auth.token}`
+  return fetch(url, { ...options, headers: newHeaders })
 }
 
 function handleAuthError(error) {
   const { showToast } = useToast()
   const auth = useAuthStore()
 
-  const is401 = error.status === 401 || error.message.includes('401')
-  if (is401) {
-    showToast('Sesión expirada. Iniciando sesión nuevamente.', 'error')
+  // Solo limpiar sesión y redirigir si el refresh realmente falló
+  if (error?.isAuthFailed) {
+    showToast('Sesión expirada. Por favor inicie sesión nuevamente.', 'error')
     setTimeout(() => {
       auth.clearSession()
       router.push({ name: 'login' })
     }, 1500)
   }
+  // Para otros errores 401 (retry después de refresh también falló),
+  // NO borrar la sesión — el componente maneja el error normalmente
 }
 
 export function useApi() {
