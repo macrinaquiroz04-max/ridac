@@ -1499,12 +1499,14 @@ class OCRService:
         _blur = cv2.GaussianBlur(shadow_free, (0, 0), sigmaX=2)
         shadow_free = cv2.addWeighted(shadow_free, 1.6, _blur, -0.6, 0).astype(np.uint8)
 
-        # ── Preprocesamiento costoso: solo en local (no en HF) ────────────────
+        # ── Preprocesamiento costoso ──────────────────────────────────────────
+        # _enmascarar_bloques_foto y _suprimir_bleedthrough solo en local (lentos)
         if not is_hf:
             shadow_free = self._enmascarar_bloques_foto(shadow_free)
-            shadow_free = self._eliminar_huella_dactilar(shadow_free)
             shadow_free = self._suprimir_bleedthrough(shadow_free)
-            shadow_free = self._enmascarar_sellos(shadow_free)
+        # Huellas y sellos: activos siempre (mejoran calidad OCR sin impacto grave)
+        shadow_free = self._eliminar_huella_dactilar(shadow_free)
+        shadow_free = self._enmascarar_sellos(shadow_free)
 
         # ── Pipeline especial para documentos muy degradados ──────────────────
         nivel_degradacion = self._detectar_nivel_degradacion(shadow_free)
