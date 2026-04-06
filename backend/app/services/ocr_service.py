@@ -171,7 +171,10 @@ class OCRService:
 
             # OPTIMIZACIÓN 2: Procesamiento PARALELO de páginas
             # Usar ThreadPoolExecutor para procesar múltiples páginas simultáneamente
-            max_workers = min(8, total_paginas)  # Máximo 8 threads paralelos
+            # En HuggingFace Spaces free tier, limitar a 2 workers para no saturar RAM/CPU
+            import os as _os
+            is_hf = bool(_os.environ.get("SPACE_ID"))
+            max_workers = min(2 if is_hf else 8, total_paginas)
             logger.info(f"🔄 Procesando {total_paginas} páginas con {max_workers} workers paralelos")
             
             resultados_paginas = []

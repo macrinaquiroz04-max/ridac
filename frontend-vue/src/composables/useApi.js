@@ -43,6 +43,57 @@ function getHeaders(isJson = true) {
   return headers
 }
 
+// ── Auto-refresh en 401: intenta refrescar el token y reintentar ─────────
+let isRefreshing = false
+let refreshPromise = null
+
+async function tryRefreshToken() {
+  if (isRefreshing) return refreshPromise
+  isRefreshing = true
+  refreshPromise = (async () => {
+    try {
+      const refreshToken = localStorage.getItem('refresh_token')
+      if (!refreshToken) return false
+      const headers = { 'Content-Type': 'application/json' }
+      if (ACCESS_TOKEN) headers['X-Access-Token'] = ACCESS_TOKEN
+      const res = await fetch(`${API_BASE}/auth/refresh`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ refresh_token: refreshToken })
+      })
+      if (res.ok) {
+        const data = await res.json()
+        const auth = useAuthStore()
+        auth.token = data.access_token
+        localStorage.setItem('token', data.access_token)
+        if (data.user) {
+          auth.user = data.user
+          localStorage.setItem('usuario', JSON.stringify(data.user))
+        }
+        return true
+      }
+      return false
+    } catch { return false }
+    finally { isRefreshing = false }
+  })()
+  return refreshPromise
+}
+
+async function fetchWithRetry(url, options = {}) {
+  let res = await fetch(url, options)
+  if (res.status === 401) {
+    const refreshed = await tryRefreshToken()
+    if (refreshed) {
+      // Reintentar con nuevo token
+      const newHeaders = { ...options.headers }
+      const auth = useAuthStore()
+      if (auth.token) newHeaders['Authorization'] = `Bearer ${auth.token}`
+      res = await fetch(url, { ...options, headers: newHeaders })
+    }
+  }
+  return res
+}
+
 function handleAuthError(error) {
   const { showToast } = useToast()
   const auth = useAuthStore()
@@ -64,7 +115,7 @@ export function useApi() {
       Object.entries(params).forEach(([k, v]) => {
         if (v !== null && v !== undefined) url.searchParams.append(k, v)
       })
-      const res = await fetch(url.toString(), { headers: getHeaders(false) })
+      const res = await fetchWithRetry(url.toString(), { headers: getHeaders(false) })
       return await handleResponse(res)
     } catch (error) {
       handleAuthError(error)
@@ -74,7 +125,7 @@ export function useApi() {
 
   async function post(endpoint, data = {}) {
     try {
-      const res = await fetch(API_BASE + endpoint, {
+      const res = await fetchWithRetry(API_BASE + endpoint, {
         method: 'POST',
         headers: getHeaders(),
         body: JSON.stringify(data)
@@ -88,7 +139,7 @@ export function useApi() {
 
   async function put(endpoint, data = {}) {
     try {
-      const res = await fetch(API_BASE + endpoint, {
+      const res = await fetchWithRetry(API_BASE + endpoint, {
         method: 'PUT',
         headers: getHeaders(),
         body: JSON.stringify(data)
@@ -102,7 +153,7 @@ export function useApi() {
 
   async function del(endpoint) {
     try {
-      const res = await fetch(API_BASE + endpoint, {
+      const res = await fetchWithRetry(API_BASE + endpoint, {
         method: 'DELETE',
         headers: getHeaders(false)
       })
@@ -119,7 +170,7 @@ export function useApi() {
       const headers = {}
       if (auth.token) headers['Authorization'] = `Bearer ${auth.token}`
       if (ACCESS_TOKEN) headers['X-Access-Token'] = ACCESS_TOKEN
-      const res = await fetch(API_BASE + endpoint, {
+      const res = await fetchWithRetry(API_BASE + endpoint, {
         method: 'POST',
         headers,
         body: formData
