@@ -6,6 +6,7 @@
 from typing import Dict, List, Set, Optional
 import re
 from datetime import datetime
+from difflib import SequenceMatcher
 from app.utils.logger import logger
 
 class LegalEntityExtractor:
@@ -15,6 +16,57 @@ class LegalEntityExtractor:
         # Importar corrector agresivo
         from app.services.legal_corrector_service import legal_corrector
         self.corrector = legal_corrector
+
+        # ── Lista negra: palabras que NO pueden ser parte de un nombre de persona ──
+        self._palabras_no_nombre = {
+            # Estados de México
+            'AGUASCALIENTES','BAJACALIFORNIA','CAMPECHE','CHIAPAS','CHIHUAHUA',
+            'COAHUILA','COLIMA','DURANGO','GUANAJUATO','GUERRERO','HIDALGO',
+            'JALISCO','MEXIO','MEXICO','MÉXICO','MICHOACAN','MICHOACÁN','MORELOS',
+            'NAYARIT','OAXACA','PUEBLA','QUERETARO','QUERÉTARO','SINALOA',
+            'SONORA','TABASCO','TAMAULIPAS','TLAXCALA','VERACRUZ','YUCATAN',
+            'YUCATÁN','ZACATECAS','LEON','NUEVO','ROO','QUINTANA','POTOSI',
+            'POTOSÍ','FEDERAL','CDMX','DISTRITO',
+            # Ciudades de Guerrero y zonas frecuentes en documentos PGR/FGJ
+            'IGUALA','COCULA','CHILPANCINGO','ACAPULCO','TAXCO','TIXTLA',
+            'TELOLOAPAN','TEPECOACUILCO','ATOYAC','ZIHUATANEJO','AYOTZINAPA',
+            'APANGO','HUITZUCO','COPALILLO','BUENAVISTA','CUETZALA','COYUCA',
+            # Términos legales/normativos
+            'NORMA','OFICIAL','MEXICANA','ARTÍCULO','ARTICULO','FRACCION',
+            'FRACCIÓN','INCISO','PÁRRAFO','PARRAFO','REGLAMENTO','CÓDIGO',
+            'CODIGO','DECRETO','ACUERDO','RESOLUCION','RESOLUCIÓN',
+            # Términos institucionales y corporativos
+            'MINISTERIO','PUBLICO','PÚBLICO','SECRETARÍA','SECRETARIA',
+            'PROCURADURIA','PROCURADURÍA','FISCALÍA','FISCALIA',
+            'SUBPROCURADURIA','SUBPROCURADURÍA',
+            'SEDENA','SEMAR','PGR','FGR','SSP','CISEN','SEIDOC','UEIDOS','ADSC',
+            'POLICIA','POLICÍA','EJERCITO','EJÉRCITO','ARMADA','MARINA',
+            'BATALLÓN','BATALLON','REGIMIENTO','BRIGADA','DIVISION','DIVISIÓN',
+            'JUZGADO','TRIBUNAL','CORTE','JUEZ','MAGISTRADO',
+            # Tipos de documento
+            'OFICIO','CIRCULAR','MEMORANDUM','MEMORÁNDUM','CARPETA',
+            'EXPEDIENTE','AVERIGUACIÓN','AVERIGUACION','DILIGENCIA',
+            'ACTUACIÓN','ACTUACION','ACTA','CONSTANCIA','CERTIFICADO',
+            # Palabras de dirección
+            'CALLE','AVENIDA','COLONIA','BOULEVARD','CALZADA','CARRETERA',
+            'MUNICIPIO','ALCALDÍA','ALCALDIA','DELEGACIÓN','DELEGACION',
+            # Meses (nombres de calle a veces se confunden)
+            'ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO',
+            'SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE',
+            # Títulos solos (válidos como prefijo de patrón, no como componente)
+            'GENERAL','CORONEL','MAYOR','CAPITAN','CAPITÁN','TENIENTE',
+            'SARGENTO','CABO','SOLDADO','LICENCIADO','LICENCIADA',
+            'INGENIERO','DOCTOR','MAESTRO','AGENTE','DIRECTOR','SUBDIRECTOR',
+        }
+
+        # Términos que indican texto forense/balístico, no una dirección
+        self._terminos_no_lugar = {
+            'casquillo','casquillos','cartucho','cartuchos','bala','balas',
+            'balín','fusil','pistola','rifle','calibre','percutor',
+            'vaina','vainas','ateflonado','ateflonados','enjaulado',
+            'enjaulados','punta de bala','mm de','narcotico','narcótico',
+            'estupefaciente','droga','cocaína','heroína','marihuana',
+        }
         
         # Patrones de expresiones regulares para entidades
         self.patterns = {
@@ -195,11 +247,15 @@ class LegalEntityExtractor:
                     elif entity_type == 'direcciones':
                         # Combinar partes de dirección y CORREGIR
                         direccion = match.group(0).strip()
+                        if not self._is_valid_location(direccion):
+                            continue
                         direccion_corregida = self.corrector.correct_field_aggressive(direccion, 'lugar')
                         found.add(direccion_corregida)
                     elif entity_type == 'lugares':
                         # CORRECCIÓN AGRESIVA para lugares
                         lugar = match.group(0).strip() if not match.lastindex else match.group(1).strip()
+                        if not self._is_valid_location(lugar):
+                            continue
                         lugar_corregido = self.corrector.correct_field_aggressive(lugar, 'lugar')
                         found.add(lugar_corregido)
                     elif entity_type == 'diligencias':
@@ -286,18 +342,69 @@ class LegalEntityExtractor:
         
         return None
     
+    def _is_valid_location(self, lugar: str) -> bool:
+        """Rechazar capturas de lugar que son claramente texto OCR-basura."""
+        lugar = lugar.strip()
+        if not lugar or len(lugar) < 4:
+            return False
+
+        # Demasiado largo para un nombre de lugar real (> 80 caracteres = frase, no lugar)
+        if len(lugar) > 80:
+            return False
+
+        # Demasiadas palabras = es una oración, no un topónimo
+        if len(lugar.split()) > 8:
+            return False
+
+        # Contiene terminología armamentística/forense — no es una dirección
+        texto_lower = lugar.lower()
+        if any(t in texto_lower for t in self._terminos_no_lugar):
+            return False
+
+        # Contiene dígitos mezclados con letras en forma no-postal (OCR garbage)
+        # Permitir patrones postales tipo "762" o "Col. 123" pero rechazar "762 X 39 mm"
+        if re.search(r'\d+\s+[Xx]\s+\d+', lugar):
+            return False
+
+        return True
+
     def _is_valid_name(self, nombre: str) -> bool:
         """Validar que sea un nombre válido"""
+        nombre = nombre.strip()
+
         # Debe tener al menos 2 palabras
         palabras = nombre.split()
         if len(palabras) < 2:
             return False
-        
+
+        # Longitud total razonable
+        if len(nombre) > 80:
+            return False
+
         # Filtrar palabras muy comunes que no son nombres
         stop_words = {'de', 'la', 'el', 'los', 'las', 'del', 'y', 'e', 'o', 'u'}
         palabras_validas = [p for p in palabras if p.lower() not in stop_words]
-        
-        return len(palabras_validas) >= 2
+
+        if len(palabras_validas) < 2:
+            return False
+
+        # Rechazar si algún token pertenece a la lista negra institucional/geográfica
+        for p in palabras:
+            if p.upper() in self._palabras_no_nombre:
+                return False
+
+        # Cada token válido no debe contener dígitos (OCR garbage)
+        for p in palabras_validas:
+            if re.search(r'\d', p):
+                return False
+            # Longitud razonable para un token de nombre (no demasiado corto ni largo)
+            if len(p) < 2 or len(p) > 30:
+                return False
+            # No debe tener caracteres extraños (símbolos, slash, etc.)
+            if re.search(r'[/\\|@#$%^&*()_+=\[\]{}<>]', p):
+                return False
+
+        return True
     
     def deduplicate_entities(self, entities: Dict[str, List[str]]) -> Dict[str, List[str]]:
         """
@@ -312,7 +419,24 @@ class LegalEntityExtractor:
         deduplicated = {}
         
         for entity_type, values in entities.items():
-            unique = []
+            if entity_type == 'nombres':
+                # Deduplicación difusa: si dos nombres son >82% similares,
+                # conservar solo el más largo (más información OCR)
+                unique: List[str] = []
+                for name in sorted(values, key=len, reverse=True):
+                    name_norm = name.lower().strip()
+                    is_dup = False
+                    for kept in unique:
+                        ratio = SequenceMatcher(None, name_norm, kept.lower().strip()).ratio()
+                        if ratio > 0.82:
+                            is_dup = True
+                            break
+                    if not is_dup:
+                        unique.append(name)
+                deduplicated[entity_type] = unique
+                continue
+
+            unique_list = []
             seen = set()
             
             for value in values:
@@ -322,9 +446,9 @@ class LegalEntityExtractor:
                 
                 if normalized not in seen:
                     seen.add(normalized)
-                    unique.append(value)
+                    unique_list.append(value)
             
-            deduplicated[entity_type] = unique
+            deduplicated[entity_type] = unique_list
         
         return deduplicated
     
