@@ -225,6 +225,18 @@ class LegalEntityFilterService:
     }
     
     # ============================================
+    # ESTADOS Y MUNICIPIOS MEXICANOS (no son apellidos cuando son 2a palabra sola)
+    # ============================================
+    
+    ESTADOS_MEXICO = {
+        'guerrero', 'oaxaca', 'morelos', 'puebla', 'hidalgo', 'tlaxcala',
+        'michoacan', 'michoacán', 'jalisco', 'sinaloa', 'sonora', 'chihuahua',
+        'coahuila', 'veracruz', 'tabasco', 'campeche', 'yucatan', 'yucatán',
+        'chiapas', 'nayarit', 'colima', 'aguascalientes', 'zacatecas', 'durango',
+        'guanajuato', 'queretaro', 'querétaro', 'tamaulipas', 'baja california',
+    }
+    
+    # ============================================
     # VALIDACIONES
     # ============================================
     
@@ -358,6 +370,12 @@ class LegalEntityFilterService:
         
         if not tiene_nombre_apellido_conocido:
             return False, "No contiene ningún nombre o apellido conocido (posible OCR error)"
+        
+        # 16. Detectar combinaciones ciudad+estado: "Iguala Guerrero", "Ayotzinapa Guerrero"
+        # Si tiene exactamente 2 palabras, la 2ª es un estado mexicano, y la 1ª no es un nombre conocido
+        if len(palabras) == 2 and palabras_lower[1] in self.ESTADOS_MEXICO:
+            if palabras_lower[0] not in self.NOMBRES_COMUNES:
+                return False, "Parece ciudad+estado, no nombre de persona"
         
         return True, None
     

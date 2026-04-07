@@ -101,15 +101,15 @@
               <div v-if="!analisis.resultados?.nombres?.length" class="empty-tab">No se encontraron nombres</div>
               <div v-for="(n, i) in analisis.resultados?.nombres" :key="i" class="result-item">
                 <div class="result-type">👤 {{ formatTipo(n.tipo, 'NOMBRE') }}</div>
-                <div class="result-text">{{ n.texto_completo }}</div>
+                <div class="result-text">{{ n.texto_completo || n.texto }}</div>
                 <div class="nombre-completa">
                   <template v-if="n.titulo"><span class="nombre-parte">Título:</span><span>{{ n.titulo }}</span></template>
-                  <span class="nombre-parte">Nombres:</span><span>{{ n.nombres || 'N/A' }}</span>
-                  <span class="nombre-parte">Paterno:</span><span>{{ n.apellido_paterno || 'N/A' }}</span>
-                  <span class="nombre-parte">Materno:</span><span>{{ n.apellido_materno || 'N/A' }}</span>
+                  <span class="nombre-parte">Nombres:</span><span>{{ n.nombres || (n.texto_completo || n.texto || '').split(' ')[0] || 'N/A' }}</span>
+                  <span class="nombre-parte">Paterno:</span><span>{{ n.apellido_paterno || (n.texto_completo || n.texto || '').split(' ')[1] || 'N/A' }}</span>
+                  <span class="nombre-parte">Materno:</span><span>{{ n.apellido_materno || (n.texto_completo || n.texto || '').split(' ')[2] || '' }}</span>
                 </div>
                 <div class="result-meta">
-                  <span v-if="n.numero_pagina" class="page-tag">Página {{ n.numero_pagina }}</span>
+                  <span v-if="n.numero_pagina || n.pagina" class="page-tag">Página {{ n.numero_pagina || n.pagina }}</span>
                 </div>
               </div>
             </div>
@@ -119,15 +119,15 @@
               <div v-if="!analisis.resultados?.direcciones?.length" class="empty-tab">No se encontraron direcciones</div>
               <div v-for="(d, i) in analisis.resultados?.direcciones" :key="i" class="result-item">
                 <div class="result-type">🏠 {{ formatTipo(d.tipo, 'DIRECCIÓN') }}</div>
-                <div class="result-text">{{ d.texto }}</div>
+                <div class="result-text">{{ d.texto_completo || d.texto }}</div>
                 <div class="direccion-completa">
-                  <span class="dir-parte">Vía:</span><span>{{ d.tipo_via || '' }} {{ d.nombre_via || 'N/A' }}</span>
+                  <span class="dir-parte">Vía:</span><span>{{ d.tipo_via || '' }} {{ d.nombre_via || d.nombre || 'N/A' }}</span>
                   <span class="dir-parte">Número:</span><span>{{ d.numero || 'N/A' }}</span>
                   <template v-if="d.colonia"><span class="dir-parte">Colonia:</span><span>{{ d.colonia }}</span></template>
                   <template v-if="d.codigo_postal"><span class="dir-parte">C.P.:</span><span>{{ d.codigo_postal }}</span></template>
                 </div>
                 <div class="result-meta">
-                  <span v-if="d.numero_pagina" class="page-tag">Página {{ d.numero_pagina }}</span>
+                  <span v-if="d.numero_pagina || d.pagina" class="page-tag">Página {{ d.numero_pagina || d.pagina }}</span>
                 </div>
               </div>
             </div>
@@ -137,10 +137,10 @@
               <div v-if="!analisis.resultados?.lugares?.length" class="empty-tab">No se encontraron lugares</div>
               <div v-for="(l, i) in analisis.resultados?.lugares" :key="i" class="result-item">
                 <div class="result-type">🌍 {{ formatTipo(l.tipo, 'LUGAR') }}</div>
-                <div class="result-text">{{ l.texto }}</div>
+                <div class="result-text">{{ l.texto_completo || l.texto }}</div>
                 <div class="result-meta">
-                  <span>📍 {{ l.nombre || 'N/A' }}</span>
-                  <span v-if="l.numero_pagina" class="page-tag">Página {{ l.numero_pagina }}</span>
+                  <span>📍 {{ l.nombre || l.texto || 'N/A' }}</span>
+                  <span v-if="l.numero_pagina || l.pagina" class="page-tag">Página {{ l.numero_pagina || l.pagina }}</span>
                 </div>
               </div>
             </div>

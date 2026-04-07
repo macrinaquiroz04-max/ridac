@@ -15,6 +15,12 @@ from collections import defaultdict
 
 logger = logging.getLogger("ridac_ocr")
 
+try:
+    from app.services.legal_entity_filter_service import LegalEntityFilterService
+    _FILTER_AVAILABLE = True
+except ImportError:
+    _FILTER_AVAILABLE = False
+
 class UltraAnalysisService:
     """Servicio de análisis ultra-optimizado que nunca se cuelga"""
     
@@ -26,6 +32,9 @@ class UltraAnalysisService:
         
         # Cache de resultados para análisis repetidos
         self.analysis_cache = {}
+        
+        # Filtro de validación de nombres
+        self.entity_filter = LegalEntityFilterService() if _FILTER_AVAILABLE else None
     
     def _compile_patterns(self) -> Dict:
         """Compilar todos los patrones regex para máxima velocidad"""
@@ -40,10 +49,13 @@ class UltraAnalysisService:
             ],
             
             'nombres': [
-                # Nombres completos mexicanos comunes
+                # Nombres con título/rol explícito
                 re.compile(r'\bC\.\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+){1,3})\b'),
                 re.compile(r'\bLIC\.\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+){1,3})\b'),
-                re.compile(r'\bDR\.\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+){1,3})\b'),
+                re.compile(r'\bDR\.?\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+){1,3})\b'),
+                re.compile(r'\bING\.?\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+){1,3})\b'),
+                re.compile(r'\b(?:PERITO|FISCAL|TESTIGO|IMPUTADO|VÍCTIMA|VICTIMA|AGRAVIADO|COMPARECIENTE)\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+){1,3})\b', re.IGNORECASE),
+                # Nombres 3 palabras (filtrado por LegalEntityFilterService en código)
                 re.compile(r'\b([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)?)\b'),
                 
                 # Protección de menores (B.C.A., etc.)
@@ -51,11 +63,11 @@ class UltraAnalysisService:
             ],
             
             'direcciones': [
-                # Direcciones mexicanas
-                re.compile(r'\b(Calle|Av\.|Avenida|Blvd\.|Boulevard)\s+([^,\n]{5,50})', re.IGNORECASE),
-                re.compile(r'\b(Col\.|Colonia)\s+([^,\n]{3,30})', re.IGNORECASE),
-                re.compile(r'\b(Delegación|Alcaldía)\s+([A-Za-záéíóúñ\s]{3,25})', re.IGNORECASE),
-                re.compile(r'\bC\.P\.\s*(\d{5})\b', re.IGNORECASE),
+                # Direcciones mexicanas — nombre de calle debe empezar con letra, no números/calibres
+                re.compile(r'\b((?:Calle|Av\.|Avenida|Blvd\.|Boulevard)\s+[A-Za-záéíóúñÑ][A-Za-záéíóúñÑ0-9\s\.\-]{2,45}?)(?:\s+\d|,|\n|$)', re.IGNORECASE),
+                re.compile(r'\b((?:Col\.|Colonia)\s+[A-Za-záéíóúñÑ][A-Za-záéíóúñÑ\s]{2,28}?)(?:,|\n|$)', re.IGNORECASE),
+                re.compile(r'\b((?:Delegación|Alcaldía)\s+[A-Za-záéíóúñÑ][A-Za-záéíóúñÑ\s]{2,23}?)(?:,|\n|$)', re.IGNORECASE),
+                re.compile(r'\b(C\.P\.\s*\d{5})\b', re.IGNORECASE),
             ],
             
             'lugares': [
@@ -145,6 +157,10 @@ class UltraAnalysisService:
                             # Protección especial para menores
                             if categoria == 'nombres' and self._is_minor_protected(texto_limpio):
                                 texto_limpio = "[MENOR PROTEGIDO]"
+                            elif categoria == 'nombres' and self.entity_filter:
+                                es_valido, _ = self.entity_filter.es_nombre_valido(texto_limpio)
+                                if not es_valido:
+                                    continue
                             
                             # Agregar con información de página
                             items_encontrados.add((texto_limpio, match.start(), match.end()))
@@ -152,13 +168,25 @@ class UltraAnalysisService:
                 # Convertir set a lista de diccionarios con información de página
                 for item_tuple in items_encontrados:
                     texto_item, start_pos, end_pos = item_tuple
-                    resultado[categoria].append({
+                    entry = {
                         'texto': texto_item,
+                        'texto_completo': texto_item,
+                        'numero_pagina': numero_pagina,
                         'pagina': numero_pagina,
                         'posicion_inicio': start_pos,
                         'posicion_fin': end_pos,
                         'longitud': len(texto_item)
-                    })
+                    }
+                    if categoria == 'nombres':
+                        partes = texto_item.split()
+                        entry['nombres'] = partes[0] if partes else texto_item
+                        entry['apellido_paterno'] = partes[1] if len(partes) > 1 else ''
+                        entry['apellido_materno'] = partes[2] if len(partes) > 2 else ''
+                        entry['tipo'] = 'persona'
+                    elif categoria in ('direcciones', 'lugares'):
+                        entry['tipo'] = categoria
+                        entry['nombre'] = texto_item
+                    resultado[categoria].append(entry)
                         
         except Exception as e:
             logger.warning(f"⚠️ Error extrayendo patrones de página {numero_pagina}: {e}")
@@ -292,16 +320,31 @@ class UltraAnalysisService:
                             # Protección especial para menores
                             if categoria == 'nombres' and self._is_minor_protected(texto_limpio):
                                 texto_limpio = "[MENOR PROTEGIDO]"
+                            elif categoria == 'nombres' and self.entity_filter:
+                                es_valido, _ = self.entity_filter.es_nombre_valido(texto_limpio)
+                                if not es_valido:
+                                    continue
                             
                             items_encontrados.add(texto_limpio)
                 
                 # Convertir set a lista de diccionarios con información adicional
                 for item in items_encontrados:
-                    resultado[categoria].append({
+                    entry = {
                         'texto': item,
+                        'texto_completo': item,
                         'posicion': chunk.find(item),
                         'longitud': len(item)
-                    })
+                    }
+                    if categoria == 'nombres':
+                        partes = item.split()
+                        entry['nombres'] = partes[0] if partes else item
+                        entry['apellido_paterno'] = partes[1] if len(partes) > 1 else ''
+                        entry['apellido_materno'] = partes[2] if len(partes) > 2 else ''
+                        entry['tipo'] = 'persona'
+                    elif categoria in ('direcciones', 'lugares'):
+                        entry['tipo'] = categoria
+                        entry['nombre'] = item
+                    resultado[categoria].append(entry)
         
         except Exception as e:
             logger.error(f"Error extrayendo patrones: {e}")
