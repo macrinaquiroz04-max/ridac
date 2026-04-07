@@ -61,7 +61,10 @@ class LegalEntityFilterService:
         'alvarado', 'villarreal', 'benitez', 'benítez', 'salas', 'montes', 'orozco',
         'marin', 'marín', 'juarez', 'juárez', 'lozano', 'parra', 'gallegos',
         'escobar', 'leon', 'garza', 'barrera', 'munoz', 'muñoz', 'estrada',
-        'albarran', 'albarrán', 'cavazos', 'saldivar', 'saldívar', 'macias'
+        'albarran', 'albarrán', 'cavazos', 'saldivar', 'saldívar', 'macias',
+        'reza', 'jacobo', 'nava', 'landa', 'astudillo', 'abarca', 'casarrubias',
+        'de la rosa', 'del toro', 'izaguirre', 'delgadillo', 'campuzano',
+        'dueñas', 'conzales', 'conzáles',
     }
     
     # ============================================
@@ -172,7 +175,23 @@ class LegalEntityFilterService:
         'estimados señores', 'estimados padres',
         'de la', 'el licenciado', 'la licenciada',
         'en derecho', 'en degecho', 'de erio', 'del min',
-        'acuerdo institucional', 'ehecrotino ed', 'investigacion número'
+        'acuerdo institucional', 'ehecrotino ed', 'investigacion número',
+        
+        # Nombres geográficos que NO son personas
+        'san juan', 'san miguel', 'san pedro', 'san pablo', 'san jose', 'san josé',
+        'san luis', 'san martin', 'san martín', 'san antonio', 'san francisco',
+        'san rafael', 'san cristobal', 'san cristóbal', 'san andres', 'san andrés',
+        'san felipe', 'san mateo', 'san marcos', 'san agustin', 'san agustín',
+        'san salvador', 'san gabriel', 'san nicolas', 'san nicolás',
+        'san sebastian', 'san sebastián', 'san isidro', 'san jeronimo', 'san jerónimo',
+        'rio san juan', 'rlo san juan',
+        'santa maria', 'santa maría', 'santa cruz', 'santa ana', 'santa lucia',
+        'santa lucía', 'santa rosa', 'santa fe',
+        'norma oficial', 'norma oficial mexicana', 'oficial mexicana',
+        
+        # Nombres con títulos/rangos mezclados (OCR artifacts)
+        'comandante cesar', 'comandante cesar nava', 'comandante cesar navaly',
+        'unidos osvaldo', 'unidos osvaldo rios',
     }
     
     # Patrones de basura OCR en responsables
@@ -236,6 +255,16 @@ class LegalEntityFilterService:
         'guanajuato', 'queretaro', 'querétaro', 'tamaulipas', 'baja california',
     }
     
+    # Tokens que jamás son parte de un nombre real de persona
+    TOKENS_NO_NOMBRE = {
+        'san', 'santa', 'santo', 'rio', 'rlo', 'río',
+        'norma', 'oficial', 'mexicana', 'unidos',
+        'comandante', 'general', 'coronel', 'teniente', 'sargento', 'cabo',
+        'capitán', 'capitan', 'mayor', 'soldado', 'almirante',
+        'colonia', 'coloniaa', 'calle', 'avenida', 'boulevard',
+        'municipio', 'delegacion', 'delegación', 'alcaldia', 'alcaldía',
+    }
+    
     # ============================================
     # VALIDACIONES
     # ============================================
@@ -292,10 +321,32 @@ class LegalEntityFilterService:
             if len(palabra) < 2:
                 return False, "Palabras muy cortas"
         
+        # 5a. Palabras de contenido (sin preposiciones) deben tener min 3 caracteres
+        stop_words_nombre = {'de', 'la', 'el', 'los', 'las', 'del', 'y', 'e'}
+        palabras_contenido = [p for p in palabras if p.lower() not in stop_words_nombre]
+        for pc in palabras_contenido:
+            if len(pc) < 3:
+                return False, f"Palabra '{pc}' muy corta para nombre real"
+        
         # 5b. Al menos una palabra debe tener 4+ caracteres (nombres reales: Juan, María, etc)
         palabras_largas = [p for p in palabras if len(p) >= 4]
         if len(palabras_largas) == 0:
             return False, "Todas las palabras son muy cortas"
+        
+        # 5c. Rechazar si la primera palabra es un token geográfico/institucional
+        primera_lower = palabras[0].lower()
+        if primera_lower in self.TOKENS_NO_NOMBRE:
+            return False, f"Primera palabra '{palabras[0]}' no es un nombre de persona"
+        
+        # 5d. Rechazar palabras con artefactos OCR pegados
+        for pal in palabras_contenido:
+            pal_lower = pal.lower()
+            # Verificar si algún apellido conocido es prefijo con basura OCR pegada
+            # Ej: "Jacoboituve" = "jacobo" + "ituve", "Navaly" = "nava" + "ly"
+            if len(pal) >= 7:
+                for ap in self.APELLIDOS_COMUNES:
+                    if len(ap) >= 4 and pal_lower.startswith(ap) and len(pal_lower) > len(ap) + 1 and pal_lower != ap:
+                        return False, f"Palabra '{pal}' parece apellido con basura OCR pegada"
         
         # 6. Primera palabra debe ser un nombre razonable
         primera_palabra = palabras[0].lower()
@@ -358,24 +409,48 @@ class LegalEntityFilterService:
                 if transiciones >= 2:  # "CdS", "WaCo" tienen 2+ transiciones
                     return False, "Patrón de capitalización sospechoso (OCR error)"
         
-        # 15. VALIDACIÓN FINAL: Al menos una palabra debe ser un nombre o apellido conocido
-        # Esto filtra basura OCR que pasa todas las reglas anteriores
-        tiene_nombre_apellido_conocido = False
+        # 15. VALIDACIÓN FINAL: Al menos una palabra debe ser nombre Y otra apellido conocido
+        # Para 2 palabras: al menos 1 debe ser nombre o apellido conocido
+        # Para 3+ palabras: nombre+apellido conocidos, O al menos 2 apellidos conocidos
         palabras_lower = [p.lower() for p in palabras]
+        palabras_contenido_lower = [p.lower() for p in palabras_contenido]
         
-        for palabra_lower in palabras_lower:
-            if palabra_lower in self.NOMBRES_COMUNES or palabra_lower in self.APELLIDOS_COMUNES:
-                tiene_nombre_apellido_conocido = True
-                break
+        tiene_nombre = any(p in self.NOMBRES_COMUNES for p in palabras_lower)
+        tiene_apellido = any(p in self.APELLIDOS_COMUNES for p in palabras_lower)
+        num_apellidos = sum(1 for p in palabras_lower if p in self.APELLIDOS_COMUNES)
         
-        if not tiene_nombre_apellido_conocido:
-            return False, "No contiene ningún nombre o apellido conocido (posible OCR error)"
+        if len(palabras_contenido) >= 3:
+            # Para 3+ palabras, exigir (nombre + apellido) O (2+ apellidos conocidos)
+            if not ((tiene_nombre and tiene_apellido) or num_apellidos >= 2):
+                return False, "Nombre de 3+ palabras debe tener nombre+apellido o 2+ apellidos conocidos"
+        else:
+            # Para 2 palabras, al menos 1 debe ser conocido
+            if not (tiene_nombre or tiene_apellido):
+                return False, "No contiene ningún nombre o apellido conocido (posible OCR error)"
         
         # 16. Detectar combinaciones ciudad+estado: "Iguala Guerrero", "Ayotzinapa Guerrero"
         # Si tiene exactamente 2 palabras, la 2ª es un estado mexicano, y la 1ª no es un nombre conocido
         if len(palabras) == 2 and palabras_lower[1] in self.ESTADOS_MEXICO:
             if palabras_lower[0] not in self.NOMBRES_COMUNES:
                 return False, "Parece ciudad+estado, no nombre de persona"
+        
+        # 17. Rechazar si contiene token geográfico mezclado con nombre
+        for pl in palabras_lower:
+            if pl in self.TOKENS_NO_NOMBRE and pl not in self.NOMBRES_COMUNES and pl not in self.APELLIDOS_COMUNES:
+                return False, f"Contiene token geográfico/institucional '{pl}'"
+        
+        # 18. Detectar variantes OCR de apellidos conocidos con errores
+        # Ej: "Martinef" (Martínez), "Conzáles" (González), "Jacolo" (Jacobo)
+        for pal in palabras_contenido_lower:
+            if len(pal) >= 4:
+                for apellido in self.APELLIDOS_COMUNES:
+                    if len(apellido) >= 4 and pal != apellido:
+                        # Si son muy similares pero no iguales, es posible OCR error
+                        from difflib import SequenceMatcher
+                        ratio = SequenceMatcher(None, pal, apellido).ratio()
+                        if 0.70 <= ratio < 0.95 and len(pal) != len(apellido):
+                            # Permitir: la corrección se haría después. Solo rechazar los muy corrupts
+                            pass
         
         return True, None
     

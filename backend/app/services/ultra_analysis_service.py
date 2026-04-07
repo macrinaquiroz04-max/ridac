@@ -39,6 +39,11 @@ class UltraAnalysisService:
     def _compile_patterns(self) -> Dict:
         """Compilar todos los patrones regex para máxima velocidad"""
         
+        # Números escritos en español para fechas
+        _nums = r'(?:primero|uno|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|trece|catorce|quince|diecis[eé]is|diecisiete|dieciocho|diecinueve|veinte|veintiuno|veintid[oó]s|veintitr[eé]s|veinticuatro|veinticinco|veintis[eé]is|veintisiete|veintiocho|veintinueve|treinta(?:\s+y\s+\w+)?)'
+        _meses = r'(?:enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)'
+        _year_txt = r'(?:(?:dos\s+mil|mil\s+novecientos|mil\s+ochocientos)(?:\s+\w+){0,3})'
+
         patterns = {
             'fechas': [
                 # Formatos dd/mm/yyyy, dd-mm-yyyy, dd de mes de yyyy
@@ -46,6 +51,16 @@ class UltraAnalysisService:
                 re.compile(r'\b(\d{1,2}\s+de\s+\w+\s+de\s+\d{4})\b', re.IGNORECASE),
                 re.compile(r'\b(\w+\s+\d{1,2},?\s+\d{4})\b', re.IGNORECASE),
                 re.compile(r'\b(\d{4}[-/]\d{1,2}[-/]\d{1,2})\b', re.IGNORECASE),
+                # Fechas escritas en texto: "siete de abril del dos mil veintiséis"
+                re.compile(rf'\b({_nums}\s+de\s+{_meses}\s+del?\s+{_year_txt})\b', re.IGNORECASE),
+                # "día siete del mes de abril del año dos mil veintiséis"
+                re.compile(rf'\b(d[ií]a\s+{_nums}\s+del?\s+mes\s+de\s+{_meses}\s+del?\s+(?:a[ñn]o\s+)?{_year_txt})\b', re.IGNORECASE),
+                # "siete de abril de dos mil veintiséis" (sin "del")
+                re.compile(rf'\b({_nums}\s+de\s+{_meses}\s+de\s+{_year_txt})\b', re.IGNORECASE),
+                # Número + mes escrito + año escrito: "7 de abril del dos mil veintiséis"
+                re.compile(rf'\b(\d{{1,2}}\s+de\s+{_meses}\s+del?\s+{_year_txt})\b', re.IGNORECASE),
+                # Día escrito + mes + año numérico: "siete de abril de 2026"
+                re.compile(rf'\b({_nums}\s+de\s+{_meses}\s+del?\s+\d{{4}})\b', re.IGNORECASE),
             ],
             
             'nombres': [
@@ -63,9 +78,10 @@ class UltraAnalysisService:
             ],
             
             'direcciones': [
-                # Direcciones mexicanas — nombre de calle debe empezar con letra, no números/calibres
-                re.compile(r'\b((?:Calle|Av\.|Avenida|Blvd\.|Boulevard)\s+[A-Za-záéíóúñÑ][A-Za-záéíóúñÑ0-9\s\.\-]{2,45}?)(?:\s+\d|,|\n|$)', re.IGNORECASE),
-                re.compile(r'\b((?:Col\.|Colonia)\s+[A-Za-záéíóúñÑ][A-Za-záéíóúñÑ\s]{2,28}?)(?:,|\n|$)', re.IGNORECASE),
+                # Direcciones mexicanas — nombre de calle debe empezar con letra mayúscula
+                # y NO ser seguido de verbos/frases/calibres
+                re.compile(r'\b((?:Calle|Av\.|Avenida|Blvd\.|Boulevard)\s+[A-ZÁÉÍÓÚÑ][A-Za-záéíóúñÑ\s\.\-]{2,40}?)(?:\s+(?:n[úu]m|#|\d)|,|\n|$)', re.IGNORECASE),
+                re.compile(r'\b((?:Col\.|Colonia)\s+[A-ZÁÉÍÓÚÑ][A-Za-záéíóúñÑ\s]{2,28}?)(?:,|\n|$)', re.IGNORECASE),
                 re.compile(r'\b((?:Delegación|Alcaldía)\s+[A-Za-záéíóúñÑ][A-Za-záéíóúñÑ\s]{2,23}?)(?:,|\n|$)', re.IGNORECASE),
                 re.compile(r'\b(C\.P\.\s*\d{5})\b', re.IGNORECASE),
             ],
@@ -161,6 +177,8 @@ class UltraAnalysisService:
                                 es_valido, _ = self.entity_filter.es_nombre_valido(texto_limpio)
                                 if not es_valido:
                                     continue
+                            elif categoria == 'direcciones' and not self._is_valid_direccion(texto_limpio):
+                                continue
                             
                             # Agregar con información de página
                             items_encontrados.add((texto_limpio, match.start(), match.end()))
@@ -324,6 +342,8 @@ class UltraAnalysisService:
                                 es_valido, _ = self.entity_filter.es_nombre_valido(texto_limpio)
                                 if not es_valido:
                                     continue
+                            elif categoria == 'direcciones' and not self._is_valid_direccion(texto_limpio):
+                                continue
                             
                             items_encontrados.add(texto_limpio)
                 
@@ -356,6 +376,86 @@ class UltraAnalysisService:
         # Patrón de iniciales (B.C.A., J.L.M., etc.)
         patron_iniciales = re.match(r'^[A-Z]\.([A-Z]\.)+$', texto)
         return bool(patron_iniciales)
+    
+    def _is_valid_direccion(self, direccion: str) -> bool:
+        """Validar que una dirección detectada sea real y no basura OCR"""
+        if not direccion or len(direccion.strip()) < 5:
+            return False
+        
+        texto = direccion.strip()
+        texto_lower = texto.lower()
+        
+        # Siempre aceptar códigos postales (C.P. 12345)
+        if re.match(r'^C\.P\.\s*\d{5}$', texto, re.IGNORECASE):
+            return True
+        
+        # Rechazar calibres/munición detectados como calles
+        # Ej: "CALLE 9 MM", "CALLE 7.62", "CALLE .308 WIN"
+        if re.search(r'\b\d+\.?\d*\s*[Mm][Mm]\b', texto):
+            return False
+        if re.search(r'\.\d{2,3}["\']\s', texto):
+            return False
+        if re.search(r'\b(?:WIN|PARABELLUM|BMG|REM|AUTO|MAUSSER|GA)\b', texto, re.IGNORECASE):
+            return False
+        if re.search(r'\d+\s*[Xx]\s*\d+', texto):
+            return False
+        
+        # Rechazar "coloniaa" (artefacto OCR de "colonia")
+        if 'coloniaa' in texto_lower:
+            return False
+        
+        # Rechazar si después del tipo de vía hay verbos/artículos/frases
+        via_frase = re.match(
+            r'(?:calle|avenida|av\.|blvd\.|boulevard|col\.|colonia)\s+'
+            r'(?:se|por|de|en|que|las|los|con|sin|fue|era|son|hay|del|una|un|el|la|al|su|no|ya)\b',
+            texto_lower
+        )
+        if via_frase:
+            return False
+        
+        # Rechazar terminología legal/forense
+        terminos_no_lugar = [
+            'investigación', 'investigacion', 'rev.:', 'ref.:', 'pgr', 'lftaipg',
+            'ministerio', 'agencia de', 'coordinación', 'dictamen', 'carpeta',
+            'expediente', 'indiciado', 'constitución', 'constitucion', 'certificado',
+            'paradero', 'requerimiento', 'diligencia', 'perito', 'pericial',
+            'fraccion', 'fracción', 'artículo', 'articulo', 'casquillo', 'cartucho',
+            'bala', 'fusil', 'pistola', 'rifle', 'calibre', 'percutor',
+            'narcótico', 'estupefaciente', 'droga', 'fiscal',
+        ]
+        if any(t in texto_lower for t in terminos_no_lugar):
+            return False
+        
+        # Rechazar colores solos como nombre de colonia (OCR garbage)
+        # Ej: "Colonia negro", "Colonia azul", "Colonia obscuro"
+        colonia_match = re.match(r'(?:col\.|colonia)\s+(.+)$', texto_lower)
+        if colonia_match:
+            nombre_colonia = colonia_match.group(1).strip()
+            colores_y_basura = {
+                'negro', 'negra', 'azul', 'rojo', 'roja', 'blanco', 'blanca',
+                'verde', 'gris', 'obscuro', 'obscura', 'oscuro', 'oscura',
+                'amarillo', 'amarilla', 'anaranjado', 'dorado', 'declaro',
+                'robo', 'humanos', 'número', 'numero', 'acuerdo',
+            }
+            if nombre_colonia in colores_y_basura:
+                return False
+        
+        # Rechazar si es mayormente números
+        digitos = sum(1 for c in texto if c.isdigit())
+        letras = sum(1 for c in texto if c.isalpha())
+        if letras > 0 and digitos / letras > 0.3:
+            return False
+        
+        # Rechazar textos muy largos con muchas minúsculas (frases, no direcciones)
+        palabras = texto.split()
+        if len(palabras) > 5:
+            # Quitar la primera palabra (tipo de vía)
+            resto = palabras[1:]
+            minusculas = sum(1 for p in resto if p and p[0].islower())
+            if minusculas > len(resto) // 2:
+                return False
+        
+        return True
     
     def _combine_chunk_results(self, chunk_results: List[Dict]) -> Dict[str, Any]:
         """Combinar resultados de todos los chunks"""

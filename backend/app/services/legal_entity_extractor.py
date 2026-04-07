@@ -94,6 +94,15 @@ class LegalEntityExtractor:
                 r'\b(\d{1,2})[/\-\s](ENE|FEB|MAR|ABR|MAY|JUN|JUL|AGO|SEP|OCT|NOV|DIC)[/\-\s](\d{4})\b',
                 # Solo mes+año: "octubre de 2014", "mes de octubre de 2014"
                 r'(?:mes\s+de\s+)?(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\s+(?:de|del)\s+(\d{4})\b',
+                # ── FECHAS ESCRITAS EN TEXTO (formato mexicano legal) ──
+                # "siete de abril del dos mil veintiséis", "PRIMERO DE ENERO DEL DOS MIL VEINTICUATRO"
+                r'\b(primero|uno|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|trece|catorce|quince|diecis[eé]is|diecisiete|dieciocho|diecinueve|veinte|veintiuno|veintiun|veintid[oó]s|veintitr[eé]s|veinticuatro|veinticinco|veintis[eé]is|veintisiete|veintiocho|veintinueve|treinta|treinta\s+y\s+uno)\s+de\s+(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\s+(?:de|del)\s+(\d{4})\b',
+                # Con año escrito: "siete de abril del dos mil veintiséis"
+                r'\b(primero|uno|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|trece|catorce|quince|diecis[eé]is|diecisiete|dieciocho|diecinueve|veinte|veintiuno|veintiun|veintid[oó]s|veintitr[eé]s|veinticuatro|veinticinco|veintis[eé]is|veintisiete|veintiocho|veintinueve|treinta|treinta\s+y\s+uno)\s+de\s+(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\s+(?:de|del)\s+((?:dos\s+mil|mil\s+novecientos)(?:\s+\w+){0,3})\b',
+                # "a los DD días del mes de MES de/del YEAR" (con día escrito)
+                r'\ba\s+los\s+(\w+)\s+d[ií]as\s+del\s+mes\s+de\s+(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\s+(?:de|del)\s+(\d{4})\b',
+                # "a los DD días del mes de MES de/del año escrito"
+                r'\ba\s+los\s+(\w+)\s+d[ií]as\s+del\s+mes\s+de\s+(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\s+(?:de|del)\s+((?:dos\s+mil|mil\s+novecientos)(?:\s+\w+){0,3})\b',
             ],
 
             # ── NOMBRES ── captura nombres normales Y en MAYÚSCULAS ──────────
@@ -127,11 +136,11 @@ class LegalEntityExtractor:
                 r'(?:municipio|mpio\.?)[^\S\n]+([A-ZÁÉÍÓÚÑ][a-záéíóúñ \t]{3,30})',
                 # Colonias
                 r'(?:colonia|col\.)[^\S\n]+([A-ZÁÉÍÓÚÑ][a-záéíóúñA-ZÁÉÍÓÚÑ \t]{3,35})',
-                # CALLES/AVENIDAS — acepta cualquier nombre (persona, fecha, estado, número)
+                # CALLES/AVENIDAS — nombre de calle debe empezar con LETRA, no número
                 # Se captura incl. el prefijo para distinguir "Calle Guerrero" del estado "Guerrero"
                 r'((?:calle|c\.|avenida|av\.|boulevard|blvd\.|calzada|privada|andador|'
                 r'cerrada|retorno|paseo|prol(?:ongaci[oó]n|\.)?|circuito|vía)[^\S\n]+'
-                r'[A-ZÁÉÍÓÚÑ0-9][^\n,;:]{2,42})',
+                r'[A-ZÁÉÍÓÚÑa-záéíóúñ][^\n,;:]{2,42})',
                 # Dirección completa: calle + número
                 r'(?:domicilio|calle|avenida|av\.|boulevard|blvd\.)[^\S\n]+([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:[^\S\n]+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+){0,4})[^\S\n]+(?:núm\.?|número|no\.?|#)[^\S\n]*(\d+[A-Z]?)',
                 # Colonia + alcaldía/delegación
@@ -163,6 +172,20 @@ class LegalEntityExtractor:
         self._abrev_meses = {
             'ENE': 1, 'FEB': 2, 'MAR': 3, 'ABR': 4, 'MAY': 5, 'JUN': 6,
             'JUL': 7, 'AGO': 8, 'SEP': 9, 'OCT': 10, 'NOV': 11, 'DIC': 12,
+        }
+
+        # Números escritos en texto → valor numérico (para fechas mexicanas escritas)
+        self._numeros_texto = {
+            'primero': 1, 'uno': 1, 'dos': 2, 'tres': 3, 'cuatro': 4,
+            'cinco': 5, 'seis': 6, 'siete': 7, 'ocho': 8, 'nueve': 9,
+            'diez': 10, 'once': 11, 'doce': 12, 'trece': 13, 'catorce': 14,
+            'quince': 15, 'dieciséis': 16, 'dieciseis': 16, 'diecisiete': 17,
+            'dieciocho': 18, 'diecinueve': 19, 'veinte': 20,
+            'veintiuno': 21, 'veintiun': 21, 'veintidós': 22, 'veintidos': 22,
+            'veintitrés': 23, 'veintitres': 23, 'veinticuatro': 24,
+            'veinticinco': 25, 'veintiséis': 26, 'veintiseis': 26,
+            'veintisiete': 27, 'veintiocho': 28, 'veintinueve': 29,
+            'treinta': 30, 'treinta y uno': 31,
         }
     
     def extract_all(self, text: str) -> Dict[str, List[str]]:
@@ -241,8 +264,8 @@ class LegalEntityExtractor:
                 # Mes + año
                 mes_texto = groups[0].lower()
                 if mes_texto in self.meses:
-                    año = int(groups[1])
-                    if 1900 <= año <= 2100:
+                    año = self._parse_year(groups[1])
+                    if año and 1900 <= año <= 2100:
                         return f"{año}-{self.meses[mes_texto]:02d}"
                 return None
 
@@ -253,8 +276,11 @@ class LegalEntityExtractor:
                 if len(str(g0)) == 4 and str(g0).isdigit():
                     año, mes, dia = int(g0), int(g1), int(g2)
                 elif g1.lower() in self.meses:
-                    # "15 de marzo de 2024"
-                    dia, año = int(g0), int(g2)
+                    # Día puede ser número o texto: "15 de marzo de 2024" o "siete de abril del 2024"
+                    dia = self._parse_day(g0)
+                    año = self._parse_year(g2)
+                    if dia is None or año is None:
+                        return None
                     mes = self.meses[g1.lower()]
                 elif g1.upper() in self._abrev_meses:
                     # "15-MAR-2024" (abreviatura militar/notarial)
@@ -262,7 +288,10 @@ class LegalEntityExtractor:
                     mes = self._abrev_meses[g1.upper()]
                 else:
                     # "15/03/2024"
-                    dia, mes, año = int(g0), int(g1), int(g2)
+                    try:
+                        dia, mes, año = int(g0), int(g1), int(g2)
+                    except ValueError:
+                        return None
 
                 if 1 <= mes <= 12 and 1 <= dia <= 31 and 1900 <= año <= 2100:
                     fecha = datetime(año, mes, dia)
@@ -271,6 +300,103 @@ class LegalEntityExtractor:
         except Exception as e:
             logger.debug(f"Error normalizando fecha: {e}")
 
+        return None
+
+    def _parse_day(self, value: str) -> Optional[int]:
+        """Convertir día a número, ya sea dígito o texto escrito"""
+        value = value.strip().lower()
+        # Si es número directo
+        if value.isdigit():
+            return int(value)
+        # Si es texto escrito
+        if value in self._numeros_texto:
+            return self._numeros_texto[value]
+        # "treinta y uno" puede venir como match con espacios
+        value_norm = re.sub(r'\s+', ' ', value)
+        if value_norm in self._numeros_texto:
+            return self._numeros_texto[value_norm]
+        return None
+
+    def _parse_year(self, value: str) -> Optional[int]:
+        """Convertir año a número, ya sea dígito o texto escrito en español"""
+        value = value.strip().lower()
+        # Si es número directo
+        if value.isdigit():
+            return int(value)
+        # Parsear año escrito en texto: "dos mil veintiséis", "mil novecientos noventa y nueve"
+        return self._year_text_to_number(value)
+
+    def _year_text_to_number(self, texto: str) -> Optional[int]:
+        """Convertir año escrito en texto español a número entero"""
+        texto = re.sub(r'\s+', ' ', texto.strip().lower())
+
+        _unidades = {
+            'cero': 0, 'uno': 1, 'una': 1, 'dos': 2, 'tres': 3, 'cuatro': 4,
+            'cinco': 5, 'seis': 6, 'siete': 7, 'ocho': 8, 'nueve': 9,
+        }
+        _especiales = {
+            'diez': 10, 'once': 11, 'doce': 12, 'trece': 13, 'catorce': 14,
+            'quince': 15, 'dieciséis': 16, 'dieciseis': 16, 'diecisiete': 17,
+            'dieciocho': 18, 'diecinueve': 19,
+        }
+        _decenas = {
+            'veinte': 20, 'veintiuno': 21, 'veintiún': 21, 'veintiun': 21,
+            'veintidós': 22, 'veintidos': 22, 'veintitrés': 23, 'veintitres': 23,
+            'veinticuatro': 24, 'veinticinco': 25,
+            'veintiséis': 26, 'veintiseis': 26, 'veintisiete': 27,
+            'veintiocho': 28, 'veintinueve': 29,
+            'treinta': 30, 'cuarenta': 40, 'cincuenta': 50,
+            'sesenta': 60, 'setenta': 70, 'ochenta': 80, 'noventa': 90,
+        }
+        _centenas = {
+            'cien': 100, 'ciento': 100, 'doscientos': 200, 'trescientos': 300,
+            'cuatrocientos': 400, 'quinientos': 500, 'seiscientos': 600,
+            'setecientos': 700, 'ochocientos': 800, 'novecientos': 900,
+        }
+
+        try:
+            total = 0
+            # "dos mil veintiséis" → 2000 + 26
+            # "mil novecientos noventa y nueve" → 1000 + 900 + 99
+            partes = texto.replace(' y ', ' ').split()
+
+            i = 0
+            while i < len(partes):
+                palabra = partes[i]
+
+                if palabra == 'mil':
+                    # Si total es 0 y "mil" es la primera, es 1000
+                    if total == 0:
+                        total = 1000
+                    else:
+                        total *= 1000
+                    i += 1
+                elif palabra in _centenas:
+                    total += _centenas[palabra]
+                    i += 1
+                elif palabra in _decenas:
+                    total += _decenas[palabra]
+                    i += 1
+                elif palabra in _especiales:
+                    total += _especiales[palabra]
+                    i += 1
+                elif palabra in _unidades:
+                    val = _unidades[palabra]
+                    # Check if next word is "mil"
+                    if i + 1 < len(partes) and partes[i + 1] == 'mil':
+                        total += val * 1000
+                        i += 2
+                    else:
+                        total += val
+                        i += 1
+                else:
+                    # Palabra desconocida, saltar
+                    i += 1
+
+            if 1900 <= total <= 2100:
+                return total
+        except Exception:
+            pass
         return None
     
     def _normalize_phone(self, phone: str) -> Optional[str]:
@@ -310,6 +436,60 @@ class LegalEntityExtractor:
         if re.search(r'\d+\s+[Xx]\s+\d+', lugar):
             return False
 
+        # ── NUEVOS FILTROS ──
+
+        # Rechazar calibres de municin/armas: "9 MM", "7.62", ".308", ".223", "5.56", etc.
+        if re.search(r'\b\d+\.?\d*\s*[Mm][Mm]\b', lugar):
+            return False
+        if re.search(r'\.\d{2,3}["\']?\s', lugar):
+            return False
+        # Patrones balísticos específicos
+        if re.search(r'\b(?:WIN|PARABELLUM|BMG|REM|AUTO|MAUSSER|GA)\b', lugar, re.IGNORECASE):
+            return False
+        if re.search(r'\bCALIBRE\b', lugar, re.IGNORECASE):
+            return False
+
+        # Rechazar "coloniaa" con doble 'a' (artefacto OCR común)
+        if re.search(r'coloniaa', texto_lower):
+            return False
+
+        # Rechazar si después del tipo de vía (CALLE/AVENIDA) hay verbos/frases
+        # Ej: "CALLE se llevaran a cabo", "CALLE por su importancia"
+        verbo_patterns = [
+            r'(?:calle|avenida|av\.|blvd\.)\s+(?:se|por|de|en|que|las|los|con|sin|fue|era|son|hay|del|una|el|la|al)\b',
+            r'(?:calle|avenida)\s+[a-záéíóú]{2,}\s+[a-záéíóú]{2,}',  # minusculas tras calle = frase
+        ]
+        for vp in verbo_patterns:
+            if re.search(vp, texto_lower):
+                return False
+
+        # Rechazar si contiene palabras de documentos legales
+        terminos_legales = [
+            'investigación', 'investigacion', 'rev.:', 'ref.:', 'pgr', 'lftaipg',
+            'ministerio', 'agencia', 'coordinación', 'dictamen', 'acuerdo',
+            'carpeta', 'expediente', 'indiciado', 'constitución', 'constitucion',
+            'certificado', 'paradero', 'memorandum', 'requerimiento',
+            'diligencia', 'perito', 'pericial', 'fraccion', 'fracción',
+            'artículo', 'articulo', 'república', 'republica',
+        ]
+        if any(t in texto_lower for t in terminos_legales):
+            return False
+
+        # Rechazar si es mayormente números y fragmentos cortos sin sentido
+        # Contar ratio de dígitos vs letras
+        digitos = sum(1 for c in lugar if c.isdigit())
+        letras = sum(1 for c in lugar if c.isalpha())
+        if letras > 0 and digitos / letras > 0.3:
+            return False
+
+        # Rechazar frases demasiado largas que son texto corrido, no nombres de lugar
+        palabras_lugar = lugar.split()
+        if len(palabras_lugar) > 4:
+            # Si tiene más de 4 palabras y muchas en minúscula, es frase
+            minusculas = sum(1 for p in palabras_lugar if p[0].islower())
+            if minusculas > len(palabras_lugar) // 2:
+                return False
+
         return True
 
     def _is_valid_name(self, nombre: str) -> bool:
@@ -341,12 +521,42 @@ class LegalEntityExtractor:
         for p in palabras_validas:
             if re.search(r'\d', p):
                 return False
-            # Longitud razonable para un token de nombre (no demasiado corto ni largo)
-            if len(p) < 2 or len(p) > 30:
+            # Cada palabra de contenido debe tener mín 3 caracteres
+            if len(p) < 3 or len(p) > 30:
                 return False
             # No debe tener caracteres extraños (símbolos, slash, etc.)
             if re.search(r'[/\\|@#$%^&*()_+=\[\]{}<>]', p):
                 return False
+
+        # Rechazar si primera palabra es título/rango/geográfico
+        _titulos_no_nombre = {
+            'comandante','general','coronel','teniente','sargento','cabo',
+            'soldado','almirante','capitán','capitan','mayor','director',
+            'subdirector','unidos','rlo','rio','río','san','santa','santo',
+            'norma','oficial',
+        }
+        if palabras_validas[0].lower() in _titulos_no_nombre:
+            return False
+
+        # Rechazar palabras con 3+ consonantes seguidas (artefacto OCR)
+        for p in palabras_validas:
+            p_low = p.lower()
+            if re.search(r'[bcdfghjklmnpqrstvwxyz]{3,}', p_low):
+                # Excepciones reales en español
+                if not re.search(r'(?:sch|str|ndr|nst|mpr|mbr|ntr|nsp|rst)', p_low):
+                    return False
+
+        # Rechazar nombres con sufijo OCR pegado (ej: Jacoboituve, Navaly)
+        try:
+            from app.services.legal_entity_filter_service import LegalEntityFilterService
+            for p in palabras_validas:
+                p_low = p.lower()
+                if len(p_low) > 9:
+                    for ap in LegalEntityFilterService.APELLIDOS_COMUNES:
+                        if p_low.startswith(ap) and len(p_low) > len(ap) + 1 and p_low != ap:
+                            return False
+        except ImportError:
+            pass
 
         return True
     
@@ -364,15 +574,21 @@ class LegalEntityExtractor:
         
         for entity_type, values in entities.items():
             if entity_type == 'nombres':
-                # Deduplicación difusa: si dos nombres son >82% similares,
+                # Deduplicación difusa: si dos nombres son >78% similares,
                 # conservar solo el más largo (más información OCR)
                 unique: List[str] = []
                 for name in sorted(values, key=len, reverse=True):
                     name_norm = name.lower().strip()
                     is_dup = False
                     for kept in unique:
-                        ratio = SequenceMatcher(None, name_norm, kept.lower().strip()).ratio()
-                        if ratio > 0.82:
+                        kept_norm = kept.lower().strip()
+                        ratio = SequenceMatcher(None, name_norm, kept_norm).ratio()
+                        if ratio > 0.78:
+                            is_dup = True
+                            break
+                        # También detectar si uno es prefijo del otro
+                        # Ej: "Salvador Reza" vs "Salvador Reza Jacobo"
+                        if name_norm in kept_norm or kept_norm in name_norm:
                             is_dup = True
                             break
                     if not is_dup:
