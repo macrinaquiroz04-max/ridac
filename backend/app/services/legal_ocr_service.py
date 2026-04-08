@@ -28,12 +28,38 @@ try:
 except ImportError:
     PYPDF2_AVAILABLE = False
 
+# Mejora de imagen (AdvancedImageEnhancer)
+try:
+    from app.services.advanced_image_enhancer import create_enhancer
+    IMAGE_ENHANCER_AVAILABLE = True
+except ImportError:
+    IMAGE_ENHANCER_AVAILABLE = False
+
+# EasyOCR — motor alternativo de OCR (requiere torch, ~1 GB adicional)
+try:
+    import easyocr
+    EASYOCR_AVAILABLE = True
+except ImportError:
+    EASYOCR_AVAILABLE = False
+
+# Corrección ortográfica específica para OCR
+try:
+    from app.services.text_correction_service import TextCorrectionService as _TextCorrectionServiceCls
+    _ocr_text_corrector = _TextCorrectionServiceCls()
+    TEXT_CORRECTOR_AVAILABLE = True
+except Exception:
+    TEXT_CORRECTOR_AVAILABLE = False
+    _ocr_text_corrector = None
+
 logger = logging.getLogger(__name__)
 
 
 class LegalOCRService:
     """Servicio de OCR para documentos legales con corrección de abreviaturas"""
-    
+
+    # Singleton para EasyOCR (carga modelos de ~300 MB una sola vez)
+    _easyocr_reader = None
+
     # Diccionario de abreviaturas jurídicas mexicanas
     ABREVIATURAS_JURIDICAS = {
         # Instituciones
@@ -366,6 +392,18 @@ class LegalOCRService:
         
         return resultado
     
+    @classmethod
+    def _get_easyocr_reader(cls):
+        """Lector EasyOCR con patrón singleton (carga modelos una sola vez)"""
+        if cls._easyocr_reader is None and EASYOCR_AVAILABLE:
+            try:
+                logger.info("Inicializando EasyOCR reader (español + inglés)...")
+                cls._easyocr_reader = easyocr.Reader(['es', 'en'], gpu=False, verbose=False)
+                logger.info("EasyOCR reader listo")
+            except Exception as e_init:
+                logger.warning(f"No se pudo inicializar EasyOCR: {e_init}")
+        return cls._easyocr_reader
+
     async def _extraer_con_ocr(
         self,
         ruta_pdf: str,
@@ -373,7 +411,7 @@ class LegalOCRService:
         pagina_fin: Optional[int],
         callback_progreso: Optional[callable]
     ) -> Dict[str, any]:
-        """Extraer texto usando OCR"""
+        """Extraer texto usando OCR con mejora de imagen, multi-PSM, fallback EasyOCR y corrección ortográfica"""
         resultado = {
             "paginas": {},
             "total_paginas": 0,
@@ -381,12 +419,25 @@ class LegalOCRService:
         }
         
         try:
-            # Configuración de OCR en español
-            custom_config = r'--oem 3 --psm 6 -l spa'
-            
+            # ── Configuraciones PSM para votación multi-modo ───────────────────────────
+            psm_configs = [
+                r'--oem 3 --psm 6 -l spa',   # Bloque de texto uniforme (más común)
+                r'--oem 3 --psm 4 -l spa',   # Columna única de tamaño variable
+                r'--oem 3 --psm 11 -l spa',  # Texto disperso sin orientación
+            ]
+
+            # ── Inicializar AdvancedImageEnhancer ────────────────────────────────
+            _enhancer = None
+            if IMAGE_ENHANCER_AVAILABLE:
+                try:
+                    _enhancer = create_enhancer('high')
+                    logger.info("AdvancedImageEnhancer activado para OCR")
+                except Exception as e_enh_init:
+                    logger.warning(f"No se pudo inicializar AdvancedImageEnhancer: {e_enh_init}")
+
             # Convertir PDF a imágenes (por lotes para no saturar memoria)
             batch_size = 10
-            
+
             # Primero obtener total de páginas
             try:
                 reader = PdfReader(ruta_pdf)
@@ -395,60 +446,114 @@ class LegalOCRService:
             except:
                 # Si no se puede leer, asumir que se procesarán todas
                 total_paginas = pagina_fin if pagina_fin else 1000
-            
+
             if pagina_fin is None or pagina_fin > total_paginas:
                 pagina_fin = total_paginas
-            
+
             # Procesar por lotes
             for batch_start in range(pagina_inicio, pagina_fin + 1, batch_size):
                 batch_end = min(batch_start + batch_size - 1, pagina_fin)
-                
+
                 logger.info(f"Procesando páginas {batch_start} a {batch_end}")
-                
+
                 try:
                     # Convertir páginas a imágenes
                     imagenes = convert_from_path(
                         ruta_pdf,
                         first_page=batch_start,
                         last_page=batch_end,
-                        dpi=300,  # Alta resolución para mejor OCR
-                        grayscale=True  # Blanco y negro mejora OCR
+                        dpi=300,
+                        grayscale=True
                     )
-                    
+
                     # Procesar cada imagen
                     for idx, imagen in enumerate(imagenes):
                         num_pagina = batch_start + idx
-                        
+
                         try:
-                            # Aplicar OCR
-                            texto = pytesseract.image_to_string(imagen, config=custom_config)
-                            
-                            # Procesar texto
+                            # ── 1. Mejorar imagen con AdvancedImageEnhancer ─────────
+                            imagen_ocr = imagen
+                            if _enhancer:
+                                try:
+                                    imagen_ocr = _enhancer.enhance_pil_image(imagen)
+                                except Exception as e_enh:
+                                    logger.warning(f"Mejora de imagen p{num_pagina} falló: {e_enh}")
+
+                            # ── 2. Multi-PSM voting — elegir el resultado con más texto ─
+                            mejor_texto = ""
+                            mejor_score = -1
+                            for config in psm_configs:
+                                try:
+                                    texto_cand = pytesseract.image_to_string(
+                                        imagen_ocr, config=config
+                                    )
+                                    score = sum(1 for c in texto_cand if c.isalnum())
+                                    if score > mejor_score:
+                                        mejor_score = score
+                                        mejor_texto = texto_cand
+                                except Exception:
+                                    continue
+                            texto = mejor_texto
+
+                            # ── 3. EasyOCR como fallback para páginas con poco texto ─
+                            if EASYOCR_AVAILABLE and mejor_score < 80:
+                                try:
+                                    reader_easy = self._get_easyocr_reader()
+                                    if reader_easy:
+                                        import numpy as np
+                                        img_np = np.array(imagen_ocr.convert("RGB"))
+                                        res_easy = reader_easy.readtext(
+                                            img_np, detail=0, paragraph=True
+                                        )
+                                        texto_easy = "\n".join(res_easy) if res_easy else ""
+                                        easy_score = sum(1 for c in texto_easy if c.isalnum())
+                                        if easy_score > mejor_score:
+                                            texto = texto_easy
+                                            logger.info(
+                                                f"EasyOCR activado en p{num_pagina} "
+                                                f"(score {easy_score} vs {mejor_score} Tesseract)"
+                                            )
+                                except Exception as e_easy:
+                                    logger.warning(f"EasyOCR falló en p{num_pagina}: {e_easy}")
+
+                            # ── 4. Corrección ortográfica de errores OCR ──────────────
+                            if TEXT_CORRECTOR_AVAILABLE and _ocr_text_corrector:
+                                try:
+                                    texto = _ocr_text_corrector.corregir_texto(
+                                        texto, contexto="legal"
+                                    )
+                                except Exception:
+                                    pass
+
+                            # ── 5. Procesar texto (abreviaturas jurídicas) ────────────
                             texto = self.procesar_texto_completo(texto)
-                            
+
                             resultado["paginas"][num_pagina] = texto
-                            
+
                             if callback_progreso:
-                                progreso = ((num_pagina - pagina_inicio + 1) / (pagina_fin - pagina_inicio + 1)) * 100
-                                # Detectar si callback es async o sync
+                                progreso = (
+                                    (num_pagina - pagina_inicio + 1)
+                                    / (pagina_fin - pagina_inicio + 1)
+                                    * 100
+                                )
                                 import inspect
                                 if inspect.iscoroutinefunction(callback_progreso):
                                     await callback_progreso(num_pagina, total_paginas, progreso)
                                 else:
                                     callback_progreso(num_pagina, total_paginas, progreso)
-                        
+
                         except Exception as e:
                             logger.error(f"Error OCR en página {num_pagina}: {str(e)}")
                             resultado["errores"].append(f"Página {num_pagina}: {str(e)}")
-                
+
                 except Exception as e:
                     logger.error(f"Error procesando lote {batch_start}-{batch_end}: {str(e)}")
                     resultado["errores"].append(f"Lote {batch_start}-{batch_end}: {str(e)}")
-        
+
         except Exception as e:
             logger.error(f"Error en OCR: {str(e)}")
             resultado["errores"].append(str(e))
-        
+
         return resultado
     
     def generar_reporte_correcciones(self, texto_original: str, texto_corregido: str) -> List[Dict]:
