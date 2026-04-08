@@ -604,6 +604,26 @@ class LegalEntityFilterService:
             if len(direccion.split()) < 2:
                 return direccion, False
         
+        # Rechazar si después del keyword de vía hay texto verbal/preposicional (basura OCR)
+        # Ej: "CALLE se llevaron", "AVENIDA IADA EN Investigación...", "CALLE fueron mencionado"
+        _patron_basura_via = re.compile(
+            r'(?:calle|avenida|av\.?|calzada|boulevard|blvd\.?|privada|andador|cerrada)\s+'
+            r'(?:se\b|en\b|de\b|los\b|las\b|fue|fueron|son|ha\b|han\b|est[aá]|que\b|por\b|'
+            r'del\b(?!\s+[A-ZÁÉÍÓÚÑ])|al\b|para\b|con\b)',
+            re.IGNORECASE
+        )
+        if _patron_basura_via.search(direccion_lower):
+            return direccion, False
+        
+        # Rechazar si contiene referencias de expediente / código institucional
+        if re.search(r'\b(?:PGR|FGR|AP\b|A\.P\.|SEIDO|UEIDO|REV\.|FO-FF|IT-FF|LFTAIPG)\b', direccion):
+            return direccion, False
+        
+        # Rechazar si tiene 4 o más bloques en MAYÚSCULAS seguidos (encabezado institucional OCR)
+        bloques_mayus = re.findall(r'[A-ZÁÉÍÓÚÑ]{3,}', direccion)
+        if len(bloques_mayus) >= 5:
+            return direccion, False
+        
         return direccion, True
 
 

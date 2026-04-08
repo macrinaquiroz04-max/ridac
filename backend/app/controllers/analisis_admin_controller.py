@@ -43,11 +43,11 @@ ultimo_heartbeat = {"timestamp": datetime.now()}
 def es_fecha_plausible(fecha: date) -> bool:
     """
     Valida que la fecha esté en un rango razonable para expedientes de fiscalía.
-    - No acepta fechas muy antiguas (antes de últimos 10 años)
+    - Acepta fechas desde 1990 (expedientes históricos PGR/FGJ incluyen años 90-2000)
     - No acepta fechas futuras más allá de 1 año
     """
     ano_actual = datetime.now().year
-    fecha_minima = date(ano_actual - 10, 1, 1)
+    fecha_minima = date(1990, 1, 1)
     fecha_maxima = date(ano_actual + 1, 12, 31)
     return fecha_minima <= fecha <= fecha_maxima
 

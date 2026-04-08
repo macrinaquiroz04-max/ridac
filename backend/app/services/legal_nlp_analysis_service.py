@@ -226,6 +226,15 @@ class LegalNLPAnalysisService:
 
         return normalizados
 
+    def _clave_similar_existe(self, clave_nueva: str, claves_existentes: set, umbral: float = 0.88) -> bool:
+        """Detectar si ya existe un nombre muy similar (variantes OCR) usando similitud de cadenas."""
+        from difflib import SequenceMatcher
+        for clave in claves_existentes:
+            ratio = SequenceMatcher(None, clave_nueva, clave).ratio()
+            if ratio >= umbral:
+                return True
+        return False
+
     def _enriquecer_personas(self, personas: List[Dict], telefonos_globales: List[str]) -> List[Dict]:
         resultado = []
         nombres_vistos = set()
@@ -242,6 +251,10 @@ class LegalNLPAnalysisService:
 
             clave = self._clave_nombre(nombre_limpio)
             if clave in nombres_vistos:
+                continue
+            # Deduplicación fuzzy: rechazar nombres que son variantes OCR de uno ya visto
+            # (ej: "Ferando Santiago" ≈ "Fernando Santiago", "Salva Reza" ≈ "Salvador Reza")
+            if self._clave_similar_existe(clave, nombres_vistos):
                 continue
 
             datos = persona.copy()
@@ -461,16 +474,23 @@ class LegalNLPAnalysisService:
         
         return personas
     
+    # Palabras que indican que lo que sigue a CALLE/AVENIDA NO es un nombre de calle sino basura OCR
+    _PALABRAS_NO_NOMBRE_CALLE = re.compile(
+        r'^(?:se\b|en\b|de\b|los\b|las\b|fue|fueron|son|ha|han|esta|están|está|que|por\b|para\b|con\b|del\b|al\b)',
+        re.IGNORECASE
+    )
+
     def extraer_lugares(self, texto: str, numero_pagina: int) -> List[Dict]:
         """Extraer lugares y direcciones"""
         lugares = []
         
-        # Patrones para direcciones
+        # Patrones para direcciones — el nombre debe empezar con letra mayúscula (nombre propio)
+        # [^,\n]{5,100} reemplazado por [A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ][^,\n;]{3,60} para evitar basura OCR
         patrones_direccion = [
-            r'((?:avenida|calle|calzada|boulevard|privada|andador|cerrada)\s+[^,\n]{5,100})',
-            r'(colonia\s+[^,\n]{5,50})',
-            r'(municipio\s+[^,\n]{5,50})',
-            r'(fraccionamiento\s+[^,\n]{5,50})'
+            r'((?:avenida|av\.?|calle|calzada|blvd\.?|boulevard|privada|andador|cerrada)\s+[A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ][^,\n;]{3,60})',
+            r'(colonia\s+[A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ][^,\n;]{2,50})',
+            r'(municipio\s+[A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ][^,\n;]{2,50})',
+            r'(fraccionamiento\s+[A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ][^,\n;]{2,50})'
         ]
         
         for patron in patrones_direccion:
@@ -478,6 +498,25 @@ class LegalNLPAnalysisService:
             
             for match in matches:
                 direccion = match.group(1).strip()
+                
+                # Extraer la parte del nombre (después del keyword de vía)
+                # Si el texto después del keyword empieza con preposición/artículo común → basura OCR
+                keyword_match = re.match(
+                    r'^(?:avenida|av\.?|calle|calzada|blvd\.?|boulevard|privada|andador|cerrada|colonia|municipio|fraccionamiento)\s+',
+                    direccion, re.IGNORECASE
+                )
+                if keyword_match:
+                    resto = direccion[keyword_match.end():]
+                    if self._PALABRAS_NO_NOMBRE_CALLE.match(resto):
+                        continue  # Basura OCR — omitir
+                    # Rechazar si el "nombre" tiene más de 3 palabras en MAYÚSCULAS seguidas
+                    # (indicativo de texto institucional/OCR), a menos que sea una institución real
+                    if re.search(r'[A-Z]{3,}\s+[A-Z]{3,}\s+[A-Z]{3,}\s+[A-Z]{3,}', resto):
+                        continue
+                
+                # Rechazar direcciones que contienen números de expediente / código de barras
+                if re.search(r'\b(?:PGR|FGR|AP|A\.P\.|SEIDO|UEIDO|REV|FO-FF|IT-FF)\b', direccion):
+                    continue
                 
                 # Extraer componentes
                 componentes = self._parsear_direccion(direccion)
@@ -505,13 +544,18 @@ class LegalNLPAnalysisService:
         fechas = []
         
         # Patrones de fechas en español
+        _meses_alt = '|'.join(self.MESES.keys())
         patrones_fecha = [
-            # "5 de enero de 2023"
-            r'(\d{1,2})\s+de\s+(' + '|'.join(self.MESES.keys()) + r')\s+de\s+(\d{4})',
+            # "5 de enero de 2023" / "5 de enero del 2023"
+            r'(\d{1,2})\s+de\s+(' + _meses_alt + r')\s+del?\s+(\d{4})',
+            # "a 15 de enero de/del 2023" (con preposición inicial)
+            r'a\s+(\d{1,2})\s+de\s+(' + _meses_alt + r')\s+del?\s+(\d{4})',
             # "05/01/2023" o "5-1-2023"
             r'(\d{1,2})[/-](\d{1,2})[/-](\d{4})',
             # "enero 5, 2023"
-            r'(' + '|'.join(self.MESES.keys()) + r')\s+(\d{1,2}),?\s+(\d{4})',
+            r'(' + _meses_alt + r')\s+(\d{1,2}),?\s+(\d{4})',
+            # Solo mes + año: "enero de 2014", "enero del 2014"
+            r'\b(' + _meses_alt + r')\s+del?\s+(\d{4})\b',
         ]
         
         for patron in patrones_fecha:
@@ -806,7 +850,7 @@ class LegalNLPAnalysisService:
         fin = min(len(texto), posicion + radio)
         fragmento = texto[inicio:fin]
         
-        patron = r'((?:avenida|calle|calzada|boulevard)\s+[^,\n]{5,100})'
+        patron = r'((?:avenida|av\.?|calle|calzada|boulevard)\s+[A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ][^,\n;]{3,60})'
         match = re.search(patron, fragmento, re.IGNORECASE)
         
         if match:
@@ -859,8 +903,8 @@ class LegalNLPAnalysisService:
                 return fecha
             return None
         except:
-            # Intentar manualmente
-            patron = r'(\d{1,2})\s+de\s+(\w+)\s+de\s+(\d{4})'
+            # Intentar manualmente — soporta "de YYYY" y "del YYYY"
+            patron = r'(\d{1,2})\s+de\s+(\w+)\s+del?\s+(\d{4})'
             match = re.search(patron, fecha_texto, re.IGNORECASE)
             
             if match:
@@ -874,6 +918,19 @@ class LegalNLPAnalysisService:
                         fecha = date(anio, mes, dia)
                         if self._es_fecha_valida(fecha):
                             return fecha
+                    except:
+                        pass
+            
+            # Sobrescribir: solo mes + año ("enero del 2014")
+            patron_mes_anio = r'^(' + '|'.join(self.MESES.keys()) + r')\s+del?\s+(\d{4})$'
+            match2 = re.search(patron_mes_anio, fecha_texto.strip(), re.IGNORECASE)
+            if match2:
+                mes_nombre = match2.group(1).lower()
+                anio = int(match2.group(2))
+                if mes_nombre in self.MESES and 1990 <= anio <= datetime.now().year + 1:
+                    # Devolver el 1° del mes como placeholder
+                    try:
+                        return date(anio, self.MESES[mes_nombre], 1)
                     except:
                         pass
             
@@ -903,8 +960,9 @@ class LegalNLPAnalysisService:
         current_date = datetime.now().date()
         current_year = current_date.year
         
-        # Rango plausible: últimos 10 años hasta 1 año en el futuro
-        fecha_minima = date(current_year - 10, 1, 1)
+        # Rango plausible: documentos históricos (desde 1990) hasta 1 año en el futuro
+        # Nota: expedientes PGR/FGJ pueden tener fechas desde los años 90
+        fecha_minima = date(1990, 1, 1)
         fecha_maxima = date(current_year + 1, 12, 31)
         
         return fecha_minima <= fecha <= fecha_maxima
