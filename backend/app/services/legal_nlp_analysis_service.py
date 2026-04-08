@@ -227,12 +227,19 @@ class LegalNLPAnalysisService:
         return normalizados
 
     def _clave_similar_existe(self, clave_nueva: str, claves_existentes: set, umbral: float = 0.88) -> bool:
-        """Detectar si ya existe un nombre muy similar (variantes OCR) usando similitud de cadenas."""
-        from difflib import SequenceMatcher
-        for clave in claves_existentes:
-            ratio = SequenceMatcher(None, clave_nueva, clave).ratio()
-            if ratio >= umbral:
-                return True
+        """Detectar si ya existe un nombre muy similar (variantes OCR) usando similitud de cadenas.
+        Usa rapidfuzz si está disponible (10-100x más rápido), sino SequenceMatcher."""
+        try:
+            from rapidfuzz.distance import JaroWinkler
+            for clave in claves_existentes:
+                if JaroWinkler.similarity(clave_nueva, clave) >= umbral:
+                    return True
+        except ImportError:
+            from difflib import SequenceMatcher
+            for clave in claves_existentes:
+                ratio = SequenceMatcher(None, clave_nueva, clave).ratio()
+                if ratio >= umbral:
+                    return True
         return False
 
     def _enriquecer_personas(self, personas: List[Dict], telefonos_globales: List[str]) -> List[Dict]:

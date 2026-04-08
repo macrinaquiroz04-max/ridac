@@ -696,8 +696,17 @@ async def procesar_analisis_juridico(
         # Fase 1: Análisis página por página (para mantener número de página correcto)
         procesamiento_estado[estado_key]["fase"] = "analizando_texto"
         procesamiento_estado[estado_key]["progreso"] = 10
-        procesamiento_estado[estado_key]["mensaje"] = "Analizando texto página por página con modelos NLP"
-        
+        procesamiento_estado[estado_key]["mensaje"] = "Analizando texto página por página con modelos NLP + spaCy NER"
+
+        # ── Cargar spaCy NER (ya instalado, complementa extracción regex) ──
+        try:
+            from app.services.spacy_ner_service import spacy_ner_service
+            _spacy_disponible = True
+            logger.info("🧠 spaCy NER activado para complementar extracción regex")
+        except Exception as _e_spacy:
+            _spacy_disponible = False
+            logger.warning(f"⚠️ spaCy NER no disponible: {_e_spacy}")
+
         # Analizar cada página individualmente
         resultado_analisis = {
             "diligencias": [],
@@ -708,28 +717,62 @@ async def procesar_analisis_juridico(
             "telefonos": [],
             "errores": []
         }
-        
+
+        # ── Ventana con overlap: cola de 300 chars de la página anterior ──
+        # Captura entidades que quedaron cortadas entre dos páginas escaneadas
+        _cola_pagina_anterior = ""
+
         for idx, pagina_ocr in enumerate(paginas_ocr):
             # Actualizar progreso
             progreso_actual = 10 + (idx / len(paginas_ocr)) * 15  # 10-25% del progreso total
             procesamiento_estado[estado_key]["progreso"] = int(progreso_actual)
             procesamiento_estado[estado_key]["mensaje"] = f"Analizando página {pagina_ocr.numero_pagina}/{len(paginas_ocr)}"
-            
-            # Analizar esta página específica
+
+            texto_pagina = pagina_ocr.texto_extraido or ""
+
+            # Texto con overlap de la página anterior (para entidades en bordes)
+            texto_con_overlap = (_cola_pagina_anterior + " " + texto_pagina).strip()
+
+            # ── Motor 1: regex / NLP existente ──────────────────────────
             resultado_pagina = legal_nlp_service.analizar_documento_completo(
-                pagina_ocr.texto_extraido,
+                texto_con_overlap,
                 numero_pagina=pagina_ocr.numero_pagina
             )
-            
-            # Agregar resultados al total
+
             resultado_analisis["diligencias"].extend(resultado_pagina["diligencias"])
             resultado_analisis["personas"].extend(resultado_pagina["personas"])
             resultado_analisis["lugares"].extend(resultado_pagina["lugares"])
             resultado_analisis["fechas"].extend(resultado_pagina["fechas"])
             resultado_analisis["oficios"].extend(resultado_pagina["oficios"])
             resultado_analisis["telefonos"].extend(resultado_pagina["telefonos"])
-            
-        logger.info(f"📄 Análisis página por página completado: {len(resultado_analisis['diligencias'])} diligencias, {len(resultado_analisis['personas'])} personas")
+
+            # ── Motor 2: spaCy NER (captura lo que regex no detectó) ────
+            if _spacy_disponible and texto_pagina.strip():
+                try:
+                    ner_resultado = spacy_ner_service.extraer_entidades(
+                        texto_con_overlap,
+                        numero_pagina=pagina_ocr.numero_pagina
+                    )
+                    resultado_analisis["personas"].extend(ner_resultado.get("personas", []))
+                    resultado_analisis["lugares"].extend(ner_resultado.get("lugares", []))
+                    resultado_analisis["fechas"].extend(ner_resultado.get("fechas", []))
+                    logger.debug(
+                        f"   🧠 spaCy pág {pagina_ocr.numero_pagina}: "
+                        f"{len(ner_resultado.get('personas',[]))} personas, "
+                        f"{len(ner_resultado.get('lugares',[]))} lugares, "
+                        f"{len(ner_resultado.get('fechas',[]))} fechas"
+                    )
+                except Exception as _e_ner:
+                    logger.warning(f"⚠️ Error spaCy NER pág {pagina_ocr.numero_pagina}: {_e_ner}")
+
+            # Guardar los últimos 300 caracteres como overlap para la siguiente página
+            _cola_pagina_anterior = texto_pagina[-300:] if len(texto_pagina) > 300 else texto_pagina
+
+        logger.info(
+            f"📄 Análisis completado (regex + spaCy NER): "
+            f"{len(resultado_analisis['diligencias'])} diligencias, "
+            f"{len(resultado_analisis['personas'])} personas (antes de filtro)"
+        )
         
         # Importar servicios de limpieza
         from app.services.legal_autocorrector_service import legal_autocorrector

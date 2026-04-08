@@ -56,6 +56,9 @@ sentence-transformers==2.2.2
 # NLP Legal
 spacy==3.7.2
 
+# Corrección fuzzy de textos OCR (deduplicación de nombres con errores de escaneo)
+rapidfuzz==3.6.1
+
 # Rate limiting
 slowapi==0.1.9
 
