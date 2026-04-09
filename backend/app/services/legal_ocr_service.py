@@ -469,6 +469,7 @@ class LegalOCRService:
                     # Procesar cada imagen
                     for idx, imagen in enumerate(imagenes):
                         num_pagina = batch_start + idx
+                        imagen_ocr = None
 
                         try:
                             # ── 1. Mejorar imagen con AdvancedImageEnhancer ─────────
@@ -479,20 +480,32 @@ class LegalOCRService:
                                 except Exception as e_enh:
                                     logger.warning(f"Mejora de imagen p{num_pagina} falló: {e_enh}")
 
-                            # ── 2. Multi-PSM voting — elegir el resultado con más texto ─
-                            mejor_texto = ""
-                            mejor_score = -1
-                            for config in psm_configs:
-                                try:
-                                    texto_cand = pytesseract.image_to_string(
-                                        imagen_ocr, config=config
-                                    )
-                                    score = sum(1 for c in texto_cand if c.isalnum())
-                                    if score > mejor_score:
-                                        mejor_score = score
-                                        mejor_texto = texto_cand
-                                except Exception:
-                                    continue
+                            # ── 2. Multi-PSM: rápido en PSM 6, fallback a 4/11 solo si calidad baja ─
+                            # La mayoría de páginas de documentos legales son texto uniforme (PSM 6).
+                            # Solo probamos PSMs adicionales si el resultado es pobre (< 200 chars),
+                            # evitando triplicar el tiempo en páginas normales.
+                            try:
+                                mejor_texto = pytesseract.image_to_string(
+                                    imagen_ocr, config=r'--oem 3 --psm 6 -l spa'
+                                )
+                                mejor_score = sum(1 for c in mejor_texto if c.isalnum())
+                            except Exception:
+                                mejor_texto = ""
+                                mejor_score = -1
+
+                            if mejor_score < 200:
+                                # Página de calidad baja — intentar PSM alternativos
+                                for config in psm_configs[1:]:  # PSM 4 y PSM 11
+                                    try:
+                                        texto_cand = pytesseract.image_to_string(
+                                            imagen_ocr, config=config
+                                        )
+                                        score = sum(1 for c in texto_cand if c.isalnum())
+                                        if score > mejor_score:
+                                            mejor_score = score
+                                            mejor_texto = texto_cand
+                                    except Exception:
+                                        continue
                             texto = mejor_texto
 
                             # ── 3. EasyOCR como fallback para páginas con poco texto ─
@@ -545,10 +558,23 @@ class LegalOCRService:
                         except Exception as e:
                             logger.error(f"Error OCR en página {num_pagina}: {str(e)}")
                             resultado["errores"].append(f"Página {num_pagina}: {str(e)}")
+                        finally:
+                            # ── Liberar imágenes PIL para no acumular RAM ──────────────
+                            try:
+                                if imagen_ocr is not None and imagen_ocr is not imagen:
+                                    imagen_ocr.close()
+                                imagen.close()
+                            except Exception:
+                                pass
 
                 except Exception as e:
                     logger.error(f"Error procesando lote {batch_start}-{batch_end}: {str(e)}")
                     resultado["errores"].append(f"Lote {batch_start}-{batch_end}: {str(e)}")
+
+                # ── Si hay checkpoint activo, liberar páginas del dict para no acumular RAM ──
+                # El callback ya guardó cada página en BD; no necesitamos conservarlas en memoria.
+                if callback_progreso:
+                    resultado["paginas"].clear()
 
         except Exception as e:
             logger.error(f"Error en OCR: {str(e)}")
