@@ -470,7 +470,7 @@ async def procesar_ocr_tomo(
         inicio_timestamp = procesamiento_estado[estado_key].get("inicio_timestamp", datetime.now().timestamp())
         
         # Callback para actualizar progreso
-        async def actualizar_progreso(pagina, total, porcentaje):
+        async def actualizar_progreso(pagina, total, porcentaje, texto=None):
             # Actualizar heartbeat para health check
             ultimo_heartbeat["timestamp"] = datetime.now()
             
@@ -1800,17 +1800,40 @@ def _procesar_ocr_tomo_sync(tomo_id: int, ruta_archivo: str, db_url: str, usuari
             "errores": []
         }
         
-        # Callback para actualizar progreso
-        def actualizar_progreso_sync(pagina, total, porcentaje):
+        # ── Detectar páginas ya procesadas para poder reanudar ───────────────
+        paginas_existentes = {
+            p.numero_pagina
+            for p in db.query(ContenidoOCR.numero_pagina).filter(
+                ContenidoOCR.tomo_id == tomo_id,
+                ContenidoOCR.texto_extraido.isnot(None)
+            ).all()
+        }
+        total_paginas_tomo = tomo.numero_paginas or 0
+        primera_pagina_faltante = 1
+        if paginas_existentes and total_paginas_tomo:
+            todas_esperadas = set(range(1, total_paginas_tomo + 1))
+            faltantes = sorted(todas_esperadas - paginas_existentes)
+            if faltantes:
+                primera_pagina_faltante = faltantes[0]
+                logger.info(
+                    f"⏭️ Reanudando OCR del tomo {tomo_id} desde página {primera_pagina_faltante} "
+                    f"({len(paginas_existentes)} páginas ya guardadas)"
+                )
+            else:
+                logger.info(f"✅ OCR del tomo {tomo_id} ya completo, saltando extracción")
+                primera_pagina_faltante = None  # Marca para saltar
+        
+        # Callback para actualizar progreso y guardar checkpoint en BD
+        def actualizar_progreso_sync(pagina, total, porcentaje, texto=None):
             global ultimo_heartbeat
             ultimo_heartbeat["timestamp"] = datetime.now()
-            
+
             # Calcular tiempos
             ahora = datetime.now()
             tiempo_transcurrido = (ahora - inicio_timestamp).total_seconds()
             velocidad = pagina / tiempo_transcurrido if tiempo_transcurrido > 0 else 0
             tiempo_estimado = ((total - pagina) / velocidad) if velocidad > 0 else 0
-            
+
             procesamiento_estado[estado_key].update({
                 "estado": "procesando",
                 "progreso": porcentaje,
@@ -1820,20 +1843,56 @@ def _procesar_ocr_tomo_sync(tomo_id: int, ruta_archivo: str, db_url: str, usuari
                 "tiempo_estimado": int(tiempo_estimado),
                 "velocidad": round(velocidad, 2)
             })
-            
-            if pagina % 10 == 0:  # Log cada 10 páginas
+
+            # ━ Checkpoint: guardar página en BD inmediatamente ━━━━━━━━━━━━━
+            if texto is not None:
+                try:
+                    existing = db.query(ContenidoOCR).filter(
+                        and_(
+                            ContenidoOCR.tomo_id == tomo_id,
+                            ContenidoOCR.numero_pagina == pagina
+                        )
+                    ).first()
+                    if existing:
+                        existing.texto_extraido = texto
+                        existing.updated_at = datetime.now()
+                    else:
+                        db.add(ContenidoOCR(
+                            tomo_id=tomo_id,
+                            numero_pagina=pagina,
+                            texto_extraido=texto
+                        ))
+                    db.commit()
+                except Exception as e_chk:
+                    logger.warning(f"⚠️ Checkpoint pág {pagina} falló: {e_chk}")
+                    db.rollback()
+
+            if pagina % 10 == 0:
                 logger.info(f"📄 OCR Tomo {tomo_id}: {pagina}/{total} ({porcentaje}%) - {round(velocidad, 2)} pág/s")
-        
+
         # Procesar con legal_ocr_service usando asyncio.run() para ejecutar función async
         logger.info(f"🔄 Ejecutando extracción OCR (async en thread)...")
-        
+
         import asyncio
-        resultado = asyncio.run(legal_ocr_service.extraer_texto_pdf(
-            ruta_pdf=ruta_archivo,
-            pagina_inicio=1,
-            pagina_fin=None,
-            callback_progreso=actualizar_progreso_sync
-        ))
+        if primera_pagina_faltante is None:
+            # Ya estaba completo, construir resultado dummy a partir de BD
+            paginas_bd = db.query(ContenidoOCR).filter(
+                ContenidoOCR.tomo_id == tomo_id
+            ).order_by(ContenidoOCR.numero_pagina).all()
+            resultado = {
+                "success": True,
+                "paginas": {p.numero_pagina: p.texto_extraido or "" for p in paginas_bd},
+                "total_paginas": len(paginas_bd),
+                "metodo": "cache",
+                "errores": []
+            }
+        else:
+            resultado = asyncio.run(legal_ocr_service.extraer_texto_pdf(
+                ruta_pdf=ruta_archivo,
+                pagina_inicio=primera_pagina_faltante,
+                pagina_fin=None,
+                callback_progreso=actualizar_progreso_sync
+            ))
         
         logger.info(f"💾 Guardando resultados OCR del tomo {tomo_id} en BD...")
         

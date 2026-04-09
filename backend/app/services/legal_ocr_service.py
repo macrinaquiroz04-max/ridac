@@ -538,9 +538,9 @@ class LegalOCRService:
                                 )
                                 import inspect
                                 if inspect.iscoroutinefunction(callback_progreso):
-                                    await callback_progreso(num_pagina, total_paginas, progreso)
+                                    await callback_progreso(num_pagina, total_paginas, progreso, texto)
                                 else:
-                                    callback_progreso(num_pagina, total_paginas, progreso)
+                                    callback_progreso(num_pagina, total_paginas, progreso, texto)
 
                         except Exception as e:
                             logger.error(f"Error OCR en página {num_pagina}: {str(e)}")
