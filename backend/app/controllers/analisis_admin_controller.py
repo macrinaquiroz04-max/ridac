@@ -77,10 +77,21 @@ async def iniciar_extraccion_ocr(
     tomo = db.query(Tomo).filter(Tomo.id == tomo_id).first()
     if not tomo:
         raise HTTPException(status_code=404, detail="Tomo no encontrado")
-    
+
     # Verificar que el archivo existe
     if not tomo.ruta_archivo or not os.path.exists(tomo.ruta_archivo):
-        raise HTTPException(status_code=404, detail="Archivo PDF no encontrado")
+        # El PDF desapareció (reinicio de contenedor en HF Spaces limpió /tmp).
+        # Resetear a 'pendiente' para que el usuario sepa que debe volver a subir el archivo.
+        tomo.estado = "pendiente"
+        db.commit()
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                "El archivo PDF no está disponible en el servidor. "
+                "Esto ocurre cuando el servidor se reinicia (los archivos en /tmp son temporales). "
+                "Por favor vuelve a subir el PDF para poder procesarlo."
+            )
+        )
     
     # Inicializar estado de procesamiento con tiempo
     estado_key = f"ocr_{tomo_id}"
@@ -1642,8 +1653,17 @@ async def procesar_ocr_completo_multithreading(
     
     # Verificar que el archivo existe
     if not tomo.ruta_archivo or not os.path.exists(tomo.ruta_archivo):
-        raise HTTPException(status_code=404, detail="Archivo PDF no encontrado")
-    
+        tomo.estado = "pendiente"
+        db.commit()
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                "El archivo PDF no está disponible en el servidor. "
+                "Esto ocurre cuando el servidor se reinicia (los archivos en /tmp son temporales). "
+                "Por favor vuelve a subir el PDF para poder procesarlo."
+            )
+        )
+
     # Verificar si ya está en proceso
     task_id = f"ocr_tomo_{tomo_id}"
     if ocr_worker_pool.is_task_active(task_id):

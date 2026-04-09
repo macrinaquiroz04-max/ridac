@@ -119,6 +119,39 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"No se pudieron limpiar logs antiguos: {e}")
 
+    # ── Detectar tomos cuyos PDFs desaparecieron (ej. reinicio de contenedor en HF Spaces) ──
+    # /tmp se borra con cada reinicio. Resetear esos tomos a 'pendiente' para que el usuario
+    # sepa que debe volver a subir el PDF, en vez de quedarse en estado 'procesando' o 'error'
+    # con un archivo fantasma que nunca va a poder procesarse.
+    try:
+        from app.database import SessionLocal as _SL
+        from app.models.tomo import Tomo as _Tomo
+        _db = _SL()
+        try:
+            tomos_afectados = (
+                _db.query(_Tomo)
+                .filter(_Tomo.estado.in_(["procesando", "error", "completado"]))
+                .all()
+            )
+            _resetados = 0
+            for _t in tomos_afectados:
+                if _t.ruta_archivo and not os.path.exists(_t.ruta_archivo):
+                    _t.estado = "pendiente"
+                    _resetados += 1
+            if _resetados:
+                _db.commit()
+                logger.warning(
+                    f"⚠️  {_resetados} tomo(s) reseteados a 'pendiente' porque su PDF "
+                    f"no existe en disco (el contenedor se reinició y /tmp fue limpiado). "
+                    f"Los usuarios deben volver a subir esos archivos."
+                )
+            else:
+                logger.info("✅ Todos los PDFs registrados están presentes en disco")
+        finally:
+            _db.close()
+    except Exception as _e:
+        logger.warning(f"No se pudo verificar integridad de archivos PDF: {_e}")
+
     # A06: auditoría de dependencias (CVE check) — solo registra, no bloquea inicio
     try:
         import subprocess, json as _json
