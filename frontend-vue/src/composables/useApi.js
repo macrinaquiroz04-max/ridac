@@ -193,9 +193,9 @@ export function useApi() {
   }
 
   async function download(endpoint, filename) {
-    const auth = useAuthStore()
-    const res = await fetch(API_BASE + endpoint, {
-      headers: { Authorization: `Bearer ${auth.token}` }
+    // Usa fetchWithRetry para manejar token expirado igual que get/post/put
+    const res = await fetchWithRetry(API_BASE + endpoint, {
+      headers: getHeaders(false)
     })
     if (!res.ok) throw new Error(`Error ${res.status}`)
     const blob = await res.blob()

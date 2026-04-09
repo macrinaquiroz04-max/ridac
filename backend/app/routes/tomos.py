@@ -878,13 +878,14 @@ async def obtener_texto_ocr_pagina(
 
 
 @router.get("/download/{tomo_id}")
+@router.get("/{tomo_id}/descargar")  # alias usado por el frontend
 async def descargar_tomo(
     tomo_id: int,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_active_user)
 ):
     """
-    GET /tomos/download/{tomo_id}
+    GET /tomos/download/{tomo_id}  │  GET /tomos/{tomo_id}/descargar
     Descargar archivo PDF de un tomo.
     """
     tomo = db.query(Tomo).filter(Tomo.id == tomo_id).first()
