@@ -32,10 +32,8 @@ PyMuPDF==1.23.8
 pdf2image==1.16.3
 opencv-python-headless==4.6.0.66
 numpy==1.24.3
-# EasyOCR deshabilitado en producción: descarga modelos en tiempo de ejecución (~900 MB
-# torch + modelos), congela el proceso 60+ minutos en primera ejecución y provoca OOM.
-# Activar solo en servidores con 16+ GB RAM y modelos pre-cargados en la imagen Docker.
-# easyocr==1.7.0
+# EasyOCR — motor alternativo OCR (modelos pre-cargados en Docker build, ver Dockerfile)
+easyocr==1.7.0
 
 # Exportación
 python-docx==1.1.0

@@ -39,6 +39,10 @@ RUN pip install --no-cache-dir --upgrade pip && \
         https://github.com/explosion/spacy-models/releases/download/es_core_news_lg-3.7.0/es_core_news_lg-3.7.0-py3-none-any.whl \
         https://github.com/explosion/spacy-models/releases/download/es_core_news_sm-3.7.0/es_core_news_sm-3.7.0-py3-none-any.whl
 
+# ── Pre-cargar modelos EasyOCR durante build (evita descarga en runtime) ──
+# Sin esto EasyOCR descarga ~900 MB la primera vez que se llama, congelando el proceso.
+RUN python -c "import easyocr; easyocr.Reader(['es', 'en'], gpu=False, verbose=False)" || true
+
 # ── Código fuente ──
 COPY . .
 
