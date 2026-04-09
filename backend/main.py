@@ -130,7 +130,7 @@ async def lifespan(app: FastAPI):
         try:
             tomos_afectados = (
                 _db.query(_Tomo)
-                .filter(_Tomo.estado.in_(["procesando", "error", "completado"]))
+                .filter(_Tomo.estado.in_(["procesando", "error"]))
                 .all()
             )
             _resetados = 0
