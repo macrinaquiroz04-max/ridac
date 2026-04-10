@@ -605,11 +605,14 @@ class LegalEntityFilterService:
                 return direccion, False
         
         # Rechazar si después del keyword de vía hay texto verbal/preposicional (basura OCR)
-        # Ej: "CALLE se llevaron", "AVENIDA IADA EN Investigación...", "CALLE fueron mencionado"
+        # El patrón cubre TAMBIÉN colonia/municipio/fraccionamiento
         _patron_basura_via = re.compile(
-            r'(?:calle|avenida|av\.?|calzada|boulevard|blvd\.?|privada|andador|cerrada)\s+'
+            r'(?:calle|avenida|av\.?|calzada|boulevard|blvd\.?|privada|andador|cerrada|'
+            r'colonia|municipio|fraccionamiento)\s+'
             r'(?:se\b|en\b|de\b|los\b|las\b|fue|fueron|son|ha\b|han\b|est[aá]|que\b|por\b|'
-            r'del\b(?!\s+[A-ZÁÉÍÓÚÑ])|al\b|para\b|con\b)',
+            r'del\b(?!\s+[A-ZÁÉÍÓÚÑ])|al\b|para\b|con\b|n[uú]mero\b|num\b|no\.\s|'
+            r'robo\b|circular\b|plazo\b|fraccion|fracción|piso\b|planta\b|nivel\b|'
+            r'azul\b|negro\b|blanco\b|verde\b|rojo\b|gris\b|dorado\b|caf[eé]\b)',
             re.IGNORECASE
         )
         if _patron_basura_via.search(direccion_lower):

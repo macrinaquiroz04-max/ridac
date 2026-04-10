@@ -79,6 +79,7 @@ _PREPOSICIONES_INICIO = frozenset({
 
 # Primera palabra que delata terminología procesal/legal, no un lugar
 _PALABRAS_NO_LUGAR_INICIO = frozenset({
+    # Terminología procesal
     'materia', 'practicadas', 'emplazamiento', 'fotografía', 'fotografia',
     'forense', 'investigación', 'investigacion', 'criminal', 'delito',
     'fracción', 'fraccion', 'articulo', 'artículo', 'inciso', 'resumen',
@@ -86,6 +87,16 @@ _PALABRAS_NO_LUGAR_INICIO = frozenset({
     'gestión', 'gestion', 'administración', 'administracion',
     'código', 'codigo', 'ley', 'reglamento', 'decreto', 'art', 'previa',
     'actuación', 'actuacion', 'diligencia', 'constancia', 'oficio',
+    'coordinación', 'coordinacion', 'laboratorio', 'laboratorios',
+    'pericial', 'periciales', 'fotografias', 'fotografías',
+    # Pisos/plantas (no son lugares geográficos)
+    'piso', 'planta', 'nivel', 'primer', 'primero', 'segundo', 'tercero',
+    'tercer', 'cuarto', 'quinto', 'séptimo', 'sexto', 'último',
+    # Descriptores genéricos
+    'número', 'numero', 'departamento', 'sección', 'seccion', 'turno',
+    # Colores (no son lugares)
+    'azul', 'negro', 'negra', 'blanco', 'blanca', 'verde', 'rojo', 'roja',
+    'amarillo', 'gris', 'café', 'naranja', 'morado', 'dorado', 'obscuro', 'oscuro',
 })
 
 # Meses en español → número

@@ -481,13 +481,26 @@ class LegalNLPAnalysisService:
         
         return personas
     
-    # Palabras que indican que lo que sigue a CALLE/AVENIDA NO es un nombre de calle sino basura OCR
+    # Palabras que indican que lo que sigue a CALLE/AVENIDA/COLONIA NO es un nombre real
     _PALABRAS_NO_NOMBRE_CALLE = re.compile(
-        r'^(?:se\b|en\b|de\b|los\b|las\b|fue|fueron|son|ha|han|esta|están|está|que|por\b|para\b|con\b|del\b|al\b|'
-        r'notificaci[oó]n|investigaci[oó]n|siguiente|presente|anterior|mencionado|referido|dicho|'
-        r'encargado|fiscal|fracc?\b|inciso|art[ií]culo|federal|nacional|constitucional|'
+        r'^(?:'
+        # Preposiciones / artículos
+        r'se\b|en\b|de\b|los\b|las\b|fue|fueron|son|ha\b|han\b|esta|están|está|que\b|'
+        r'por\b|para\b|con\b|del\b|al\b|un\b|una\b|lo\b|le\b|'
+        # Terminología procesal
+        r'notificaci[oó]n|investigaci[oó]n|siguiente|presente|anterior|mencionado|referido|'
+        r'encargado|fiscal|fraccion|fracción|fracc[ií]n|inciso|art[ií]culo|art\b|'
+        r'federal|nacional|constitucional|constitucional|'
         r'ministerio|polic[ií]a|agente|resum[ei]|declaraci[oó]n|diligencia|servicios?|'
-        r'pericial|general|direcci[oó]n|coordinaci[oó]n|unidad|departamento|laboratorio)',
+        r'pericial|general|direcci[oó]n|coordinaci[oó]n|unidad|departamento|laboratorio|'
+        # Descriptores genéricos que no son nombres de lugares
+        r'circular\b|n[uú]mero\b|no\.\s|plazo|planta|piso|nivel|primer|primero|segundo|'
+        r'tercero|cuarto|quinto|sexto|s[eé]ptimo|anterior|posterior|adyacente|'
+        # Colores que no son nombres de lugares
+        r'azul|rojo|verde|negro|blanco|gris|amarillo|naranja|morado|caf[eé]|dorado|'
+        r'plateado|obscuro|oscuro|claro|marino|anaranjado|trasl[uú]cido|'
+        # Basura OCR común
+        r'aseguramiento|paradero|cartuchos|arma\b|delito|robo|fuga|huida)',
         re.IGNORECASE
     )
 
@@ -570,7 +583,8 @@ class LegalNLPAnalysisService:
             # "a 15 de enero de/del 2023" (con preposición inicial)
             r'a\s+(\d{1,2})\s+de\s+(' + _meses_alt + r')\s+del?\s+(\d{4})',
             # "05/01/2023" o "5-1-2023"
-            r'(\d{1,2})[/-](\d{1,2})[/-](\d{4})',
+            # NOTA: (?<!\d) evita capturar dentro de códigos como SEIDO/3/2/2019
+            r'(?<!\d)(\d{1,2})[/-](\d{1,2})[/-](\d{4})(?!\d)',
             # "enero 5, 2023"
             r'(' + _meses_alt + r')\s+(\d{1,2}),?\s+(\d{4})',
             # Solo mes + año: "enero de 2014", "enero del 2014"
@@ -830,28 +844,51 @@ class LegalNLPAnalysisService:
         
         return None
     
+    # Prefijos que indican que el match regex NO es un nombre de persona
+    _PREFIJOS_NO_PERSONA = frozenset({
+        'ministerio', 'fiscalía', 'fiscalia', 'estado', 'ciudad', 'código', 'codigo',
+        'artículo', 'articulo', 'fracción', 'fraccion', 'penal', 'civil', 'carpeta',
+        'investigación', 'investigacion', 'enero', 'febrero', 'marzo', 'abril', 'mayo',
+        'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre',
+        # Descriptores geográficos
+        'avenida', 'calle', 'calzada', 'colonia', 'municipio', 'delegación', 'delegacion',
+        'federal', 'nacional', 'general', 'agencia', 'dirección', 'direccion',
+        'coordinación', 'coordinacion', 'unidad', 'secretaría', 'secretaria',
+        'procuraduría', 'procuraduria', 'juzgado', 'tribunal', 'suprema',
+        # Títulos (no nombres)
+        'licenciado', 'licenciada', 'doctor', 'doctora', 'ingeniero', 'comandante',
+        'coronel', 'teniente', 'sargento', 'cabo', 'capitán', 'capitan', 'mayor',
+        # Términos procesales
+        'diligencia', 'constancia', 'oficio', 'acuerdo', 'solicitud', 'declaración',
+        'declaracion', 'actuación', 'actuacion', 'resumen', 'circular', 'número', 'numero',
+        # Colores/descriptores
+        'azul', 'negro', 'blanco', 'verde', 'rojo', 'gris', 'amarillo', 'dorado',
+    })
+
     def _es_nombre_valido(self, nombre: str) -> bool:
-        """Verificar si un string es un nombre válido"""
-        # Filtrar palabras comunes que no son nombres
-        palabras_excluir = {
-            'Ministerio Público', 'Fiscalía', 'Estado', 'México', 'Ciudad',
-            'Código', 'Artículo', 'Fracción', 'Penal', 'Civil', 'Carpeta',
-            'Investigación', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo',
-            'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
-        }
-        
-        if nombre in palabras_excluir:
+        """Verificar si un string es un nombre válido (pre-filtro rápido antes del filtro fuerte)."""
+        if not nombre:
             return False
-        
-        # Debe tener al menos 2 palabras
+
         palabras = nombre.split()
-        if len(palabras) < 2:
+
+        # Debe tener entre 2 y 5 palabras
+        if len(palabras) < 2 or len(palabras) > 5:
             return False
-        
-        # No debe ser muy largo
-        if len(palabras) > 5:
+
+        # La primera palabra no puede ser un prefijo institucional/procesal/descriptor
+        if palabras[0].lower() in self._PREFIJOS_NO_PERSONA:
             return False
-        
+
+        # No debe contener dígitos
+        if re.search(r'\d', nombre):
+            return False
+
+        # Mínimo 4 vocales en el nombre completo (nombres reales las tienen)
+        vocales = len(re.findall(r'[aeiouáéíóúAEIOUÁÉÍÓÚ]', nombre))
+        if vocales < 3:
+            return False
+
         return True
     
     def _determinar_rol(self, contexto: str) -> Optional[str]:
