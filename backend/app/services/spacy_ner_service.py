@@ -70,6 +70,24 @@ _LABELS_PERSONA = {'PER'}
 _LABELS_LUGAR  = {'LOC', 'GPE', 'FAC'}  # ORG excluido: son instituciones, no ubicaciones físicas
 _LABELS_FECHA  = {'DATE', 'TIME'}
 
+# Palabras que al inicio de un fragmento indican que NO es un lugar geográfico
+_PREPOSICIONES_INICIO = frozenset({
+    'en', 'se', 'de', 'la', 'el', 'los', 'las', 'lo', 'un', 'una', 'al', 'del',
+    'por', 'con', 'para', 'que', 'no', 'ya', 'si', 'ni', 'o', 'y', 'a',
+    'su', 'sus', 'mi', 'tu', 'le', 'les', 'nos',
+})
+
+# Primera palabra que delata terminología procesal/legal, no un lugar
+_PALABRAS_NO_LUGAR_INICIO = frozenset({
+    'materia', 'practicadas', 'emplazamiento', 'fotografía', 'fotografia',
+    'forense', 'investigación', 'investigacion', 'criminal', 'delito',
+    'fracción', 'fraccion', 'articulo', 'artículo', 'inciso', 'resumen',
+    'circular', 'constitución', 'constitucional', 'notificación', 'notificacion',
+    'gestión', 'gestion', 'administración', 'administracion',
+    'código', 'codigo', 'ley', 'reglamento', 'decreto', 'art', 'previa',
+    'actuación', 'actuacion', 'diligencia', 'constancia', 'oficio',
+})
+
 # Meses en español → número
 _MESES = {
     'enero': 1, 'febrero': 2, 'marzo': 3, 'abril': 4,
@@ -166,7 +184,11 @@ class SpacyNERService:
                 lugar = self._limpiar_lugar(texto_ent)
                 if lugar and len(lugar) >= 4:
                     clave = lugar.lower().strip()
-                    if clave not in lugares_vistos and not self._es_artefacto_ocr(lugar):
+                    if (
+                        clave not in lugares_vistos
+                        and not self._es_artefacto_ocr(lugar)
+                        and self._es_lugar_geografico_valido(lugar)
+                    ):
                         lugares_vistos.add(clave)
                         start = max(0, ent.start_char - 50)
                         end = min(len(texto), ent.end_char + 50)
@@ -276,6 +298,52 @@ class SpacyNERService:
         texto = re.sub(r'\s+', ' ', texto).strip()
         return texto if len(texto) >= 3 else None
 
+    def _es_lugar_geografico_valido(self, texto: str) -> bool:
+        """
+        Validación semántica específica para entidades LOC de spaCy:
+        rechaza fragmentos procesales, de cabecera OCR, preposicionales
+        y artefactos que spaCy clasifica erróneamente como lugar.
+        """
+        if not texto:
+            return False
+        palabras = texto.split()
+        if not palabras:
+            return False
+
+        primera = palabras[0].lower()
+
+        # 1. Empieza con preposición / artículo / conjunción
+        if primera in _PREPOSICIONES_INICIO:
+            return False
+
+        # 2. Empieza con dígito (p. ej. "18 Emplazamiento", "2do Piso")
+        if primera and primera[0].isdigit():
+            return False
+
+        # 3. Primera palabra es terminología procesal (no un nombre de lugar)
+        if primera in _PALABRAS_NO_LUGAR_INICIO:
+            return False
+
+        # 4. Tres o más palabras ≥4 chars completamente en MAYÚSCULAS
+        #    → encabezado institucional OCR ("DEJA REPURIKA ... INMENCIORGANIZADA")
+        palabras_allcaps = [
+            p for p in palabras
+            if len(p) >= 4 and p.isalpha() and p.isupper()
+        ]
+        if len(palabras_allcaps) >= 3:
+            return False
+
+        # 5. Debe tener al menos UNA palabra en Title Case real
+        #    (mayúscula inicial + alguna minúscula) → nombre propio, no header OCR
+        tiene_nombre_propio = any(
+            len(p) >= 3 and p[0].isupper() and len(p) > 1 and p[1].islower()
+            for p in palabras
+        )
+        if not tiene_nombre_propio:
+            return False
+
+        return True
+
     # Colores y descriptores genéricos que no son nombres de lugares
     _COLORES_Y_DESCRIPTORES = {
         'negro', 'negra', 'azul', 'blanco', 'blanca', 'verde', 'rojo', 'roja',
@@ -291,8 +359,11 @@ class SpacyNERService:
         bloques = re.findall(r'[A-ZÁÉÍÓÚÑ]{3,}', texto)
         if len(bloques) >= 5:
             return True
-        # Contiene codes de expediente
-        if re.search(r'\b(?:PGR|FGR|SEIDO|UEIDO|A\.P\.|REV\.|FO-FF)\b', texto):
+        # Contiene códigos de expediente / referencias institucionales
+        if re.search(
+            r'\b(?:PGR|FGR|SEIDO|UEIDO|A\.P\.|REV\.|FO-FF|LFTAIP[A-Z]*|LETAIP[A-Z]*|UEIDMS?)\b',
+            texto, re.IGNORECASE
+        ):
             return True
         # Longitud excesiva con pocas letras (basura)
         if len(texto) > 80 and len(re.findall(r'[a-záéíóúAÁEÉIÍOÓUÚ]', texto)) < 20:

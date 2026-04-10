@@ -616,12 +616,24 @@ class LegalEntityFilterService:
             return direccion, False
         
         # Rechazar si contiene referencias de expediente / código institucional
-        if re.search(r'\b(?:PGR|FGR|AP\b|A\.P\.|SEIDO|UEIDO|REV\.|FO-FF|IT-FF|LFTAIPG)\b', direccion):
+        if re.search(
+            r'\b(?:PGR|FGR|AP\b|A\.P\.|SEIDO|UEIDO|REV\.|FO-FF|IT-FF|LFTAIP[A-Z]*|LETAIP[A-Z]*|UEIDMS?)\b',
+            direccion, re.IGNORECASE
+        ):
             return direccion, False
-        
-        # Rechazar si tiene 4 o más bloques en MAYÚSCULAS seguidos (encabezado institucional OCR)
-        bloques_mayus = re.findall(r'[A-ZÁÉÍÓÚÑ]{3,}', direccion)
-        if len(bloques_mayus) >= 5:
+
+        # Rechazar si hay 3+ palabras completamente en MAYÚSCULAS ≥4 chars
+        # (encabezado institucional OCR como "DEJA REPURIKA INMENCIORGANIZADA")
+        bloques_mayus = [
+            p for p in re.findall(r'\b[A-ZÁÉÍÓÚÑ]{4,}\b', direccion)
+            if p.isalpha()
+        ]
+        if len(bloques_mayus) >= 3:
+            return direccion, False
+
+        # Rechazar si tiene 5+ bloques MAYÚSCULAS consecutivos de ≥3 chars (cabecera)
+        bloques_mayus_ext = re.findall(r'[A-ZÁÉÍÓÚÑ]{3,}', direccion)
+        if len(bloques_mayus_ext) >= 5:
             return direccion, False
         
         return direccion, True
