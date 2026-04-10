@@ -483,7 +483,11 @@ class LegalNLPAnalysisService:
     
     # Palabras que indican que lo que sigue a CALLE/AVENIDA NO es un nombre de calle sino basura OCR
     _PALABRAS_NO_NOMBRE_CALLE = re.compile(
-        r'^(?:se\b|en\b|de\b|los\b|las\b|fue|fueron|son|ha|han|esta|están|está|que|por\b|para\b|con\b|del\b|al\b)',
+        r'^(?:se\b|en\b|de\b|los\b|las\b|fue|fueron|son|ha|han|esta|están|está|que|por\b|para\b|con\b|del\b|al\b|'
+        r'notificaci[oó]n|investigaci[oó]n|siguiente|presente|anterior|mencionado|referido|dicho|'
+        r'encargado|fiscal|fracc?\b|inciso|art[ií]culo|federal|nacional|constitucional|'
+        r'ministerio|polic[ií]a|agente|resum[ei]|declaraci[oó]n|diligencia|servicios?|'
+        r'pericial|general|direcci[oó]n|coordinaci[oó]n|unidad|departamento|laboratorio)',
         re.IGNORECASE
     )
 
@@ -494,10 +498,11 @@ class LegalNLPAnalysisService:
         # Patrones para direcciones — el nombre debe empezar con letra mayúscula (nombre propio)
         # [^,\n]{5,100} reemplazado por [A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ][^,\n;]{3,60} para evitar basura OCR
         patrones_direccion = [
-            r'((?:avenida|av\.?|calle|calzada|blvd\.?|boulevard|privada|andador|cerrada)\s+[A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ][^,\n;]{3,60})',
-            r'(colonia\s+[A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ][^,\n;]{2,50})',
-            r'(municipio\s+[A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ][^,\n;]{2,50})',
-            r'(fraccionamiento\s+[A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ][^,\n;]{2,50})'
+            # Vía + nombre propio: stop en coma, punto, punto y coma, dos puntos (max 40 chars)
+            r'((?:avenida|av\.?|calle|calzada|blvd\.?|boulevard|privada|andador|cerrada)\s+[A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ][^,\n;:.]{3,40})',
+            r'(colonia\s+[A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ][^,\n;:.]{2,40})',
+            r'(municipio\s+[A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ][^,\n;:.]{2,40})',
+            r'(fraccionamiento\s+[A-ZÁÉÍÓÚÑ][A-Za-záéíóúñ][^,\n;:.]{2,40})'
         ]
         
         for patron in patrones_direccion:
@@ -514,11 +519,18 @@ class LegalNLPAnalysisService:
                 )
                 if keyword_match:
                     resto = direccion[keyword_match.end():]
+                    # Con re.IGNORECASE, [A-ZÁÉÍÓÚÑ] también casa minúsculas.
+                    # Verificar que el nombre empieza con mayúscula REAL (nombre propio).
+                    if not resto or not resto[0].isupper():
+                        continue
                     if self._PALABRAS_NO_NOMBRE_CALLE.match(resto):
                         continue  # Basura OCR — omitir
                     # Rechazar si el "nombre" tiene más de 3 palabras en MAYÚSCULAS seguidas
                     # (indicativo de texto institucional/OCR), a menos que sea una institución real
                     if re.search(r'[A-Z]{3,}\s+[A-Z]{3,}\s+[A-Z]{3,}\s+[A-Z]{3,}', resto):
+                        continue
+                    # Rechazar si tiene más de 10 palabras (es una oración, no un nombre de lugar)
+                    if len(resto.split()) > 10:
                         continue
                 
                 # Rechazar direcciones que contienen números de expediente / código de barras

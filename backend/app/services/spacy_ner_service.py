@@ -67,7 +67,7 @@ _PALABRAS_EXCLUIR_PERSONA = {
 }
 
 _LABELS_PERSONA = {'PER'}
-_LABELS_LUGAR  = {'LOC', 'GPE', 'FAC', 'ORG'}
+_LABELS_LUGAR  = {'LOC', 'GPE', 'FAC'}  # ORG excluido: son instituciones, no ubicaciones físicas
 _LABELS_FECHA  = {'DATE', 'TIME'}
 
 # Meses en español → número
@@ -276,6 +276,15 @@ class SpacyNERService:
         texto = re.sub(r'\s+', ' ', texto).strip()
         return texto if len(texto) >= 3 else None
 
+    # Colores y descriptores genéricos que no son nombres de lugares
+    _COLORES_Y_DESCRIPTORES = {
+        'negro', 'negra', 'azul', 'blanco', 'blanca', 'verde', 'rojo', 'roja',
+        'amarillo', 'amarilla', 'café', 'gris', 'naranja', 'morado', 'morada',
+        'rosa', 'dorado', 'dorada', 'plateado', 'plateada', 'obscuro', 'oscuro',
+        'claro', 'marino', 'anaranjado', 'anaranjada', 'traslucido', 'traslúcido',
+        'número', 'numero', 'regular', 'buen', 'bueno', 'mal', 'malo', 'infantil',
+    }
+
     def _es_artefacto_ocr(self, texto: str) -> bool:
         """Detecta si el texto es ruido OCR, no un lugar real."""
         # Demasiados bloques de mayúsculas (cabecera institucional)
@@ -287,6 +296,13 @@ class SpacyNERService:
             return True
         # Longitud excesiva con pocas letras (basura)
         if len(texto) > 80 and len(re.findall(r'[a-záéíóúAÁEÉIÍOÓUÚ]', texto)) < 20:
+            return True
+        # "coloniaa" es artefacto OCR (doble 'a' por error de escaneo)
+        if re.search(r'coloniaa\b', texto, re.IGNORECASE):
+            return True
+        # Si todas las palabras son colores o descriptores genéricos → no es un lugar real
+        palabras = [p.lower().strip('.,;:"()') for p in texto.split() if p.strip('.,;:()')]
+        if palabras and all(p in self._COLORES_Y_DESCRIPTORES for p in palabras):
             return True
         return False
 
