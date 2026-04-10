@@ -41,10 +41,6 @@
 
           <!-- Stats (solo si hay estadísticas) -->
           <div v-if="c.estadisticas" class="stats-grid">
-            <div class="stat-item stat-blue">
-              <div class="stat-num">{{ c.estadisticas.total_diligencias || 0 }}</div>
-              <div class="stat-lbl">📋 Diligencias</div>
-            </div>
             <div class="stat-item stat-pink">
               <div class="stat-num">{{ c.estadisticas.total_personas || 0 }}</div>
               <div class="stat-lbl">👥 Personas</div>
@@ -56,10 +52,6 @@
             <div class="stat-item stat-orange">
               <div class="stat-num">{{ c.estadisticas.total_fechas || 0 }}</div>
               <div class="stat-lbl">📅 Fechas</div>
-            </div>
-            <div class="stat-item stat-red">
-              <div class="stat-num">{{ c.estadisticas.total_alertas_activas || 0 }}</div>
-              <div class="stat-lbl">⚠️ Alertas</div>
             </div>
           </div>
 

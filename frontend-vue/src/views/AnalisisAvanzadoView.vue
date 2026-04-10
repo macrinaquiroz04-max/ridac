@@ -53,14 +53,7 @@
             <div class="stat-number">{{ analisis.resumen?.total_lugares ?? 0 }}</div>
             <div class="stat-label">Lugares</div>
           </div>
-          <div class="stat-box">
-            <div class="stat-number">{{ analisis.resumen?.total_diligencias ?? 0 }}</div>
-            <div class="stat-label">Diligencias</div>
-          </div>
-          <div class="stat-box">
-            <div class="stat-number">{{ analisis.resumen?.total_alertas ?? 0 }}</div>
-            <div class="stat-label">Alertas</div>
-          </div>
+
           <div class="stat-box">
             <div class="stat-number">{{ analisis.resumen?.paginas_analizadas ?? 0 }}</div>
             <div class="stat-label">Páginas Analizadas</div>
