@@ -137,15 +137,15 @@
             <!-- Stats resumen -->
             <div class="stats-resultados-grid">
               <div class="stat-res-card rosa">
-                <div class="stat-res-num">{{ analisisResultados.personas.length }}</div>
+                <div class="stat-res-num">{{ analisisResultados.totalPersonas }}</div>
                 <div class="stat-res-lbl">👤 Nombres</div>
               </div>
               <div class="stat-res-card cyan">
-                <div class="stat-res-num">{{ analisisResultados.lugares.length }}</div>
+                <div class="stat-res-num">{{ analisisResultados.totalLugares }}</div>
                 <div class="stat-res-lbl">📍 Lugares</div>
               </div>
               <div class="stat-res-card naranja">
-                <div class="stat-res-num">{{ analisisResultados.fechas.length }}</div>
+                <div class="stat-res-num">{{ analisisResultados.totalFechas }}</div>
                 <div class="stat-res-lbl">📅 Fechas</div>
               </div>
             </div>
@@ -157,7 +157,7 @@
 
             <!-- ── NOMBRES / PERSONAS ── -->
             <div class="entidad-seccion">
-              <h3 class="entidad-titulo">👤 Nombres detectados ({{ analisisResultados.personas.length }})</h3>
+              <h3 class="entidad-titulo">👤 Nombres detectados ({{ analisisResultados.totalPersonas }})</h3>
               <div v-if="!analisisResultados.personas.length" class="empty-state sm">No se encontraron nombres.</div>
               <div v-else class="entidad-tabla">
                 <div class="entidad-fila cabecera">
@@ -175,7 +175,7 @@
 
             <!-- ── LUGARES ── -->
             <div class="entidad-seccion">
-              <h3 class="entidad-titulo">📍 Ubicaciones detectadas ({{ analisisResultados.lugares.length }})</h3>
+              <h3 class="entidad-titulo">📍 Ubicaciones detectadas ({{ analisisResultados.totalLugares }})</h3>
               <div v-if="!analisisResultados.lugares.length" class="empty-state sm">No se encontraron ubicaciones.</div>
               <div v-else class="entidad-tabla">
                 <div class="entidad-fila cabecera">
@@ -193,7 +193,7 @@
 
             <!-- ── FECHAS ── -->
             <div class="entidad-seccion">
-              <h3 class="entidad-titulo">📅 Fechas detectadas ({{ analisisResultados.fechas.length }})</h3>
+              <h3 class="entidad-titulo">📅 Fechas detectadas ({{ analisisResultados.totalFechas }})</h3>
               <div v-if="!analisisResultados.fechas.length" class="empty-state sm">No se encontraron fechas.</div>
               <div v-else class="entidad-tabla">
                 <div class="entidad-fila cabecera">
@@ -211,6 +211,12 @@
           </template>
         </div>
         <div class="modal-footer">
+          <button class="btn-export-pdf" @click="exportarPDF" :disabled="exportando">
+            <i class="fas fa-file-pdf"></i> Exportar PDF
+          </button>
+          <button class="btn-export-excel" @click="exportarExcel" :disabled="exportando">
+            <i class="fas fa-file-excel"></i> Exportar Excel
+          </button>
           <button class="btn-cancelar" @click="cerrarModalResultados">Cerrar</button>
         </div>
       </div>
@@ -250,6 +256,7 @@ const iniciando           = ref(false)
 const modalResultados    = ref(false)
 const carpetaResultados  = ref(null)
 const analisisResultados = ref(null)
+const exportando         = ref(false)
 
 const carpetasFiltradas = computed(() =>
   carpetas.value.filter(c =>
@@ -343,17 +350,149 @@ async function verResultados(carpeta) {
   modalResultados.value = true
   try {
     const [personasData, lugaresData, fechasData] = await Promise.all([
-      get(`/usuario/carpetas/${carpeta.id}/personas`, { limite: 200 }),
-      get(`/usuario/carpetas/${carpeta.id}/lugares`, { limite: 200 }),
-      get(`/usuario/carpetas/${carpeta.id}/fechas`, { limite: 500 }),
+      get(`/usuario/carpetas/${carpeta.id}/personas`, { limite: 1000 }),
+      get(`/usuario/carpetas/${carpeta.id}/lugares`,  { limite: 1000 }),
+      get(`/usuario/carpetas/${carpeta.id}/fechas`,   { limite: 1000 }),
     ])
+    const personas = personasData?.personas ?? (Array.isArray(personasData) ? personasData : [])
+    const lugares  = lugaresData?.lugares   ?? (Array.isArray(lugaresData)  ? lugaresData  : [])
+    const fechas   = fechasData?.fechas     ?? (Array.isArray(fechasData)   ? fechasData   : [])
     analisisResultados.value = {
-      personas: personasData?.personas ?? (Array.isArray(personasData) ? personasData : []),
-      lugares:  lugaresData?.lugares  ?? (Array.isArray(lugaresData)  ? lugaresData  : []),
-      fechas:   fechasData?.fechas    ?? (Array.isArray(fechasData)   ? fechasData   : []),
+      personas,
+      lugares,
+      fechas,
+      totalPersonas: personasData?.total ?? personas.length,
+      totalLugares:  lugaresData?.total  ?? lugares.length,
+      totalFechas:   fechasData?.total   ?? fechas.length,
     }
   } catch (e) {
     showToast('Error al cargar resultados: ' + (e.message || ''), 'error')
+  }
+}
+
+async function exportarExcel() {
+  if (!analisisResultados.value) return
+  exportando.value = true
+  try {
+    const { utils, writeFile } = await import('xlsx')
+    const wb = utils.book_new()
+    const nombre = carpetaResultados.value?.nombre || 'RIDAC'
+
+    // Hoja Personas
+    const wsPersonas = utils.json_to_sheet(
+      analisisResultados.value.personas.map(p => ({
+        Nombre: p.nombre,
+        Rol: p.rol || '',
+        Menciones: p.total_menciones,
+        Tomo: p.tomo_nombre || '',
+        'Página': p.pagina_primera_mencion || ''
+      }))
+    )
+    utils.book_append_sheet(wb, wsPersonas, 'Personas')
+
+    // Hoja Lugares
+    const wsLugares = utils.json_to_sheet(
+      analisisResultados.value.lugares.map(l => ({
+        Lugar: l.nombre || l.direccion_completa || '',
+        Tipo: l.tipo || '',
+        Municipio: l.municipio || '',
+        Estado: l.estado || '',
+        Tomo: l.tomo_nombre || '',
+        'Página': l.pagina || ''
+      }))
+    )
+    utils.book_append_sheet(wb, wsLugares, 'Lugares')
+
+    // Hoja Fechas
+    const wsFechas = utils.json_to_sheet(
+      analisisResultados.value.fechas.map(f => ({
+        Fecha: f.fecha || '',
+        'Texto original': f.fecha_texto || '',
+        Tipo: f.tipo || '',
+        Tomo: f.tomo_nombre || '',
+        'Página': f.pagina || ''
+      }))
+    )
+    utils.book_append_sheet(wb, wsFechas, 'Fechas')
+
+    writeFile(wb, `${nombre}_entidades.xlsx`)
+  } catch (e) {
+    showToast('Error al exportar Excel: ' + (e.message || ''), 'error')
+  } finally {
+    exportando.value = false
+  }
+}
+
+async function exportarPDF() {
+  if (!analisisResultados.value) return
+  exportando.value = true
+  try {
+    const { default: jsPDF } = await import('jspdf')
+    const { default: autoTable } = await import('jspdf-autotable')
+    const nombre = carpetaResultados.value?.nombre || 'RIDAC'
+    const doc = new jsPDF({ orientation: 'landscape' })
+    const fecha = new Date().toLocaleDateString('es-MX')
+
+    // Título
+    doc.setFontSize(16)
+    doc.setTextColor(30, 60, 120)
+    doc.text(`RIDAC — Entidades: ${nombre}`, 14, 15)
+    doc.setFontSize(9)
+    doc.setTextColor(100)
+    doc.text(`Generado: ${fecha}`, 14, 21)
+
+    let y = 28
+
+    // Tabla Personas
+    doc.setFontSize(11)
+    doc.setTextColor(30, 60, 120)
+    doc.text(`Personas (${analisisResultados.value.totalPersonas})`, 14, y)
+    autoTable(doc, {
+      startY: y + 3,
+      head: [['Nombre', 'Rol', 'Menciones', 'Tomo', 'Pág.']],
+      body: analisisResultados.value.personas.map(p => [
+        p.nombre, p.rol || '—', p.total_menciones, p.tomo_nombre || '—', p.pagina_primera_mencion || '?'
+      ]),
+      styles: { fontSize: 7, cellPadding: 1.5 },
+      headStyles: { fillColor: [30, 60, 120] },
+    })
+
+    // Tabla Lugares
+    doc.addPage()
+    doc.setFontSize(11)
+    doc.setTextColor(30, 60, 120)
+    doc.text(`Ubicaciones (${analisisResultados.value.totalLugares})`, 14, 15)
+    autoTable(doc, {
+      startY: 19,
+      head: [['Lugar', 'Tipo', 'Municipio', 'Estado', 'Tomo', 'Pág.']],
+      body: analisisResultados.value.lugares.map(l => [
+        l.nombre || l.direccion_completa || '—', l.tipo || '—',
+        l.municipio || '—', l.estado || '—', l.tomo_nombre || '—', l.pagina || '?'
+      ]),
+      styles: { fontSize: 7, cellPadding: 1.5 },
+      headStyles: { fillColor: [0, 150, 180] },
+    })
+
+    // Tabla Fechas
+    doc.addPage()
+    doc.setFontSize(11)
+    doc.setTextColor(30, 60, 120)
+    doc.text(`Fechas (${analisisResultados.value.totalFechas})`, 14, 15)
+    autoTable(doc, {
+      startY: 19,
+      head: [['Fecha', 'Texto original', 'Tipo', 'Tomo', 'Pág.']],
+      body: analisisResultados.value.fechas.map(f => [
+        f.fecha || '—', f.fecha_texto || '—', f.tipo || '—', f.tomo_nombre || '—', f.pagina || '?'
+      ]),
+      styles: { fontSize: 7, cellPadding: 1.5 },
+      headStyles: { fillColor: [220, 120, 30] },
+    })
+
+    doc.save(`${nombre}_entidades.pdf`)
+  } catch (e) {
+    showToast('Error al exportar PDF: ' + (e.message || ''), 'error')
+  } finally {
+    exportando.value = false
   }
 }
 
@@ -590,6 +729,17 @@ onUnmounted(() => { if (intervalo) clearInterval(intervalo) })
   border-radius: 10px; font-weight: 600; cursor: pointer;
 }
 .btn-cancelar:hover { background: #5a6268; }
+.btn-export-pdf {
+  padding: 12px 20px; background: #c0392b; color: white; border: none;
+  border-radius: 10px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px;
+}
+.btn-export-pdf:hover:not(:disabled) { background: #a93226; }
+.btn-export-excel {
+  padding: 12px 20px; background: #1e7e34; color: white; border: none;
+  border-radius: 10px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px;
+}
+.btn-export-excel:hover:not(:disabled) { background: #155d27; }
+.btn-export-pdf:disabled, .btn-export-excel:disabled { opacity: 0.6; cursor: not-allowed; }
 
 .loading-box {
   display: flex; flex-direction: column; align-items: center; gap: 12px;
